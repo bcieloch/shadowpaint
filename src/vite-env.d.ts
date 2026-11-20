@@ -55,11 +55,16 @@ export interface ShadowPaintDebugHandle {
     minZCm: number | null;
     maxZCm: number | null;
   } | null;
+  getCursor3DStats: () => {
+    visible: boolean;
+    worldPos: { x: number; y: number; z: number } | null;
+  } | null;
   getSelectionStats: () => {
     hasSelection: boolean;
     selectedPixels: number;
     mode: 'protect' | 'editInside';
   };
+  sampleRenderedPixel: (cssX: number, cssY: number) => [number, number, number, number];
   readFlatCanvasRgba: (
     width?: number,
     height?: number,

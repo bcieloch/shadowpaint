@@ -16,6 +16,8 @@ export interface PointerRouterDeps {
   getEditor: () => EditorState;
   setPane2D: (pane: Partial<Pane2DState>) => void;
   setCursor: (cursor: OverlayCursorState | null) => void;
+  isPointInteractive?: (screenPos: Vec2) => boolean;
+  onLeaveInteractiveArea?: () => void;
   onCursorImageMove?: (imagePos: Vec2 | null) => void;
   onPanningChange?: (isPanning: boolean) => void;
   toolContext: ToolContext;
@@ -72,6 +74,9 @@ export class PointerRouter {
 
   refreshCursor(): void {
     if (!this.enabled || !this.lastScreenPos) return;
+    if (this.deps.isPointInteractive && !this.deps.isPointInteractive(this.lastScreenPos)) {
+      return;
+    }
     this.emitCursor(this.lastScreenPos);
   }
 
@@ -118,6 +123,11 @@ export class PointerRouter {
 
   private readonly handlePointerDown = (e: PointerEvent): void => {
     if (this.disposed || !this.enabled) return;
+    const screenPos = this.toScreenPos(e);
+    if (this.deps.isPointInteractive && !this.deps.isPointInteractive(screenPos)) {
+      return;
+    }
+
     this.blurActiveEditable();
     const editor = this.deps.getEditor();
 
@@ -149,7 +159,6 @@ export class PointerRouter {
     this.activeTool = tool;
     this.activePointerId = e.pointerId;
 
-    const screenPos = this.toScreenPos(e);
     this.lastScreenPos = screenPos;
     tool.onDown(this.toToolEvent(e, screenPos), this.deps.toolContext);
     this.emitCursor(screenPos);
@@ -159,9 +168,9 @@ export class PointerRouter {
     if (this.disposed || !this.enabled) return;
 
     const screenPos = this.toScreenPos(e);
-    this.lastScreenPos = screenPos;
 
     if (this.panDrag && this.panDrag.pointerId === e.pointerId) {
+      this.lastScreenPos = screenPos;
       const dx = e.clientX - this.panDrag.startClientX;
       const dy = e.clientY - this.panDrag.startClientY;
       this.deps.setPane2D({
@@ -180,10 +189,22 @@ export class PointerRouter {
         this.lastScreenPos = ceScreen;
         this.activeTool.onMove(this.toToolEvent(ce, ceScreen), this.deps.toolContext);
       }
-      this.emitCursor(this.lastScreenPos);
+      if (this.lastScreenPos) {
+        this.emitCursor(this.lastScreenPos);
+      }
       return;
     }
 
+    if (this.deps.isPointInteractive && !this.deps.isPointInteractive(screenPos)) {
+      if (this.lastScreenPos !== null) {
+        this.lastScreenPos = null;
+        this.deps.setCursor(null);
+        this.deps.onLeaveInteractiveArea?.();
+      }
+      return;
+    }
+
+    this.lastScreenPos = screenPos;
     this.emitCursor(screenPos);
   };
 
@@ -204,7 +225,13 @@ export class PointerRouter {
       this.activeTool.onUp(this.toToolEvent(e, screenPos), this.deps.toolContext);
       this.activeTool = null;
       this.activePointerId = null;
-      this.emitCursor(screenPos);
+      if (this.deps.isPointInteractive && !this.deps.isPointInteractive(screenPos)) {
+        this.lastScreenPos = null;
+        this.deps.setCursor(null);
+        this.deps.onLeaveInteractiveArea?.();
+      } else {
+        this.emitCursor(screenPos);
+      }
     }
   };
 
@@ -236,10 +263,18 @@ export class PointerRouter {
 
   private readonly handleAuxClick = (e: MouseEvent): void => {
     if (!this.enabled) return;
-    if (e.button === 1) {
+    if (e.button === 1 && (!this.deps.isPointInteractive || this.deps.isPointInteractive(this.toMouseScreenPos(e)))) {
       e.preventDefault();
     }
   };
+
+  private toMouseScreenPos(e: MouseEvent): Vec2 {
+    const rect = this.element.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+  }
 
   private toScreenPos(e: PointerEvent): Vec2 {
     const rect = this.element.getBoundingClientRect();

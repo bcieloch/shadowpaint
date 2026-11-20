@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import type { Vec2 } from '@/core/types';
 import { OverlayRenderer, type OverlayCursorState } from '@/editor2d/overlay/OverlayRenderer';
+import { computeSplitPanes } from '@/editor2d/splitLayout';
 import { fitToViewport, zoom100, type ViewportSize } from '@/editor2d/viewTransform';
 import { Engine } from '@/engine3d/Engine';
 import { detectWebGL2Support } from '@/lib/webgl';
@@ -22,7 +23,17 @@ export interface UseEngineResult {
   setZoom100: () => void;
   resetView3D: () => void;
   setCursor: (cursor: OverlayCursorState | null) => void;
+  setCursorImagePos: (pos: Vec2 | null) => void;
   raycast3DCanvasPx: (clientX: number, clientY: number) => Vec2 | null;
+}
+
+function resolvePane2DSize(totalViewport: ViewportSize): ViewportSize {
+  const { layout, splitRatio } = useEditorStore.getState();
+  if (layout === 'split') {
+    const { leftPane } = computeSplitPanes(totalViewport.width, totalViewport.height, splitRatio);
+    return { width: leftPane.width, height: leftPane.height };
+  }
+  return totalViewport;
 }
 
 export function useEngine(): UseEngineResult {
@@ -35,6 +46,7 @@ export function useEngine(): UseEngineResult {
   const overlayRef = useRef<OverlayRenderer | null>(null);
   const cursorRef = useRef<OverlayCursorState | null>(null);
   const viewportSizeRef = useRef<ViewportSize>({ width: 1, height: 1 });
+  const overlaySizeRef = useRef<ViewportSize>({ width: 0, height: 0 });
   const didInitialFitRef = useRef(false);
   const lastDimsRef = useRef<{ widthPx: number; heightPx: number } | null>(null);
   const antsRafRef = useRef<number | null>(null);
@@ -61,9 +73,19 @@ export function useEngine(): UseEngineResult {
       overlay.clear();
       return;
     }
+
+    const paneVp = resolvePane2DSize(viewportSizeRef.current);
+    if (
+      overlaySizeRef.current.width !== paneVp.width ||
+      overlaySizeRef.current.height !== paneVp.height
+    ) {
+      overlaySizeRef.current = paneVp;
+      overlay.resize(paneVp.width, paneVp.height);
+    }
+
     const isLit2D = viewMode2D === 'front' || viewMode2D === 'back' || viewMode2D === 'combined';
     overlay.render({
-      viewport: viewportSizeRef.current,
+      viewport: paneVp,
       imageWidth: canvas.widthPx,
       imageHeight: canvas.heightPx,
       canvasWidthCm: canvas.widthCm,
@@ -126,6 +148,8 @@ export function useEngine(): UseEngineResult {
       view3d: project.view3d,
       grid: project.grid,
       viewMode2D: editor.viewMode2D,
+      view3DLighting: editor.view3DLighting,
+      splitRatio: editor.splitRatio,
       heightDisplay: editor.heightDisplay,
       contourStepMm: editor.heightContourStepMm,
       showLampGizmos: editor.showLampGizmos,
@@ -140,13 +164,14 @@ export function useEngine(): UseEngineResult {
 
   const fitView = useCallback(() => {
     const { canvas } = useProjectStore.getState().project;
-    const vp = viewportSizeRef.current;
+    const vp = resolvePane2DSize(viewportSizeRef.current);
     if (vp.width <= 1 || vp.height <= 1) return;
     useEditorStore.getState().setPane2D(fitToViewport(vp, canvas.widthPx, canvas.heightPx));
   }, []);
 
   const setZoom100 = useCallback(() => {
-    useEditorStore.getState().setPane2D(zoom100(viewportSizeRef.current));
+    const vp = resolvePane2DSize(viewportSizeRef.current);
+    useEditorStore.getState().setPane2D(zoom100(vp));
   }, []);
 
   const resetView3D = useCallback(() => {
@@ -160,6 +185,10 @@ export function useEngine(): UseEngineResult {
     },
     [renderOverlay],
   );
+
+  const setCursorImagePos = useCallback((pos: Vec2 | null) => {
+    engineRef.current?.setCursorImagePos(pos);
+  }, []);
 
   const raycast3DCanvasPx = useCallback((clientX: number, clientY: number): Vec2 | null => {
     const engine = engineRef.current;
@@ -205,6 +234,7 @@ export function useEngine(): UseEngineResult {
         getFrontLightStats: () => engine?.getFrontLightStats() ?? null,
         getBackLightStats: () => engine?.getBackLightStats() ?? null,
         getCrossSection3DStats: () => engine?.getCrossSection3DStats() ?? null,
+        getCursor3DStats: () => engine?.getCursor3DStats() ?? null,
         getSelectionStats: () => {
           let selectedPixels = 0;
           if (mapRegistry.isAllocated) {
@@ -219,6 +249,8 @@ export function useEngine(): UseEngineResult {
             mode: useProjectStore.getState().project.selection.mode,
           };
         },
+        sampleRenderedPixel: (cssX, cssY) =>
+          engine?.sampleRenderedPixel(cssX, cssY) ?? [0, 0, 0, 0],
         readFlatCanvasRgba: (w, h, options) =>
           engine?.readFlatCanvasRgba(w, h, options) ?? new Uint8Array(0),
         read3DViewportRgba: (w, h) => engine?.read3DViewportRgba(w, h) ?? new Uint8Array(0),
@@ -299,7 +331,9 @@ export function useEngine(): UseEngineResult {
       const nextH = Math.max(1, Math.round(h));
       viewportSizeRef.current = { width: nextW, height: nextH };
       setViewportSize({ width: nextW, height: nextH });
-      overlay.resize(nextW, nextH);
+      const paneVp = resolvePane2DSize({ width: nextW, height: nextH });
+      overlaySizeRef.current = paneVp;
+      overlay.resize(paneVp.width, paneVp.height);
       engine?.resize(nextW, nextH);
 
       const { canvas } = useProjectStore.getState().project;
@@ -308,9 +342,7 @@ export function useEngine(): UseEngineResult {
         lastDimsRef.current = { widthPx: canvas.widthPx, heightPx: canvas.heightPx };
         useEditorStore
           .getState()
-          .setPane2D(
-            fitToViewport({ width: nextW, height: nextH }, canvas.widthPx, canvas.heightPx),
-          );
+          .setPane2D(fitToViewport(paneVp, canvas.widthPx, canvas.heightPx));
       }
       syncEngineParams();
     };
@@ -330,9 +362,9 @@ export function useEngine(): UseEngineResult {
       const last = lastDimsRef.current;
       if (!last || last.widthPx !== widthPx || last.heightPx !== heightPx) {
         lastDimsRef.current = { widthPx, heightPx };
-        const vp = viewportSizeRef.current;
-        if (vp.width > 16 && vp.height > 16) {
-          useEditorStore.getState().setPane2D(fitToViewport(vp, widthPx, heightPx));
+        const paneVp = resolvePane2DSize(viewportSizeRef.current);
+        if (paneVp.width > 16 && paneVp.height > 16) {
+          useEditorStore.getState().setPane2D(fitToViewport(paneVp, widthPx, heightPx));
         }
       }
       syncEngineParams();
@@ -391,6 +423,7 @@ export function useEngine(): UseEngineResult {
     setZoom100,
     resetView3D,
     setCursor,
+    setCursorImagePos,
     raycast3DCanvasPx,
   };
 }

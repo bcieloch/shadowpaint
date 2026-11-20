@@ -25,7 +25,9 @@ export class Orbit3D {
 
   setAspect(width: number, height: number): void {
     const safeH = Math.max(1, height);
-    this.camera.aspect = Math.max(1, width) / safeH;
+    const nextAspect = Math.max(1, width) / safeH;
+    if (Math.abs(this.camera.aspect - nextAspect) < 1e-6) return;
+    this.camera.aspect = nextAspect;
     this.camera.updateProjectionMatrix();
   }
 

@@ -3,6 +3,7 @@ import {
   Archive,
   Box,
   ChevronDown,
+  Columns2,
   Download,
   ExternalLink,
   FilePlus2,
@@ -325,6 +326,23 @@ export function TopBar() {
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t('topbar.layout3dTooltip')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="xs"
+                variant={layout === 'split' ? 'secondary' : 'ghost'}
+                className="h-6 gap-1 px-2 text-[11px] font-medium"
+                onClick={() => setLayout('split')}
+                aria-pressed={layout === 'split'}
+                data-testid="layout-split"
+              >
+                <Columns2 className="size-3" />
+                <span>{t('topbar.layoutSplit')}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('topbar.layoutSplitTooltip')}</TooltipContent>
           </Tooltip>
         </div>
       </div>

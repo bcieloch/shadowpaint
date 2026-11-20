@@ -6,6 +6,7 @@ import type {
   LightingSettings,
   LineSegment,
   MaterialSettings,
+  Vec2,
   View3DSettings,
 } from '@/core/types';
 import { computeLightingMix } from '@/core/units/lighting';
@@ -16,6 +17,10 @@ import {
   CrossSection3DOverlay,
   type CrossSection3DOverlayStats,
 } from '@/engine3d/scene/CrossSection3DOverlay';
+import {
+  Cursor3DMarker,
+  type Cursor3DMarkerStats,
+} from '@/engine3d/scene/Cursor3DMarker';
 import type { MapTextures } from '@/engine3d/textures/MapTextures';
 
 export interface PaintingSceneStats {
@@ -32,12 +37,19 @@ export interface CrossSectionOverlayInput {
   heightVersion: number;
 }
 
+export interface Cursor3DOverlayInput {
+  visible: boolean;
+  imagePos: Vec2 | null;
+  heightEffective: Float32Array | null;
+}
+
 export class PaintingScene {
   readonly scene: THREE.Scene;
   readonly canvasMesh: CanvasMesh;
   readonly frontLight: FrontLight;
   readonly backLight: BackLight;
   readonly crossSectionOverlay: CrossSection3DOverlay;
+  readonly cursor3DMarker: Cursor3DMarker;
 
   private readonly ambientLight: THREE.AmbientLight;
   private disposed = false;
@@ -53,6 +65,7 @@ export class PaintingScene {
     effectiveMode: LightingMode = lighting.mode,
     grid?: GridSettings,
     crossSection?: CrossSectionOverlayInput,
+    cursor3D?: Cursor3DOverlayInput,
   ) {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x121214);
@@ -78,10 +91,19 @@ export class PaintingScene {
         reliefMultiplier: view3d.reliefMultiplier,
       });
     }
+    this.cursor3DMarker = new Cursor3DMarker();
+    if (cursor3D) {
+      this.cursor3DMarker.update({
+        ...cursor3D,
+        canvas,
+        reliefMultiplier: view3d.reliefMultiplier,
+      });
+    }
 
     this.scene.add(
       this.canvasMesh.group,
       this.crossSectionOverlay.group,
+      this.cursor3DMarker.group,
       this.ambientLight,
       this.frontLight.spotLight,
       this.frontLight.spotLight.target,
@@ -101,6 +123,7 @@ export class PaintingScene {
     effectiveMode: LightingMode = lighting.mode,
     grid?: GridSettings,
     crossSection?: CrossSectionOverlayInput,
+    cursor3D?: Cursor3DOverlayInput,
   ): { shadowConfigChanged: boolean; frontScale: number } {
     if (this.disposed) return { shadowConfigChanged: false, frontScale: 0 };
 
@@ -123,6 +146,22 @@ export class PaintingScene {
         hoverT: null,
         heightEffective: null,
         heightVersion: 0,
+        canvas,
+        reliefMultiplier: view3d.reliefMultiplier,
+      });
+    }
+
+    if (cursor3D) {
+      this.cursor3DMarker.update({
+        ...cursor3D,
+        canvas,
+        reliefMultiplier: view3d.reliefMultiplier,
+      });
+    } else {
+      this.cursor3DMarker.update({
+        visible: false,
+        imagePos: null,
+        heightEffective: null,
         canvas,
         reliefMultiplier: view3d.reliefMultiplier,
       });
@@ -154,12 +193,17 @@ export class PaintingScene {
     return this.crossSectionOverlay.getStats();
   }
 
+  getCursor3DStats(): Cursor3DMarkerStats {
+    return this.cursor3DMarker.getStats();
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
     this.frontLight.dispose();
     this.backLight.dispose();
     this.crossSectionOverlay.dispose();
+    this.cursor3DMarker.dispose();
     this.canvasMesh.dispose();
   }
 }

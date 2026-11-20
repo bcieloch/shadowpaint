@@ -14,6 +14,7 @@ import type {
   View3DSettings,
 } from '@/core/types';
 import { worldXYToPx } from '@/core/units/calibration';
+import { computeSplitPanes, type SplitPanes } from '@/editor2d/splitLayout';
 import { type ViewportSize, type ViewTransformState } from '@/editor2d/viewTransform';
 import { Orbit3D } from '@/engine3d/cameras/Orbit3D';
 import { Ortho2D } from '@/engine3d/cameras/Ortho2D';
@@ -35,7 +36,12 @@ import {
 } from '@/engine3d/offscreen/renderPreview';
 import type { CanvasMeshStats } from '@/engine3d/scene/CanvasMesh';
 import type { CrossSection3DOverlayStats } from '@/engine3d/scene/CrossSection3DOverlay';
-import { PaintingScene, type CrossSectionOverlayInput } from '@/engine3d/scene/PaintingScene';
+import type { Cursor3DMarkerStats } from '@/engine3d/scene/Cursor3DMarker';
+import {
+  PaintingScene,
+  type CrossSectionOverlayInput,
+  type Cursor3DOverlayInput,
+} from '@/engine3d/scene/PaintingScene';
 import { MapTextures } from '@/engine3d/textures/MapTextures';
 import type { LayoutMode, ViewMode2D } from '@/state/editorStore';
 
@@ -50,6 +56,8 @@ export interface EngineRenderParams {
   view3d: View3DSettings;
   grid: GridSettings;
   viewMode2D: ViewMode2D;
+  view3DLighting?: LightingMode;
+  splitRatio?: number;
   heightDisplay: HeightRenderDisplay;
   contourStepMm: number;
   showLampGizmos: boolean;
@@ -123,6 +131,8 @@ export class Engine {
 
   private viewport: ViewportSize = { width: 1, height: 1 };
   private params: EngineRenderParams | null = null;
+  private cursorImagePos: Vec2 | null = null;
+  private orbitDragging = false;
 
   private needsRebuild = false;
   private pendingFull: Record<MapId, boolean> = {
@@ -164,6 +174,36 @@ export class Engine {
     this.callbacks.onContextRestored?.();
   };
 
+  private readonly handleCanvasPointerDownCapture = (e: PointerEvent): void => {
+    if (this.params?.layout !== 'split') return;
+    const rect = this.canvasElement.getBoundingClientRect();
+    const localX = e.clientX - rect.left;
+    const panes = this.getSplitPanes();
+    const inRight = localX >= panes.dividerX;
+    this.orbitDragging = inRight;
+    this.orbit3D.setEnabled(inRight);
+  };
+
+  private readonly handleCanvasPointerMoveCapture = (e: PointerEvent): void => {
+    if (this.params?.layout !== 'split' || this.orbitDragging) return;
+    const rect = this.canvasElement.getBoundingClientRect();
+    const localX = e.clientX - rect.left;
+    const panes = this.getSplitPanes();
+    this.orbit3D.setEnabled(localX >= panes.dividerX);
+  };
+
+  private readonly handleWindowPointerUpCapture = (): void => {
+    this.orbitDragging = false;
+  };
+
+  private readonly handleCanvasWheelCapture = (e: WheelEvent): void => {
+    if (this.params?.layout !== 'split') return;
+    const rect = this.canvasElement.getBoundingClientRect();
+    const localX = e.clientX - rect.left;
+    const panes = this.getSplitPanes();
+    this.orbit3D.setEnabled(localX >= panes.dividerX);
+  };
+
   constructor(
     canvasElement: HTMLCanvasElement,
     registry: MapRegistry,
@@ -194,6 +234,18 @@ export class Engine {
 
     canvasElement.addEventListener('webglcontextlost', this.handleContextLost);
     canvasElement.addEventListener('webglcontextrestored', this.handleContextRestored);
+    canvasElement.addEventListener('pointerdown', this.handleCanvasPointerDownCapture, {
+      capture: true,
+    });
+    canvasElement.addEventListener('pointermove', this.handleCanvasPointerMoveCapture, {
+      capture: true,
+    });
+    canvasElement.addEventListener('wheel', this.handleCanvasWheelCapture, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener('pointerup', this.handleWindowPointerUpCapture, { capture: true });
+    window.addEventListener('pointercancel', this.handleWindowPointerUpCapture, { capture: true });
 
     this.unsubDirty = this.registry.events.on('dirty', ({ mapId, rect }) => {
       if (mapId === 'height') {
@@ -242,6 +294,29 @@ export class Engine {
     }
   }
 
+  private getSplitPanes(): SplitPanes {
+    return computeSplitPanes(
+      this.viewport.width,
+      this.viewport.height,
+      this.params?.splitRatio ?? 0.5,
+    );
+  }
+
+  private get3DViewportSize(): ViewportSize {
+    if (this.params?.layout === 'split') {
+      const { rightPane } = this.getSplitPanes();
+      return { width: rightPane.width, height: rightPane.height };
+    }
+    return this.viewport;
+  }
+
+  private resolve3DLightingMode(params: EngineRenderParams): LightingMode {
+    if (params.layout === 'split') {
+      return params.view3DLighting ?? params.lighting.mode;
+    }
+    return params.lighting.mode;
+  }
+
   private buildCrossSectionInput(visible: boolean): CrossSectionOverlayInput {
     return {
       visible,
@@ -252,10 +327,43 @@ export class Engine {
     };
   }
 
+  private buildCursor3DInput(visible: boolean): Cursor3DOverlayInput {
+    return {
+      visible: visible && this.cursorImagePos !== null,
+      imagePos: this.cursorImagePos,
+      heightEffective: this.registry.isAllocated ? this.registry.heightMap.effective : null,
+    };
+  }
+
+  setCursorImagePos(pos: Vec2 | null): void {
+    const next = pos ? { x: pos.x, y: pos.y } : null;
+    if (
+      (this.cursorImagePos === null && next === null) ||
+      (this.cursorImagePos && next && this.cursorImagePos.x === next.x && this.cursorImagePos.y === next.y)
+    ) {
+      return;
+    }
+    this.cursorImagePos = next;
+    if (this.params?.layout === 'split') {
+      this.invalidate();
+    }
+  }
+
   setRenderParams(params: EngineRenderParams): void {
     const prev = this.params;
     this.params = params;
-    this.orbit3D.setEnabled(params.layout === '3d');
+    if (params.layout === '3d') {
+      this.orbit3D.setEnabled(true);
+      this.orbitDragging = false;
+    } else if (params.layout === '2d') {
+      this.orbit3D.setEnabled(false);
+      this.orbitDragging = false;
+    } else if (prev?.layout !== 'split') {
+      this.orbitDragging = false;
+    }
+
+    const vp3d = this.get3DViewportSize();
+    this.orbit3D.setAspect(vp3d.width, vp3d.height);
 
     if (
       prev &&
@@ -280,7 +388,7 @@ export class Engine {
       this.shadowDirty = true;
     }
 
-    if (params.layout === '3d' && !this.orbitInitializedForProject) {
+    if ((params.layout === '3d' || params.layout === 'split') && !this.orbitInitializedForProject) {
       this.orbit3D.resetView(params.canvas);
       this.orbitInitializedForProject = true;
     }
@@ -295,12 +403,15 @@ export class Engine {
     if (this.viewport.width === w && this.viewport.height === h) return;
     this.viewport = { width: w, height: h };
     this.renderer.setSize(w, h, false);
-    this.orbit3D.setAspect(w, h);
+    const vp3d = this.get3DViewportSize();
+    this.orbit3D.setAspect(vp3d.width, vp3d.height);
     this.invalidate();
   }
 
   resetView3D(): void {
     if (this.disposed || !this.params) return;
+    const vp3d = this.get3DViewportSize();
+    this.orbit3D.setAspect(vp3d.width, vp3d.height);
     this.orbit3D.resetView(this.params.canvas);
     this.orbitInitializedForProject = true;
     this.invalidate();
@@ -316,6 +427,111 @@ export class Engine {
     }
   }
 
+  private render2DPane(paneViewport: ViewportSize): void {
+    if (!this.params || !this.mapTextures || !this.flatMaterial || !this.paintingScene) return;
+    const {
+      canvas,
+      material,
+      lighting,
+      view3d,
+      viewMode2D,
+      heightDisplay,
+      contourStepMm,
+      showMaskOverlay = true,
+      pane2D,
+    } = this.params;
+
+    if (isLit2DMode(viewMode2D)) {
+      const { shadowConfigChanged, frontScale } = this.paintingScene.update(
+        this.mapTextures,
+        canvas,
+        material,
+        lighting,
+        view3d,
+        this.getMaxTextureSize(),
+        false,
+        viewMode2D,
+        undefined,
+        undefined,
+        undefined,
+      );
+      if (shadowConfigChanged) {
+        this.shadowDirty = true;
+      }
+      this.mapTextures.setNearest(pane2D.zoom >= 4, this.renderer);
+      this.ortho2D.update(paneViewport, canvas, pane2D);
+      if (this.shadowDirty && frontScale > 0 && lighting.front.castShadows) {
+        this.renderer.shadowMap.needsUpdate = true;
+        this.shadowDirty = false;
+      }
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = lighting.exposure;
+      this.renderer.setRenderTarget(null);
+      this.renderer.render(this.paintingScene.scene, this.ortho2D.camera);
+      this.mapTextures.markGpuInitialized();
+      return;
+    }
+
+    const uniforms = this.flatMaterial.uniforms;
+    if (uniforms.uMode) {
+      uniforms.uMode.value = resolveFlatViewShaderMode(
+        toFlatShaderKey(viewMode2D),
+        heightDisplay,
+      );
+    }
+    if (uniforms.uMinMm) uniforms.uMinMm.value = canvas.minThicknessMm;
+    if (uniforms.uMaxMm) uniforms.uMaxMm.value = canvas.maxThicknessMm;
+    if (uniforms.uContourStepMm) uniforms.uContourStepMm.value = contourStepMm;
+    if (uniforms.uShowMaskOverlay) {
+      uniforms.uShowMaskOverlay.value = showMaskOverlay && this.registry.hasSelection ? 1 : 0;
+    }
+
+    this.mapTextures.setNearest(pane2D.zoom >= 4, this.renderer);
+    this.ortho2D.update(paneViewport, canvas, pane2D);
+
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.toneMappingExposure = 1;
+    this.renderer.setRenderTarget(null);
+    this.renderer.render(this.flatScene, this.ortho2D.camera);
+    this.mapTextures.markGpuInitialized();
+  }
+
+  private render3DPane(mode: LightingMode, showSplitCursor: boolean): void {
+    if (!this.params || !this.mapTextures || !this.paintingScene) return;
+    const { canvas, material, lighting, view3d, grid, showLampGizmos } = this.params;
+    const { shadowConfigChanged, frontScale } = this.paintingScene.update(
+      this.mapTextures,
+      canvas,
+      material,
+      lighting,
+      view3d,
+      this.getMaxTextureSize(),
+      showLampGizmos,
+      mode,
+      grid,
+      this.buildCrossSectionInput(true),
+      this.buildCursor3DInput(showSplitCursor),
+    );
+    if (shadowConfigChanged) {
+      this.shadowDirty = true;
+    }
+    if (this.orbit3D.controls.enabled) {
+      this.orbit3D.update();
+    } else {
+      this.orbit3D.camera.updateMatrixWorld();
+    }
+    this.mapTextures.setNearest(false, this.renderer);
+    if (this.shadowDirty && frontScale > 0 && lighting.front.castShadows) {
+      this.renderer.shadowMap.needsUpdate = true;
+      this.shadowDirty = false;
+    }
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = lighting.exposure;
+    this.renderer.setRenderTarget(null);
+    this.renderer.render(this.paintingScene.scene, this.orbit3D.camera);
+    this.mapTextures.markGpuInitialized();
+  }
+
   renderNow(): void {
     if (this.disposed || this.contextLost || !this.params || !this.registry.isAllocated) {
       return;
@@ -327,103 +543,35 @@ export class Engine {
         return;
       }
 
-      const {
-        layout,
-        canvas,
-        material,
-        lighting,
-        view3d,
-        grid,
-        viewMode2D,
-        heightDisplay,
-        contourStepMm,
-        showLampGizmos,
-        showMaskOverlay = true,
-        pane2D,
-      } = this.params;
+      const { layout } = this.params;
+
+      if (layout === 'split') {
+        const { leftPane, rightPane } = this.getSplitPanes();
+        this.orbit3D.setAspect(rightPane.width, rightPane.height);
+        this.renderer.setScissorTest(true);
+
+        // Pass 1: 2D left pane
+        this.renderer.setViewport(leftPane.x, 0, leftPane.width, leftPane.height);
+        this.renderer.setScissor(leftPane.x, 0, leftPane.width, leftPane.height);
+        this.render2DPane({ width: leftPane.width, height: leftPane.height });
+
+        // Pass 2: 3D right pane
+        this.renderer.setViewport(rightPane.x, 0, rightPane.width, rightPane.height);
+        this.renderer.setScissor(rightPane.x, 0, rightPane.width, rightPane.height);
+        this.render3DPane(this.resolve3DLightingMode(this.params), true);
+        return;
+      }
+
+      this.renderer.setScissorTest(false);
+      this.renderer.setViewport(0, 0, this.viewport.width, this.viewport.height);
 
       if (layout === '3d') {
-        const { shadowConfigChanged, frontScale } = this.paintingScene.update(
-          this.mapTextures,
-          canvas,
-          material,
-          lighting,
-          view3d,
-          this.getMaxTextureSize(),
-          showLampGizmos,
-          lighting.mode,
-          grid,
-          this.buildCrossSectionInput(true),
-        );
-        if (shadowConfigChanged) {
-          this.shadowDirty = true;
-        }
-        this.orbit3D.update();
-        this.mapTextures.setNearest(false, this.renderer);
-        if (this.shadowDirty && frontScale > 0 && lighting.front.castShadows) {
-          this.renderer.shadowMap.needsUpdate = true;
-          this.shadowDirty = false;
-        }
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = lighting.exposure;
-        this.renderer.setRenderTarget(null);
-        this.renderer.render(this.paintingScene.scene, this.orbit3D.camera);
-        this.mapTextures.markGpuInitialized();
+        this.orbit3D.setAspect(this.viewport.width, this.viewport.height);
+        this.render3DPane(this.params.lighting.mode, false);
         return;
       }
 
-      if (isLit2DMode(viewMode2D)) {
-        const { shadowConfigChanged, frontScale } = this.paintingScene.update(
-          this.mapTextures,
-          canvas,
-          material,
-          lighting,
-          view3d,
-          this.getMaxTextureSize(),
-          false,
-          viewMode2D,
-          undefined,
-          undefined,
-        );
-        if (shadowConfigChanged) {
-          this.shadowDirty = true;
-        }
-        this.mapTextures.setNearest(pane2D.zoom >= 4, this.renderer);
-        this.ortho2D.update(this.viewport, canvas, pane2D);
-        if (this.shadowDirty && frontScale > 0 && lighting.front.castShadows) {
-          this.renderer.shadowMap.needsUpdate = true;
-          this.shadowDirty = false;
-        }
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = lighting.exposure;
-        this.renderer.setRenderTarget(null);
-        this.renderer.render(this.paintingScene.scene, this.ortho2D.camera);
-        this.mapTextures.markGpuInitialized();
-        return;
-      }
-
-      const uniforms = this.flatMaterial.uniforms;
-      if (uniforms.uMode) {
-        uniforms.uMode.value = resolveFlatViewShaderMode(
-          toFlatShaderKey(viewMode2D),
-          heightDisplay,
-        );
-      }
-      if (uniforms.uMinMm) uniforms.uMinMm.value = canvas.minThicknessMm;
-      if (uniforms.uMaxMm) uniforms.uMaxMm.value = canvas.maxThicknessMm;
-      if (uniforms.uContourStepMm) uniforms.uContourStepMm.value = contourStepMm;
-      if (uniforms.uShowMaskOverlay) {
-        uniforms.uShowMaskOverlay.value = showMaskOverlay && this.registry.hasSelection ? 1 : 0;
-      }
-
-      this.mapTextures.setNearest(pane2D.zoom >= 4, this.renderer);
-      this.ortho2D.update(this.viewport, canvas, pane2D);
-
-      this.renderer.toneMapping = THREE.NoToneMapping;
-      this.renderer.toneMappingExposure = 1;
-      this.renderer.setRenderTarget(null);
-      this.renderer.render(this.flatScene, this.ortho2D.camera);
-      this.mapTextures.markGpuInitialized();
+      this.render2DPane(this.viewport);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       this.callbacks.onError?.(error);
@@ -442,8 +590,12 @@ export class Engine {
     const flatGeo = createCanvasQuadGeometry(canvas.widthCm, canvas.heightCm);
     const flatMesh = new THREE.Mesh(flatGeo, flatMat);
 
-    const effectiveMode =
-      layout === '3d' ? lighting.mode : isLit2DMode(viewMode2D) ? viewMode2D : lighting.mode;
+    const is3DVisible = layout === '3d' || layout === 'split';
+    const effectiveMode = is3DVisible
+      ? this.resolve3DLightingMode(this.params)
+      : isLit2DMode(viewMode2D)
+        ? viewMode2D
+        : lighting.mode;
 
     const paintingScene = new PaintingScene(
       textures,
@@ -452,10 +604,11 @@ export class Engine {
       lighting,
       view3d,
       this.getMaxTextureSize(),
-      layout === '3d' && showLampGizmos,
+      is3DVisible && showLampGizmos,
       effectiveMode,
-      layout === '3d' ? grid : undefined,
-      layout === '3d' ? this.buildCrossSectionInput(true) : undefined,
+      is3DVisible ? grid : undefined,
+      is3DVisible ? this.buildCrossSectionInput(true) : undefined,
+      layout === 'split' ? this.buildCursor3DInput(true) : undefined,
     );
 
     this.mapTextures = textures;
@@ -470,7 +623,9 @@ export class Engine {
     this.builtHeightCm = canvas.heightCm;
     this.orbitInitializedForProject = false;
     this.shadowDirty = true;
-    if (this.params.layout === '3d') {
+    const vp3d = this.get3DViewportSize();
+    this.orbit3D.setAspect(vp3d.width, vp3d.height);
+    if (is3DVisible) {
       this.orbit3D.resetView(canvas);
       this.orbitInitializedForProject = true;
     }
@@ -546,6 +701,7 @@ export class Engine {
           viewMode2D,
           undefined,
           undefined,
+          undefined,
         );
         if (shadowConfigChanged) {
           this.shadowDirty = true;
@@ -615,7 +771,8 @@ export class Engine {
       return new Uint8Array(0);
     }
 
-    const { canvas, material, lighting, view3d, grid, showLampGizmos } = this.params;
+    const { canvas, material, lighting, view3d, grid, showLampGizmos, layout } = this.params;
+    const mode3D = this.resolve3DLightingMode(this.params);
     const { shadowConfigChanged, frontScale } = this.paintingScene.update(
       this.mapTextures,
       canvas,
@@ -624,9 +781,10 @@ export class Engine {
       view3d,
       this.getMaxTextureSize(),
       showLampGizmos,
-      lighting.mode,
+      mode3D,
       grid,
       this.buildCrossSectionInput(true),
+      this.buildCursor3DInput(layout === 'split'),
     );
     if (shadowConfigChanged) {
       this.shadowDirty = true;
@@ -680,6 +838,30 @@ export class Engine {
     }
   }
 
+  /**
+   * Synchronously renders the current frame to the default framebuffer and reads
+   * an RGBA8 pixel at CSS coordinates relative to the WebGL canvas.
+   */
+  sampleRenderedPixel(cssX: number, cssY: number): [number, number, number, number] {
+    if (this.disposed || this.contextLost || !this.params || !this.registry.isAllocated) {
+      return [0, 0, 0, 0];
+    }
+    this.renderNow();
+    const gl = this.renderer.getContext();
+    const dpr = this.renderer.getPixelRatio();
+    const px = Math.max(
+      0,
+      Math.min(gl.drawingBufferWidth - 1, Math.floor(cssX * dpr)),
+    );
+    const py = Math.max(
+      0,
+      Math.min(gl.drawingBufferHeight - 1, gl.drawingBufferHeight - 1 - Math.floor(cssY * dpr)),
+    );
+    const out = new Uint8Array(4);
+    gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, out);
+    return [out[0] ?? 0, out[1] ?? 0, out[2] ?? 0, out[3] ?? 0];
+  }
+
   renderPreview(mode: LightingMode, longestSide: number): RenderedPreviewImage | null {
     if (this.disposed || this.contextLost || !this.registry.isAllocated || !this.params) {
       return null;
@@ -709,14 +891,14 @@ export class Engine {
     return result;
   }
 
-  get3DStats(): CanvasMeshStats | null {
-    if (!this.paintingScene || !this.params || !this.mapTextures) return null;
-    const effectiveMode =
-      this.params.layout === '3d'
-        ? this.params.lighting.mode
-        : isLit2DMode(this.params.viewMode2D)
-          ? this.params.viewMode2D
-          : this.params.lighting.mode;
+  private syncSceneForStats(): boolean {
+    if (!this.paintingScene || !this.params || !this.mapTextures) return false;
+    const is3DVisible = this.params.layout === '3d' || this.params.layout === 'split';
+    const effectiveMode = is3DVisible
+      ? this.resolve3DLightingMode(this.params)
+      : isLit2DMode(this.params.viewMode2D)
+        ? this.params.viewMode2D
+        : this.params.lighting.mode;
     this.paintingScene.update(
       this.mapTextures,
       this.params.canvas,
@@ -724,75 +906,38 @@ export class Engine {
       this.params.lighting,
       this.params.view3d,
       this.getMaxTextureSize(),
-      this.params.layout === '3d' && this.params.showLampGizmos,
+      is3DVisible && this.params.showLampGizmos,
       effectiveMode,
-      this.params.layout === '3d' ? this.params.grid : undefined,
-      this.params.layout === '3d' ? this.buildCrossSectionInput(true) : undefined,
+      is3DVisible ? this.params.grid : undefined,
+      is3DVisible ? this.buildCrossSectionInput(true) : undefined,
+      this.params.layout === 'split' ? this.buildCursor3DInput(true) : undefined,
     );
+    return true;
+  }
+
+  get3DStats(): CanvasMeshStats | null {
+    if (!this.syncSceneForStats() || !this.paintingScene) return null;
     return this.paintingScene.getCanvasStats();
   }
 
   getFrontLightStats(): FrontLightStateSnapshot | null {
-    if (!this.paintingScene || !this.params || !this.mapTextures) return null;
-    const effectiveMode =
-      this.params.layout === '3d'
-        ? this.params.lighting.mode
-        : isLit2DMode(this.params.viewMode2D)
-          ? this.params.viewMode2D
-          : this.params.lighting.mode;
-    this.paintingScene.update(
-      this.mapTextures,
-      this.params.canvas,
-      this.params.material,
-      this.params.lighting,
-      this.params.view3d,
-      this.getMaxTextureSize(),
-      this.params.layout === '3d' && this.params.showLampGizmos,
-      effectiveMode,
-      this.params.layout === '3d' ? this.params.grid : undefined,
-      this.params.layout === '3d' ? this.buildCrossSectionInput(true) : undefined,
-    );
+    if (!this.syncSceneForStats() || !this.paintingScene) return null;
     return this.paintingScene.getFrontLightStats();
   }
 
   getBackLightStats(): BackLightStateSnapshot | null {
-    if (!this.paintingScene || !this.params || !this.mapTextures) return null;
-    const effectiveMode =
-      this.params.layout === '3d'
-        ? this.params.lighting.mode
-        : isLit2DMode(this.params.viewMode2D)
-          ? this.params.viewMode2D
-          : this.params.lighting.mode;
-    this.paintingScene.update(
-      this.mapTextures,
-      this.params.canvas,
-      this.params.material,
-      this.params.lighting,
-      this.params.view3d,
-      this.getMaxTextureSize(),
-      this.params.layout === '3d' && this.params.showLampGizmos,
-      effectiveMode,
-      this.params.layout === '3d' ? this.params.grid : undefined,
-      this.params.layout === '3d' ? this.buildCrossSectionInput(true) : undefined,
-    );
+    if (!this.syncSceneForStats() || !this.paintingScene) return null;
     return this.paintingScene.getBackLightStats();
   }
 
   getCrossSection3DStats(): CrossSection3DOverlayStats | null {
-    if (!this.paintingScene || !this.params || !this.mapTextures) return null;
-    this.paintingScene.update(
-      this.mapTextures,
-      this.params.canvas,
-      this.params.material,
-      this.params.lighting,
-      this.params.view3d,
-      this.getMaxTextureSize(),
-      this.params.layout === '3d' && this.params.showLampGizmos,
-      this.params.lighting.mode,
-      this.params.layout === '3d' ? this.params.grid : undefined,
-      this.buildCrossSectionInput(this.params.layout === '3d'),
-    );
+    if (!this.syncSceneForStats() || !this.paintingScene) return null;
     return this.paintingScene.getCrossSectionStats();
+  }
+
+  getCursor3DStats(): Cursor3DMarkerStats | null {
+    if (!this.syncSceneForStats() || !this.paintingScene) return null;
+    return this.paintingScene.getCursor3DStats();
   }
 
   getMemoryInfo(): RendererMemoryInfo {
@@ -826,15 +971,33 @@ export class Engine {
       this.disposed ||
       !this.params ||
       !this.registry.isAllocated ||
-      this.params.layout !== '3d' ||
+      (this.params.layout !== '3d' && this.params.layout !== 'split') ||
       rect.width <= 0 ||
       rect.height <= 0
     ) {
       return null;
     }
 
-    this.rayNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-    this.rayNdc.y = -(((clientY - rect.top) / rect.height) * 2 - 1);
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
+
+    if (this.params.layout === 'split') {
+      const { rightPane } = this.getSplitPanes();
+      if (
+        localX < rightPane.x ||
+        localX > rightPane.x + rightPane.width ||
+        localY < 0 ||
+        localY > rightPane.height
+      ) {
+        return null;
+      }
+      this.rayNdc.x = ((localX - rightPane.x) / rightPane.width) * 2 - 1;
+      this.rayNdc.y = -((localY / rightPane.height) * 2 - 1);
+    } else {
+      this.rayNdc.x = (localX / rect.width) * 2 - 1;
+      this.rayNdc.y = -((localY / rect.height) * 2 - 1);
+    }
+
     this.raycaster.setFromCamera(this.rayNdc, this.orbit3D.camera);
     const hit = this.raycaster.ray.intersectPlane(this.canvasPlaneZ0, this.rayHit);
     if (!hit) return null;
@@ -881,8 +1044,12 @@ export class Engine {
       this.shadowDirty = true;
     }
 
-    const effectiveMode =
-      layout === '3d' ? lighting.mode : isLit2DMode(viewMode2D) ? viewMode2D : lighting.mode;
+    const is3DVisible = layout === '3d' || layout === 'split';
+    const effectiveMode = is3DVisible
+      ? this.resolve3DLightingMode(this.params)
+      : isLit2DMode(viewMode2D)
+        ? viewMode2D
+        : lighting.mode;
 
     const { shadowConfigChanged } = this.paintingScene.update(
       this.mapTextures,
@@ -891,10 +1058,11 @@ export class Engine {
       lighting,
       view3d,
       this.getMaxTextureSize(),
-      layout === '3d' && showLampGizmos,
+      is3DVisible && showLampGizmos,
       effectiveMode,
-      layout === '3d' ? grid : undefined,
-      layout === '3d' ? this.buildCrossSectionInput(true) : undefined,
+      is3DVisible ? grid : undefined,
+      is3DVisible ? this.buildCrossSectionInput(true) : undefined,
+      layout === 'split' ? this.buildCursor3DInput(true) : undefined,
     );
     if (shadowConfigChanged) {
       this.shadowDirty = true;
@@ -959,6 +1127,19 @@ export class Engine {
     this.unsubSelectionChanged();
     this.canvasElement.removeEventListener('webglcontextlost', this.handleContextLost);
     this.canvasElement.removeEventListener('webglcontextrestored', this.handleContextRestored);
+    this.canvasElement.removeEventListener('pointerdown', this.handleCanvasPointerDownCapture, {
+      capture: true,
+    });
+    this.canvasElement.removeEventListener('pointermove', this.handleCanvasPointerMoveCapture, {
+      capture: true,
+    });
+    this.canvasElement.removeEventListener('wheel', this.handleCanvasWheelCapture, {
+      capture: true,
+    });
+    window.removeEventListener('pointerup', this.handleWindowPointerUpCapture, { capture: true });
+    window.removeEventListener('pointercancel', this.handleWindowPointerUpCapture, {
+      capture: true,
+    });
     this.orbit3D.dispose();
     this.disposeSceneResources();
     this.renderer.dispose();
