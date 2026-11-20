@@ -1,5 +1,6 @@
 import type {
   CanvasSettings,
+  ExportSettings,
   ColorAdjustments,
   HeightAdjustments,
   LightingSettings,
@@ -109,6 +110,11 @@ export type SettingsPatch =
       path: 'material';
       before: MaterialSettings;
       after: MaterialSettings;
+    }
+  | {
+      path: 'export';
+      before: ExportSettings;
+      after: ExportSettings;
     };
 
 export interface SettingsHistoryEntry {

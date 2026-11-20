@@ -1,4 +1,5 @@
-import { Box, FilePlus2, Layers3, Redo2, Square, Undo2 } from 'lucide-react';
+import { Archive, Box, FilePlus2, Layers3, Redo2, Square, Undo2 } from 'lucide-react';
+import { exportPackage } from '@/services/exportService';
 import { formatHistoryMeta, redoGlobal, undoGlobal } from '@/services/historyService';
 import { useEditorStore } from '@/state/editorStore';
 import {
@@ -17,6 +18,7 @@ export function TopBar() {
   const { locale, setLocale, t } = useI18n();
   const projectName = useProjectStore((s) => s.project.name);
   const setDialogOpen = useUiStore((s) => s.setDialogOpen);
+  const isTaskBusy = useUiStore((s) => s.tasks.length > 0);
   const layout = useEditorStore((s) => s.layout);
   const setLayout = useEditorStore((s) => s.setLayout);
   const undoEntry = useHistoryStore(selectGlobalUndoEntry);
@@ -62,6 +64,24 @@ export function TopBar() {
             </Button>
           </TooltipTrigger>
           <TooltipContent>{t('topbar.newProjectTooltip')}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              className="gap-1.5"
+              disabled={isTaskBusy}
+              onClick={() => void exportPackage()}
+              data-testid="btn-export-package"
+            >
+              <Archive className="size-3.5" />
+              <span>{t('topbar.exportPackage')}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('topbar.exportPackageTooltip')}</TooltipContent>
         </Tooltip>
 
         <Separator orientation="vertical" className="h-4" />

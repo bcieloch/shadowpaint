@@ -5,6 +5,7 @@ import type { LightingMode, MapId } from '@/core/types';
 import { getCalibrationMetrics } from '@/core/units/calibration';
 import { PointerRouter } from '@/editor2d/input/PointerRouter';
 import { zoomAtPoint, type ViewportSize } from '@/editor2d/viewTransform';
+import { exportPackage } from '@/services/exportService';
 import {
   recordSettingsPatchHistory,
   recordTileHistory,
@@ -287,6 +288,9 @@ export function ViewportHost() {
         } else if (e.key === '1') {
           e.preventDefault();
           setZoom100();
+        } else if (!e.altKey && !e.shiftKey && lower === 'e') {
+          e.preventDefault();
+          void exportPackage();
         }
         return;
       }
