@@ -1,9 +1,39 @@
 import { create } from 'zustand';
 import { DEFAULT_COLOR_HEX } from '@/core/constants';
 import type { LightingMode, LineSegment, MapId, SelectionCombineMode } from '@/core/types';
+import { clampSplitRatio, SPLIT_DEFAULT_RATIO } from '@/editor2d/splitLayout';
 import type { GradientKind } from '@/imaging/gradient';
 
 export type { LineSegment };
+
+const SPLIT_RATIO_STORAGE_KEY = 'shadowpaint.splitRatio';
+
+function readInitialSplitRatio(): number {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = window.localStorage.getItem(SPLIT_RATIO_STORAGE_KEY);
+      if (raw !== null) {
+        const parsed = Number(raw);
+        if (Number.isFinite(parsed)) {
+          return clampSplitRatio(parsed);
+        }
+      }
+    }
+  } catch {
+    // Ignore storage access errors in restricted contexts
+  }
+  return SPLIT_DEFAULT_RATIO;
+}
+
+function saveSplitRatio(ratio: number): void {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(SPLIT_RATIO_STORAGE_KEY, ratio.toFixed(4));
+    }
+  } catch {
+    // Ignore storage access errors
+  }
+}
 
 export type ToolId =
   | 'brush'
@@ -189,7 +219,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   heightContourStepMm: 0.5,
   showLampGizmos: true,
   pane2D: { zoom: 1, panX: 0, panY: 0 },
-  splitRatio: 0.5,
+  splitRatio: readInitialSplitRatio(),
   rulerLine: null,
   crossSectionLine: null,
   crossSectionHoverT: null,
@@ -214,7 +244,11 @@ export const useEditorStore = create<EditorState>((set) => ({
   setHeightContourStepMm: (heightContourStepMm) => set({ heightContourStepMm }),
   setShowLampGizmos: (showLampGizmos) => set({ showLampGizmos }),
   setPane2D: (pane) => set((s) => ({ pane2D: { ...s.pane2D, ...pane } })),
-  setSplitRatio: (splitRatio) => set({ splitRatio }),
+  setSplitRatio: (splitRatio) => {
+    const clamped = clampSplitRatio(splitRatio);
+    saveSplitRatio(clamped);
+    set({ splitRatio: clamped });
+  },
   setRulerLine: (rulerLine) => set({ rulerLine }),
   setCrossSectionLine: (crossSectionLine) =>
     set((s) => ({
