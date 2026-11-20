@@ -1,3 +1,4 @@
+import { MATERIAL_PRESETS, type MaterialPresetId } from '@/core/constants';
 import type { BackLightSettings, CanvasSettings, ColorSpec, MaterialSettings } from '@/core/types';
 import { colorSpecToHex, hexToRgb01 } from '@/core/units/colorTemperature';
 import { backLightToWorld, clampNumber, type Vec3 } from '@/core/units/lighting';
@@ -31,6 +32,24 @@ export interface BackLightPixelParams extends BeerLambertPixelParams {
   back: BackLightSettings;
   backScale?: number;
   canvasSizeCm: Pick<CanvasSettings, 'widthCm' | 'heightCm'>;
+}
+
+export interface TransmissionCurveSample {
+  dMm: number;
+  whiteTotalPct: number;
+  whiteDirPct: number;
+  whiteScatPct: number;
+  tintTotalPct: number;
+}
+
+export interface SampleTransmissionCurveParams {
+  maxThicknessMm: number;
+  material: Pick<MaterialSettings, 'muA' | 'muS' | 'kTint' | 'canvasTransmittance'>;
+  globalTransmissionPct: number;
+  attenuation: number;
+  tintHex?: string;
+  opacityTau?: number;
+  steps?: number;
 }
 
 function clamp01(v: number): number {
@@ -77,6 +96,35 @@ export function linearRgbToSrgbBytes(rgb: RgbLinear): { r: number; g: number; b:
   };
 }
 
+export function transmissionLuminance(rgb: RgbLinear): number {
+  return 0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b;
+}
+
+export function applyMaterialPreset(
+  current: MaterialSettings,
+  presetId: MaterialPresetId,
+): MaterialSettings {
+  if (presetId === 'custom') {
+    return {
+      ...current,
+      preset: 'custom',
+    };
+  }
+  const spec = MATERIAL_PRESETS.find((p) => p.id === presetId);
+  if (!spec) {
+    return { ...current };
+  }
+  return {
+    ...current,
+    preset: spec.id,
+    roughness: spec.roughness,
+    muA: spec.muA,
+    muS: spec.muS,
+    kTint: spec.kTint,
+    scatterRadiusMm: spec.scatterRadiusMm,
+  };
+}
+
 function computeChannelAlpha(muA: number, colorLinearChannel: number, kTint: number): number {
   const c = clamp01(colorLinearChannel);
   const tintFactor = 1 + kTint * (1 - 0.95 * c - 1);
@@ -84,7 +132,7 @@ function computeChannelAlpha(muA: number, colorLinearChannel: number, kTint: num
 }
 
 /**
- * Exact CPU mirror of `backlight.frag.glsl` Beer-Lambert transmittance (Stage 1, without scatter blur).
+ * Exact CPU mirror of `backlight.frag.glsl` Beer-Lambert transmittance (center sample without lateral scatter blur).
  */
 export function computeBeerLambertTransmission(
   params: BeerLambertPixelParams,
@@ -138,6 +186,53 @@ export function computeBeerLambertTransmission(
     scat: { r: r.scat, g: g.scat, b: b.scat },
     total: { r: r.total, g: g.total, b: b.total },
   };
+}
+
+/**
+ * Samples Beer-Lambert transmission T(d) over `[0, maxThicknessMm]` for charting and analysis.
+ */
+export function sampleTransmissionCurve(
+  params: SampleTransmissionCurveParams,
+): TransmissionCurveSample[] {
+  const steps = Math.max(2, Math.floor(params.steps ?? 41));
+  const maxMm = Math.max(0.01, params.maxThicknessMm);
+  const opacityTau = clamp01(params.opacityTau ?? 1);
+  const tintLinear = hexToLinearRgb(params.tintHex ?? '#c84b31');
+  const whiteLinear: RgbLinear = { r: 1, g: 1, b: 1 };
+  const rangeCanvas = { minThicknessMm: 0, maxThicknessMm: maxMm };
+
+  const samples: TransmissionCurveSample[] = [];
+  for (let i = 0; i < steps; i++) {
+    const heightNorm = i / (steps - 1);
+    const dMm = heightNorm * maxMm;
+    const white = computeBeerLambertTransmission({
+      heightNorm,
+      opacityTau,
+      colorLinear: whiteLinear,
+      canvas: rangeCanvas,
+      material: params.material,
+      globalTransmissionPct: params.globalTransmissionPct,
+      attenuation: params.attenuation,
+    });
+    const tinted = computeBeerLambertTransmission({
+      heightNorm,
+      opacityTau,
+      colorLinear: tintLinear,
+      canvas: rangeCanvas,
+      material: params.material,
+      globalTransmissionPct: params.globalTransmissionPct,
+      attenuation: params.attenuation,
+    });
+
+    samples.push({
+      dMm,
+      whiteTotalPct: transmissionLuminance(white.total) * 100,
+      whiteDirPct: transmissionLuminance(white.dir) * 100,
+      whiteScatPct: transmissionLuminance(white.scat) * 100,
+      tintTotalPct: transmissionLuminance(tinted.total) * 100,
+    });
+  }
+  return samples;
 }
 
 /**

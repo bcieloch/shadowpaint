@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultProject } from '@/core/constants';
+import { createDefaultProject, MATERIAL_PRESETS } from '@/core/constants';
 import {
+  applyMaterialPreset,
   computeBackLightIrradiance,
   computeBackLightRadiance,
   computeBeerLambertTransmission,
   linearRgbToSrgbBytes,
+  sampleTransmissionCurve,
   srgbBytesToLinearRgb,
+  transmissionLuminance,
 } from '@/core/optics/beerLambert';
 
 describe('beerLambert CPU optics', () => {
@@ -126,5 +129,57 @@ describe('beerLambert CPU optics', () => {
     const bytes = linearRgbToSrgbBytes(radiance);
     expect(bytes.r).toBeGreaterThan(20);
     expect(bytes.r).toBeLessThan(255);
+  });
+
+  it('applies documented material presets while preserving canvas backing settings', () => {
+    const base = createDefaultProject().material;
+    base.canvasTransmittance = 0.72;
+    base.canvasBackColor = '#e0d6c6';
+
+    for (const preset of MATERIAL_PRESETS) {
+      const updated = applyMaterialPreset(base, preset.id);
+      expect(updated.preset).toBe(preset.id);
+      expect(updated.muA).toBe(preset.muA);
+      expect(updated.muS).toBe(preset.muS);
+      expect(updated.kTint).toBe(preset.kTint);
+      expect(updated.roughness).toBe(preset.roughness);
+      expect(updated.scatterRadiusMm).toBe(preset.scatterRadiusMm);
+      expect(updated.canvasTransmittance).toBe(0.72);
+      expect(updated.canvasBackColor).toBe('#e0d6c6');
+    }
+
+    const backToCustom = applyMaterialPreset(applyMaterialPreset(base, 'acrylicOpaque'), 'custom');
+    expect(backToCustom.preset).toBe('custom');
+    expect(backToCustom.muA).toBe(2.5);
+  });
+
+  it('samples T(d) curve in exact agreement with computeBeerLambertTransmission', () => {
+    const material = { muA: 1.8, muS: 2.0, kTint: 0.9, canvasTransmittance: 0.65 };
+    const curve = sampleTransmissionCurve({
+      maxThicknessMm: 5,
+      material,
+      globalTransmissionPct: 150,
+      attenuation: 1.2,
+      tintHex: '#cc3322',
+      steps: 11,
+    });
+
+    expect(curve).toHaveLength(11);
+    expect(curve[0]?.dMm).toBeCloseTo(0, 6);
+    expect(curve[0]?.whiteTotalPct).toBeCloseTo(150 * 0.65, 5);
+    expect(curve[10]?.dMm).toBeCloseTo(5, 6);
+
+    const mid = curve[5];
+    const directWhite = computeBeerLambertTransmission({
+      heightNorm: 0.5,
+      opacityTau: 1,
+      colorLinear: { r: 1, g: 1, b: 1 },
+      canvas: { minThicknessMm: 0, maxThicknessMm: 5 },
+      material,
+      globalTransmissionPct: 150,
+      attenuation: 1.2,
+    });
+    expect(mid?.whiteTotalPct).toBeCloseTo(transmissionLuminance(directWhite.total) * 100, 6);
+    expect(mid?.tintTotalPct ?? 0).toBeLessThan(mid?.whiteTotalPct ?? 0);
   });
 });

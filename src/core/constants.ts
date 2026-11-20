@@ -67,6 +67,68 @@ export const MIN_K_TINT = 0;
 export const MAX_K_TINT = 1;
 export const MIN_CANVAS_TRANSMITTANCE = 0;
 export const MAX_CANVAS_TRANSMITTANCE = 1;
+export const MIN_SCATTER_RADIUS_MM = 0;
+export const MAX_SCATTER_RADIUS_MM = 10;
+
+export type MaterialPresetId =
+  | 'custom'
+  | 'acrylicOpaque'
+  | 'acrylicGlaze'
+  | 'oilImpasto'
+  | 'clearGel'
+  | 'modelingPaste';
+
+export interface MaterialPresetSpec {
+  id: Exclude<MaterialPresetId, 'custom'>;
+  roughness: number;
+  muA: number;
+  muS: number;
+  kTint: number;
+  scatterRadiusMm: number;
+}
+
+export const MATERIAL_PRESETS: readonly MaterialPresetSpec[] = [
+  {
+    id: 'acrylicOpaque',
+    roughness: 0.6,
+    muA: 2.5,
+    muS: 3.0,
+    kTint: 0.9,
+    scatterRadiusMm: 1.2,
+  },
+  {
+    id: 'acrylicGlaze',
+    roughness: 0.25,
+    muA: 0.4,
+    muS: 0.3,
+    kTint: 0.95,
+    scatterRadiusMm: 0.3,
+  },
+  {
+    id: 'oilImpasto',
+    roughness: 0.45,
+    muA: 1.8,
+    muS: 2.0,
+    kTint: 0.9,
+    scatterRadiusMm: 0.9,
+  },
+  {
+    id: 'clearGel',
+    roughness: 0.15,
+    muA: 0.05,
+    muS: 0.1,
+    kTint: 0.2,
+    scatterRadiusMm: 0.2,
+  },
+  {
+    id: 'modelingPaste',
+    roughness: 0.8,
+    muA: 4.0,
+    muS: 6.0,
+    kTint: 0.3,
+    scatterRadiusMm: 2.0,
+  },
+] as const;
 
 export const DEFAULT_COLOR_HEX = '#f4f1ea';
 export const DEFAULT_HEIGHT_VALUE = 0;

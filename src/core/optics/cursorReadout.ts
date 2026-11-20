@@ -1,5 +1,9 @@
 import { clamp01 } from '@/core/maps/quantize';
-import { computeBeerLambertTransmission, srgbBytesToLinearRgb } from '@/core/optics/beerLambert';
+import {
+  computeBeerLambertTransmission,
+  srgbBytesToLinearRgb,
+  transmissionLuminance,
+} from '@/core/optics/beerLambert';
 import type { BackLightSettings, CanvasSettings, MaterialSettings } from '@/core/types';
 import { level8ToMm, mmToLevel8, pxToCm, valueToMm } from '@/core/units/calibration';
 
@@ -95,9 +99,7 @@ export function sampleCursorReadout(params: SampleCursorReadoutParams): CursorRe
     globalTransmissionPct: back.globalTransmissionPct,
     attenuation: back.attenuation,
   });
-  const lumTransmission =
-    0.2126 * transmission.total.r + 0.7152 * transmission.total.g + 0.0722 * transmission.total.b;
-  const backTransmissionPct = lumTransmission * 100;
+  const backTransmissionPct = transmissionLuminance(transmission.total) * 100;
 
   const cm = pxToCm(xPx, yPx, canvas);
 
