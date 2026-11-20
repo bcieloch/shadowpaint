@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import { ArrowLeftRight } from 'lucide-react';
 import { brushSizeToPx, getCalibrationMetrics } from '@/core/units/calibration';
 import { BLUR_REALTIME_MAX_RADIUS_PX } from '@/editor2d/tools/BlurTool';
+import { applyFillSelectionToActiveMap } from '@/services/filterService';
 import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
+import { Button } from '@/ui/components/ui/button';
 import { Input } from '@/ui/components/ui/input';
 import { Label } from '@/ui/components/ui/label';
 import { Switch } from '@/ui/components/ui/switch';
@@ -11,48 +14,55 @@ import { useI18n } from '@/ui/hooks/useI18n';
 import { SelectionOptions } from '@/ui/panels/left/SelectionOptions';
 import { LabeledSlider } from '@/ui/widgets/LabeledSlider';
 
-function ColorField() {
-  const { t } = useI18n();
-  const colorHex = useEditorStore((s) => s.brush.colorHex);
-  const setBrushOption = useEditorStore((s) => s.setBrushOption);
+function HexColorControl({
+  label,
+  value,
+  onChange,
+  pickerTestId,
+  hexTestId,
+}: {
+  label: string;
+  value: string;
+  onChange: (hex: string) => void;
+  pickerTestId: string;
+  hexTestId: string;
+}) {
   const [hexDraft, setHexDraft] = useState<string | null>(null);
 
   const commitHex = (raw: string) => {
     const cleaned = raw.trim();
     const withHash = cleaned.startsWith('#') ? cleaned : `#${cleaned}`;
     if (/^#[0-9a-fA-F]{6}$/.test(withHash)) {
-      setBrushOption('colorHex', withHash.toLowerCase());
+      onChange(withHash.toLowerCase());
     }
     setHexDraft(null);
   };
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-muted-foreground text-xs font-normal">
-        {t('toolOptions.colorValue')}
-      </Label>
+      <Label className="text-muted-foreground text-xs font-normal">{label}</Label>
       <div className="flex items-center gap-2">
         <input
           type="color"
-          aria-label={t('toolOptions.colorValue')}
-          data-testid="brush-color-picker"
-          value={colorHex}
+          aria-label={label}
+          data-testid={pickerTestId}
+          value={value}
           onChange={(e) => {
             setHexDraft(null);
-            setBrushOption('colorHex', e.target.value);
+            onChange(e.target.value);
           }}
           className="border-border h-7 w-9 cursor-pointer rounded border bg-transparent p-0.5"
         />
         <Input
           type="text"
-          value={hexDraft ?? colorHex}
-          data-testid="brush-color-hex"
-          onFocus={() => setHexDraft(colorHex)}
+          value={hexDraft ?? value}
+          data-testid={hexTestId}
+          onFocus={() => setHexDraft(value)}
           onChange={(e) => setHexDraft(e.target.value)}
-          onBlur={() => commitHex(hexDraft ?? colorHex)}
+          onBlur={() => commitHex(hexDraft ?? value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
-              commitHex(hexDraft ?? colorHex);
+              commitHex(hexDraft ?? value);
             }
           }}
           className="h-7 flex-1 font-mono text-xs uppercase"
@@ -69,10 +79,16 @@ export function ToolOptions() {
   const brush = useEditorStore((s) => s.brush);
   const smoothTool = useEditorStore((s) => s.smoothTool);
   const blurTool = useEditorStore((s) => s.blurTool);
+  const gradientTool = useEditorStore((s) => s.gradientTool);
+  const fillTool = useEditorStore((s) => s.fillTool);
+  const hasSelection = useEditorStore((s) => s.hasSelection);
   const setBrushOption = useEditorStore((s) => s.setBrushOption);
   const setSmoothToolOption = useEditorStore((s) => s.setSmoothToolOption);
   const setBlurToolOption = useEditorStore((s) => s.setBlurToolOption);
+  const setGradientToolOption = useEditorStore((s) => s.setGradientToolOption);
+  const setFillToolOption = useEditorStore((s) => s.setFillToolOption);
   const canvas = useProjectStore((s) => s.project.canvas);
+  const activeMapLocked = useProjectStore((s) => s.project.maps[activeMap].locked);
 
   const metrics = getCalibrationMetrics(canvas);
   const pxPerCm = Math.max(0.001, metrics.pxPerCm);
@@ -114,6 +130,23 @@ export function ToolOptions() {
       setBlurToolOption('radiusUnit', 'px');
       setBlurToolOption('radiusValue', nextPx);
     }
+  };
+
+  const handleSwapGradientEndpoints = () => {
+    const {
+      startColorHex,
+      endColorHex,
+      startHeightMm,
+      endHeightMm,
+      startOpacityPct,
+      endOpacityPct,
+    } = gradientTool;
+    setGradientToolOption('startColorHex', endColorHex);
+    setGradientToolOption('endColorHex', startColorHex);
+    setGradientToolOption('startHeightMm', endHeightMm);
+    setGradientToolOption('endHeightMm', startHeightMm);
+    setGradientToolOption('startOpacityPct', endOpacityPct);
+    setGradientToolOption('endOpacityPct', startOpacityPct);
   };
 
   const showBrushSliders =
@@ -213,7 +246,15 @@ export function ToolOptions() {
             />
           </div>
 
-          {tool === 'brush' && activeMap === 'color' && <ColorField />}
+          {tool === 'brush' && activeMap === 'color' && (
+            <HexColorControl
+              label={t('toolOptions.colorValue')}
+              value={brush.colorHex}
+              onChange={(hex) => setBrushOption('colorHex', hex)}
+              pickerTestId="brush-color-picker"
+              hexTestId="brush-color-hex"
+            />
+          )}
 
           {tool === 'brush' && (activeMap === 'height' || activeMap === 'opacity') && (
             <div className="border-border space-y-3 border-t pt-2.5">
@@ -359,6 +400,237 @@ export function ToolOptions() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {tool === 'gradient' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-muted-foreground text-xs">{t('toolOptions.gradientKind')}</span>
+            <ToggleGroup
+              type="single"
+              size="sm"
+              variant="outline"
+              value={gradientTool.kind}
+              onValueChange={(v) => {
+                if (v === 'linear' || v === 'radial') {
+                  setGradientToolOption('kind', v);
+                }
+              }}
+            >
+              <ToggleGroupItem
+                value="linear"
+                data-testid="gradient-kind-linear"
+                className="h-6 px-2 text-[11px]"
+              >
+                {t('toolOptions.gradientLinear')}
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="radial"
+                data-testid="gradient-kind-radial"
+                className="h-6 px-2 text-[11px]"
+              >
+                {t('toolOptions.gradientRadial')}
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
+          {activeMap === 'color' && (
+            <div className="space-y-2.5">
+              <HexColorControl
+                label={t('toolOptions.gradientStartColor')}
+                value={gradientTool.startColorHex}
+                onChange={(hex) => setGradientToolOption('startColorHex', hex)}
+                pickerTestId="gradient-start-color-picker"
+                hexTestId="gradient-start-color-hex"
+              />
+              <HexColorControl
+                label={t('toolOptions.gradientEndColor')}
+                value={gradientTool.endColorHex}
+                onChange={(hex) => setGradientToolOption('endColorHex', hex)}
+                pickerTestId="gradient-end-color-picker"
+                hexTestId="gradient-end-color-hex"
+              />
+            </div>
+          )}
+
+          {activeMap === 'height' && (
+            <div className="space-y-2.5">
+              <LabeledSlider
+                label={t('toolOptions.gradientStartHeight')}
+                value={Math.max(
+                  canvas.minThicknessMm,
+                  Math.min(canvas.maxThicknessMm, gradientTool.startHeightMm),
+                )}
+                min={canvas.minThicknessMm}
+                max={canvas.maxThicknessMm}
+                step={0.05}
+                decimals={2}
+                suffix="mm"
+                testId="gradient-start-height-input"
+                onValueChange={(v) => setGradientToolOption('startHeightMm', v)}
+              />
+              <LabeledSlider
+                label={t('toolOptions.gradientEndHeight')}
+                value={Math.max(
+                  canvas.minThicknessMm,
+                  Math.min(canvas.maxThicknessMm, gradientTool.endHeightMm),
+                )}
+                min={canvas.minThicknessMm}
+                max={canvas.maxThicknessMm}
+                step={0.05}
+                decimals={2}
+                suffix="mm"
+                testId="gradient-end-height-input"
+                onValueChange={(v) => setGradientToolOption('endHeightMm', v)}
+              />
+            </div>
+          )}
+
+          {activeMap === 'opacity' && (
+            <div className="space-y-2.5">
+              <LabeledSlider
+                label={t('toolOptions.gradientStartOpacity')}
+                value={gradientTool.startOpacityPct}
+                min={0}
+                max={100}
+                step={1}
+                decimals={0}
+                suffix="%"
+                testId="gradient-start-opacity-input"
+                onValueChange={(v) => setGradientToolOption('startOpacityPct', v)}
+              />
+              <LabeledSlider
+                label={t('toolOptions.gradientEndOpacity')}
+                value={gradientTool.endOpacityPct}
+                min={0}
+                max={100}
+                step={1}
+                decimals={0}
+                suffix="%"
+                testId="gradient-end-opacity-input"
+                onValueChange={(v) => setGradientToolOption('endOpacityPct', v)}
+              />
+            </div>
+          )}
+
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            data-testid="gradient-swap-btn"
+            onClick={handleSwapGradientEndpoints}
+            className="h-7 w-full gap-1.5 text-xs"
+          >
+            <ArrowLeftRight className="size-3.5" />
+            {t('toolOptions.gradientSwap')}
+          </Button>
+
+          {hasSelection && (
+            <div className="flex items-center justify-between pt-0.5">
+              <Label
+                htmlFor="gradient-only-selection"
+                className="text-muted-foreground text-xs font-normal"
+              >
+                {t('toolOptions.gradientOnlyInSelection')}
+              </Label>
+              <Switch
+                id="gradient-only-selection"
+                data-testid="gradient-only-selection"
+                checked={gradientTool.onlyInSelection}
+                onCheckedChange={(checked) => setGradientToolOption('onlyInSelection', checked)}
+              />
+            </div>
+          )}
+
+          <p className="text-muted-foreground text-[11px] leading-relaxed">
+            {t('toolOptions.gradientHint')}
+          </p>
+        </div>
+      )}
+
+      {tool === 'fill' && (
+        <div className="space-y-3">
+          <LabeledSlider
+            label={t('toolOptions.fillTolerance')}
+            value={fillTool.tolerancePct}
+            min={0}
+            max={100}
+            step={1}
+            decimals={0}
+            suffix="%"
+            testId="fill-tolerance-input"
+            onValueChange={(v) => setFillToolOption('tolerancePct', Math.round(v))}
+          />
+
+          <div className="flex items-center justify-between">
+            <Label htmlFor="fill-contiguous" className="text-muted-foreground text-xs font-normal">
+              {t('toolOptions.fillContiguous')}
+            </Label>
+            <Switch
+              id="fill-contiguous"
+              data-testid="fill-contiguous"
+              checked={fillTool.contiguous}
+              onCheckedChange={(checked) => setFillToolOption('contiguous', checked)}
+            />
+          </div>
+
+          {activeMap === 'color' && (
+            <HexColorControl
+              label={t('toolOptions.colorValue')}
+              value={brush.colorHex}
+              onChange={(hex) => setBrushOption('colorHex', hex)}
+              pickerTestId="brush-color-picker"
+              hexTestId="brush-color-hex"
+            />
+          )}
+
+          {activeMap === 'height' && (
+            <LabeledSlider
+              label={t('toolOptions.heightValue')}
+              value={Math.max(
+                canvas.minThicknessMm,
+                Math.min(canvas.maxThicknessMm, brush.heightMm),
+              )}
+              min={canvas.minThicknessMm}
+              max={canvas.maxThicknessMm}
+              step={0.05}
+              decimals={2}
+              suffix="mm"
+              testId="fill-height-input"
+              onValueChange={(v) => setBrushOption('heightMm', v)}
+            />
+          )}
+
+          {activeMap === 'opacity' && (
+            <LabeledSlider
+              label={t('toolOptions.opacityValue')}
+              value={brush.opacityPct}
+              min={0}
+              max={100}
+              step={1}
+              decimals={0}
+              suffix="%"
+              testId="fill-opacity-input"
+              onValueChange={(v) => setBrushOption('opacityPct', v)}
+            />
+          )}
+
+          <Button
+            type="button"
+            variant="secondary"
+            size="xs"
+            data-testid="btn-fill-selection"
+            disabled={activeMapLocked}
+            onClick={() => void applyFillSelectionToActiveMap()}
+            className="h-7 w-full text-xs"
+          >
+            {t('toolOptions.fillSelection')}
+          </Button>
+
+          <p className="text-muted-foreground text-[11px] leading-relaxed">
+            {t('toolOptions.fillHint')}
+          </p>
         </div>
       )}
 

@@ -5,12 +5,14 @@ import {
   type ViewportSize,
   type ViewTransformState,
 } from '@/editor2d/viewTransform';
+import type { GradientKind } from '@/imaging/gradient';
 
 export type SelectionDraftPreview =
   | { kind: 'rect'; rect: Rect }
   | { kind: 'ellipse'; rect: Rect }
   | { kind: 'lasso'; points: readonly Vec2[] }
-  | { kind: 'stroke'; points: readonly Vec2[] };
+  | { kind: 'stroke'; points: readonly Vec2[] }
+  | { kind: 'gradient'; gradientKind: GradientKind; p0: Vec2; p1: Vec2 };
 
 export interface OverlayCursorState {
   screenPos: Vec2;
@@ -105,7 +107,7 @@ export class OverlayRenderer {
       });
     }
 
-    // Draw active selection tool drag preview
+    // Draw active selection / gradient / stroke draft preview
     const draft = state.cursor?.selectionDraft;
     if (draft) {
       this.renderSelectionDraft(ctx, state, draft);
@@ -211,6 +213,46 @@ export class OverlayRenderer {
           ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
         });
       }
+    } else if (draft.kind === 'gradient') {
+      const s0 = imagePxToScreen(
+        state.transform,
+        state.viewport,
+        state.imageWidth,
+        state.imageHeight,
+        draft.p0.x,
+        draft.p0.y,
+      );
+      const s1 = imagePxToScreen(
+        state.transform,
+        state.viewport,
+        state.imageWidth,
+        state.imageHeight,
+        draft.p1.x,
+        draft.p1.y,
+      );
+      const radiusScreen = Math.hypot(s1.x - s0.x, s1.y - s0.y);
+      if (draft.gradientKind === 'radial' && radiusScreen >= 2) {
+        strokeDual(() => {
+          ctx.arc(s0.x, s0.y, radiusScreen, 0, Math.PI * 2);
+        });
+      }
+      strokeDual(() => {
+        ctx.moveTo(s0.x, s0.y);
+        ctx.lineTo(s1.x, s1.y);
+      });
+
+      const drawHandle = (pt: Vec2, fill: string) => {
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(11, 11, 13, 0.95)';
+        ctx.stroke();
+      };
+      drawHandle(s0, '#f59e0b');
+      drawHandle(s1, '#38bdf8');
     } else if (draft.points.length >= 2) {
       strokeDual(() => {
         const first = draft.points[0];

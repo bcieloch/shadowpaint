@@ -357,6 +357,10 @@ export function ViewportHost() {
         editor.setTool('smooth');
       } else if (lower === 'r') {
         editor.setTool('blur');
+      } else if (lower === 'g') {
+        editor.setTool('gradient');
+      } else if (lower === 'f') {
+        editor.setTool('fill');
       } else if (lower === 'i') {
         editor.setTool('eyedropper');
       } else if (lower === 'h') {

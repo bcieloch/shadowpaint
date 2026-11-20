@@ -60,6 +60,10 @@ export function formatHistoryMeta(meta: HistoryMeta, t: TranslateFn): string {
       return t('history.smoothStroke', { map: mapName });
     case 'blurStroke':
       return t('history.blurStroke', { map: mapName });
+    case 'gradientFill':
+      return t('history.gradientFill', { map: mapName });
+    case 'floodFill':
+      return t('history.floodFill', { map: mapName });
     case 'smoothMap':
       return t('history.smoothMap', { map: mapName });
     case 'importMap':

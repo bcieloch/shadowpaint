@@ -1,16 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultProject } from '@/core/constants';
-import { mapRegistry } from '@/core/maps/MapRegistry';
-import { MapRegistry } from '@/core/maps/MapRegistry';
+import { MapRegistry, mapRegistry } from '@/core/maps/MapRegistry';
 import { computeBrushFalloff, stampDab } from '@/editor2d/brush/dab';
 import { StrokeSession } from '@/editor2d/brush/stroke';
 import { BlurTool } from '@/editor2d/tools/BlurTool';
 import { BrushTool } from '@/editor2d/tools/BrushTool';
 import { EraserTool } from '@/editor2d/tools/EraserTool';
 import { EyedropperTool } from '@/editor2d/tools/EyedropperTool';
+import { FillTool } from '@/editor2d/tools/FillTool';
+import { GradientTool } from '@/editor2d/tools/GradientTool';
 import { MaskBrushTool } from '@/editor2d/tools/MaskBrushTool';
 import { SmoothTool } from '@/editor2d/tools/SmoothTool';
 import type { Tool, ToolContext, ToolPointerEvent } from '@/editor2d/tools/Tool';
+import { clearHistory, undoGlobal } from '@/services/historyService';
 import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
 
@@ -440,5 +442,84 @@ describe('brush dab, stroke, and tools', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(mapRegistry.color.working[(32 * 64 + 28) * 4]).toBeGreaterThan(20);
     expect(mapRegistry.color.working[(32 * 64 + 36) * 4]).toBeLessThan(235);
+  });
+
+  it('GradientTool and FillTool apply tile history and support undo', async () => {
+    clearHistory();
+    mapRegistry.allocate(32, 32, { height: 0, color: '#000000' });
+    const project = createDefaultProject({
+      canvas: {
+        widthPx: 32,
+        heightPx: 32,
+        widthCm: 10,
+        heightCm: 10,
+        minThicknessMm: 0,
+        maxThicknessMm: 10,
+      },
+    });
+    project.selection.mode = 'editInside';
+    useProjectStore.getState().setProject(project);
+
+    // Selection on x in [8, 23]
+    for (let y = 0; y < 32; y++) {
+      for (let x = 8; x < 24; x++) {
+        mapRegistry.selection[y * 32 + x] = 255;
+      }
+    }
+    mapRegistry.refreshSelectionState();
+
+    useEditorStore.getState().setActiveMap('height');
+    useEditorStore.getState().setGradientToolOption('kind', 'linear');
+    useEditorStore.getState().setGradientToolOption('startHeightMm', 0);
+    useEditorStore.getState().setGradientToolOption('endHeightMm', 10);
+    useEditorStore.getState().setGradientToolOption('onlyInSelection', true);
+
+    const ctx = makeToolContext(mapRegistry, useProjectStore.getState().project);
+    const gradient = new GradientTool();
+    gradient.onDown(makePointerEvent(8.5, 16), ctx);
+    gradient.onMove(makePointerEvent(23.5, 16));
+    expect(gradient.getOverlayPreview()?.kind).toBe('gradient');
+    gradient.onUp(makePointerEvent(23.5, 16), ctx);
+
+    await new Promise((r) => setTimeout(r, 20));
+    // Unselected x=4 stays 0, selected x=16 has mid-ramp ~0.5
+    expect(mapRegistry.heightMap.working[16 * 32 + 4]).toBeCloseTo(0, 4);
+    expect(mapRegistry.heightMap.working[16 * 32 + 16]).toBeCloseTo(0.5, 2);
+
+    // Undo restores flat 0
+    undoGlobal();
+    expect(mapRegistry.heightMap.working[16 * 32 + 16]).toBeCloseTo(0, 4);
+
+    // FillTool on color map
+    mapRegistry.selection.fill(0);
+    mapRegistry.refreshSelectionState();
+    for (let y = 8; y < 24; y++) {
+      for (let x = 8; x < 24; x++) {
+        const idx = (y * 32 + x) * 4;
+        mapRegistry.color.working[idx] = 100;
+        mapRegistry.color.working[idx + 1] = 100;
+        mapRegistry.color.working[idx + 2] = 100;
+      }
+    }
+    useEditorStore.getState().setActiveMap('color');
+    useEditorStore.getState().setFillToolOption('tolerancePct', 0);
+    useEditorStore.getState().setFillToolOption('contiguous', true);
+    useEditorStore.getState().setBrushOption('colorHex', '#ff4020');
+
+    const fill = new FillTool();
+    fill.onDown(
+      makePointerEvent(12, 12),
+      makeToolContext(mapRegistry, useProjectStore.getState().project),
+    );
+    fill.onUp();
+
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mapRegistry.color.working[(12 * 32 + 12) * 4]).toBe(255);
+    expect(mapRegistry.color.working[(12 * 32 + 12) * 4 + 1]).toBe(64);
+    expect(mapRegistry.color.working[(2 * 32 + 2) * 4]).toBe(0);
+
+    undoGlobal();
+    expect(mapRegistry.color.working[(12 * 32 + 12) * 4]).toBe(100);
+    clearHistory();
   });
 });
