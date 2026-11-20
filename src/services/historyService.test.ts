@@ -267,6 +267,35 @@ describe('historyStore and historyService', () => {
     expect(useProjectStore.getState().project.export).toEqual(after);
   });
 
+  it('undoes and redoes grid settings patches cleanly', () => {
+    const before = { ...useProjectStore.getState().project.grid };
+    const after = {
+      ...before,
+      spacingCm: 10,
+      subdivisions: 2,
+      color: '#38bdf8',
+      opacity: 0.75,
+      show2D: true,
+      show3D: true,
+      labels: false,
+    };
+
+    useProjectStore.getState().updateProject((d) => {
+      d.grid = { ...after };
+    });
+    recordSettingsPatchHistory('settingsChange', {
+      path: 'grid',
+      before,
+      after,
+    });
+
+    expect(useProjectStore.getState().project.grid).toEqual(after);
+    undoGlobal();
+    expect(useProjectStore.getState().project.grid).toEqual(before);
+    redoGlobal();
+    expect(useProjectStore.getState().project.grid).toEqual(after);
+  });
+
   it('undoes and redoes selection mask operations and mode changes byte-for-byte', async () => {
     const rectMask = createRectSelectionMask(128, 128, { x: 16, y: 16, w: 32, h: 32 });
     applyShapeSelection(rectMask, 'replace');

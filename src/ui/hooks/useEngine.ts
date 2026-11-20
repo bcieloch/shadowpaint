@@ -45,8 +45,8 @@ export function useEngine(): UseEngineResult {
   const renderOverlay = useCallback(() => {
     const overlay = overlayRef.current;
     if (!overlay) return;
-    const { canvas } = useProjectStore.getState().project;
-    const { layout, pane2D, viewMode2D, showMaskOverlay } = useEditorStore.getState();
+    const { canvas, grid } = useProjectStore.getState().project;
+    const { layout, pane2D, viewMode2D, showMaskOverlay, showRulers } = useEditorStore.getState();
     if (layout === '3d') {
       overlay.clear();
       return;
@@ -56,8 +56,12 @@ export function useEngine(): UseEngineResult {
       viewport: viewportSizeRef.current,
       imageWidth: canvas.widthPx,
       imageHeight: canvas.heightPx,
+      canvasWidthCm: canvas.widthCm,
+      canvasHeightCm: canvas.heightCm,
       transform: pane2D,
       cursor: cursorRef.current,
+      grid,
+      showRulers,
       selectionMask: mapRegistry.isAllocated ? mapRegistry.selection : null,
       hasSelection: mapRegistry.hasSelection,
       marchingAntsPhasePx: antsPhaseRef.current,
@@ -105,6 +109,7 @@ export function useEngine(): UseEngineResult {
       material: project.material,
       lighting: project.lighting,
       view3d: project.view3d,
+      grid: project.grid,
       viewMode2D: editor.viewMode2D,
       heightDisplay: editor.heightDisplay,
       contourStepMm: editor.heightContourStepMm,

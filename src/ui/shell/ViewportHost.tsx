@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Frame, Lightbulb, Maximize2, RotateCcw, Scan } from 'lucide-react';
+import { Frame, Grid3x3, Lightbulb, Maximize2, RotateCcw, Ruler, Scan } from 'lucide-react';
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import type { LightingMode, MapId } from '@/core/types';
 import { getCalibrationMetrics } from '@/core/units/calibration';
@@ -62,10 +62,27 @@ function setProjectLightingModeWithHistory(mode: LightingMode): void {
   });
 }
 
+function toggleGridVisibilityWithHistory(target: '2d' | '3d'): void {
+  const before = { ...useProjectStore.getState().project.grid };
+  useProjectStore.getState().updateProject((d) => {
+    if (target === '3d') {
+      d.grid.show3D = !d.grid.show3D;
+    } else {
+      d.grid.show2D = !d.grid.show2D;
+    }
+  });
+  recordSettingsPatchHistory('settingsChange', {
+    path: 'grid',
+    before,
+    after: { ...useProjectStore.getState().project.grid },
+  });
+}
+
 export function ViewportHost() {
   const { t } = useI18n();
   const canvas = useProjectStore((s) => s.project.canvas);
   const view3d = useProjectStore((s) => s.project.view3d);
+  const grid = useProjectStore((s) => s.project.grid);
   const lightingMode = useProjectStore((s) => s.project.lighting.mode);
   const updateProject = useProjectStore((s) => s.updateProject);
   const layout = useEditorStore((s) => s.layout);
@@ -73,6 +90,7 @@ export function ViewportHost() {
   const heightDisplay = useEditorStore((s) => s.heightDisplay);
   const heightContourStepMm = useEditorStore((s) => s.heightContourStepMm);
   const showLampGizmos = useEditorStore((s) => s.showLampGizmos);
+  const showRulers = useEditorStore((s) => s.showRulers);
   const pane2D = useEditorStore((s) => s.pane2D);
   const tool = useEditorStore((s) => s.tool);
   const brushSizeValue = useEditorStore((s) => s.brush.sizeValue);
@@ -82,6 +100,7 @@ export function ViewportHost() {
   const setHeightDisplay = useEditorStore((s) => s.setHeightDisplay);
   const setHeightContourStepMm = useEditorStore((s) => s.setHeightContourStepMm);
   const setShowLampGizmos = useEditorStore((s) => s.setShowLampGizmos);
+  const setShowRulers = useEditorStore((s) => s.setShowRulers);
 
   const {
     containerRef,
@@ -301,6 +320,14 @@ export function ViewportHost() {
         } else if (!e.altKey && e.shiftKey && lower === 'i') {
           e.preventDefault();
           invertSelection();
+        } else if (!e.altKey && !e.shiftKey && lower === 'r') {
+          e.preventDefault();
+          const editor = useEditorStore.getState();
+          editor.setShowRulers(!editor.showRulers);
+        } else if (!e.altKey && !e.shiftKey && (e.code === 'Quote' || e.key === "'")) {
+          e.preventDefault();
+          const is3d = useEditorStore.getState().layout === '3d';
+          toggleGridVisibilityWithHistory(is3d ? '3d' : '2d');
         }
         return;
       }
@@ -486,6 +513,24 @@ export function ViewportHost() {
                 <TooltipTrigger asChild>
                   <Button
                     type="button"
+                    variant={grid.show3D ? 'secondary' : 'ghost'}
+                    size="xs"
+                    data-testid="btn-toggle-grid-3d"
+                    aria-pressed={grid.show3D}
+                    onClick={() => toggleGridVisibilityWithHistory('3d')}
+                    className="gap-1 text-xs"
+                  >
+                    <Grid3x3 className="size-3.5" />
+                    {t('viewport.toggleGrid')}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('viewport.toggleGridTooltip')}</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
                     variant={showLampGizmos ? 'secondary' : 'ghost'}
                     size="xs"
                     data-testid="btn-toggle-gizmos"
@@ -649,6 +694,42 @@ export function ViewportHost() {
             </div>
 
             <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={grid.show2D ? 'secondary' : 'ghost'}
+                    size="xs"
+                    data-testid="btn-toggle-grid-2d"
+                    aria-pressed={grid.show2D}
+                    onClick={() => toggleGridVisibilityWithHistory('2d')}
+                    className="gap-1 text-xs"
+                  >
+                    <Grid3x3 className="size-3.5" />
+                    <span className="hidden xl:inline">{t('viewport.toggleGrid')}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('viewport.toggleGridTooltip')}</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={showRulers ? 'secondary' : 'ghost'}
+                    size="xs"
+                    data-testid="btn-toggle-rulers"
+                    aria-pressed={showRulers}
+                    onClick={() => setShowRulers(!showRulers)}
+                    className="gap-1 text-xs"
+                  >
+                    <Ruler className="size-3.5" />
+                    <span className="hidden xl:inline">{t('viewport.toggleRulers')}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('viewport.toggleRulersTooltip')}</TooltipContent>
+              </Tooltip>
+
               <span
                 data-testid="viewport-zoom-pct"
                 className="text-muted-foreground mr-1 min-w-12 text-right font-mono text-xs"
