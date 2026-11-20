@@ -6,16 +6,12 @@ export class Ortho2D {
   readonly camera: THREE.OrthographicCamera;
 
   constructor() {
-    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
-    this.camera.position.set(0, 0, 100);
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
+    this.camera.position.set(0, 0, 500);
     this.camera.lookAt(0, 0, 0);
   }
 
-  update(
-    viewport: ViewportSize,
-    canvas: CanvasSettings,
-    transform: ViewTransformState,
-  ): void {
+  update(viewport: ViewportSize, canvas: CanvasSettings, transform: ViewTransformState): void {
     const w = Math.max(1, viewport.width);
     const h = Math.max(1, viewport.height);
     const zoom = clampZoom2D(transform.zoom);

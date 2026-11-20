@@ -2,6 +2,7 @@ import { ScrollArea } from '@/ui/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/components/ui/tabs';
 import { useI18n } from '@/ui/hooks/useI18n';
 import { CanvasCalibrationPanel } from '@/ui/panels/right/CanvasCalibrationPanel';
+import { FrontLightPanel } from '@/ui/panels/right/FrontLightPanel';
 import { MapParamsPanel } from '@/ui/panels/right/MapParamsPanel';
 
 export function RightPanel() {
@@ -28,6 +29,13 @@ export function RightPanel() {
             >
               {t('rightTabs.canvas')}
             </TabsTrigger>
+            <TabsTrigger
+              value="light"
+              data-testid="right-tab-light"
+              className="h-5 px-2.5 text-[11px]"
+            >
+              {t('rightTabs.light')}
+            </TabsTrigger>
           </TabsList>
         </div>
         <ScrollArea className="min-h-0 flex-1">
@@ -36,6 +44,9 @@ export function RightPanel() {
           </TabsContent>
           <TabsContent value="canvas" className="mt-0 p-3">
             <CanvasCalibrationPanel />
+          </TabsContent>
+          <TabsContent value="light" className="mt-0 p-3">
+            <FrontLightPanel />
           </TabsContent>
         </ScrollArea>
       </Tabs>
