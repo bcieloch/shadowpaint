@@ -3,6 +3,7 @@ export const en = {
     name: 'ShadowPaint',
     tagline: 'Relief & Backlit Painting Studio',
     untitledProject: 'Untitled',
+    creditsInline: 'Created by {author} · Idea by {idea}',
   },
   language: {
     label: 'Language',
@@ -56,6 +57,15 @@ export const en = {
     layout2dTooltip: '2D map editor view (F1)',
     layout3d: '3D',
     layout3dTooltip: '3D relief geometry view (F2)',
+    about: 'Credits',
+    aboutTooltip: 'Authors, idea & AGPL-3.0 license',
+    aboutTitle: 'About {name}',
+    aboutAuthor: 'Created by {author}',
+    aboutIdea: 'Original idea by {idea}',
+    aboutLicense: 'License: {license}',
+    aboutOpenGithub: 'View source on GitHub',
+    github: 'GitHub',
+    githubTooltip: 'Open source repository on GitHub ({license})',
   },
   history: {
     brushStroke: 'Brush stroke ({map})',

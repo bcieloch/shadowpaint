@@ -1,3 +1,4 @@
+import { AUTHOR_NAME, IDEA_AUTHOR_NAME } from '@/core/constants';
 import { useReadoutStore } from '@/state/readoutStore';
 import { useUiStore } from '@/state/uiStore';
 import { useI18n } from '@/ui/hooks/useI18n';
@@ -71,7 +72,17 @@ export function StatusBar() {
 
       <div className="flex shrink-0 items-center gap-3">
         <TaskProgress />
-        {!readout && <span className="hidden sm:inline">{t('app.tagline')}</span>}
+        {!readout && (
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <span data-testid="statusbar-credits" className="hidden lg:inline">
+              {t('app.creditsInline', { author: AUTHOR_NAME, idea: IDEA_AUTHOR_NAME })}
+            </span>
+            <span className="text-border hidden xl:inline" aria-hidden="true">
+              ·
+            </span>
+            <span className="hidden xl:inline">{t('app.tagline')}</span>
+          </div>
+        )}
       </div>
     </footer>
   );

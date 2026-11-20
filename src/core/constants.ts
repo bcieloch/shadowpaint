@@ -3,6 +3,10 @@ import type { CanvasSettings, ProjectSettings } from '@/core/types';
 
 export const APP_VERSION = '0.1.0';
 export const SCHEMA_VERSION = 1 as const;
+export const REPOSITORY_URL = 'https://github.com/bcieloch/shadowpaint';
+export const LICENSE_SPDX = 'AGPL-3.0-only';
+export const AUTHOR_NAME = 'Brajan Cieloch';
+export const IDEA_AUTHOR_NAME = 'Mateusz Prawecki';
 
 export const TILE_SIZE = 256;
 export const CM_PER_INCH = 2.54;

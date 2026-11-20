@@ -5,6 +5,7 @@ export const pl: TranslationDictionary = {
     name: 'ShadowPaint',
     tagline: 'Studio malarstwa reliefowego i podświetlanego',
     untitledProject: 'Bez tytułu',
+    creditsInline: 'Stworzone przez: {author} · Pomysł: {idea}',
   },
   language: {
     label: 'Język',
@@ -58,6 +59,15 @@ export const pl: TranslationDictionary = {
     layout2dTooltip: 'Widok edytora map 2D (F1)',
     layout3d: '3D',
     layout3dTooltip: 'Widok geometrii 3D reliefu (F2)',
+    about: 'Autorzy',
+    aboutTooltip: 'Autorzy, pomysł i licencja AGPL-3.0',
+    aboutTitle: 'O programie {name}',
+    aboutAuthor: 'Stworzone przez: {author}',
+    aboutIdea: 'Pomysł: {idea}',
+    aboutLicense: 'Licencja: {license}',
+    aboutOpenGithub: 'Kod źródłowy na GitHubie',
+    github: 'GitHub',
+    githubTooltip: 'Otwórz repozytorium na GitHubie ({license})',
   },
   history: {
     brushStroke: 'Pociągnięcie pędzlem ({map})',
