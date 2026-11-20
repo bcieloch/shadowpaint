@@ -9,6 +9,7 @@ import {
   FilePlus2,
   FolderOpen,
   Info,
+  Keyboard,
   Layers3,
   Redo2,
   Save,
@@ -350,6 +351,24 @@ export function TopBar() {
       <div className="flex shrink-0 items-center gap-1.5">
         <AutosaveIndicator />
         <Separator orientation="vertical" className="h-4" />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              className="gap-1 px-2"
+              aria-label={t('topbar.shortcutsTooltip')}
+              onClick={() => setDialogOpen('shortcutsOpen', true)}
+              data-testid="btn-shortcuts"
+            >
+              <Keyboard className="size-3.5" />
+              <span className="hidden xl:inline">{t('topbar.shortcuts')}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('topbar.shortcutsTooltip')}</TooltipContent>
+        </Tooltip>
 
         <Popover>
           <Tooltip>

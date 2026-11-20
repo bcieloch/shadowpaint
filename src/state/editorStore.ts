@@ -122,6 +122,7 @@ export interface EditorState {
   hasSelection: boolean;
   showMaskOverlay: boolean;
   showRulers: boolean;
+  panelsHidden: boolean;
   layout: LayoutMode;
   viewMode2D: ViewMode2D;
   view3DLighting: LightingMode;
@@ -153,6 +154,8 @@ export interface EditorState {
   setHasSelection: (hasSelection: boolean) => void;
   setShowMaskOverlay: (show: boolean) => void;
   setShowRulers: (show: boolean) => void;
+  setPanelsHidden: (hidden: boolean) => void;
+  togglePanelsHidden: () => void;
   setLayout: (layout: LayoutMode) => void;
   setViewMode2D: (mode: ViewMode2D) => void;
   setView3DLighting: (mode: LightingMode) => void;
@@ -212,6 +215,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   hasSelection: false,
   showMaskOverlay: true,
   showRulers: true,
+  panelsHidden: false,
   layout: '2d',
   viewMode2D: 'color',
   view3DLighting: 'combined',
@@ -237,6 +241,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   setHasSelection: (hasSelection) => set({ hasSelection }),
   setShowMaskOverlay: (showMaskOverlay) => set({ showMaskOverlay }),
   setShowRulers: (showRulers) => set({ showRulers }),
+  setPanelsHidden: (panelsHidden) => set({ panelsHidden }),
+  togglePanelsHidden: () => set((s) => ({ panelsHidden: !s.panelsHidden })),
   setLayout: (layout) => set({ layout }),
   setViewMode2D: (viewMode2D) => set({ viewMode2D }),
   setView3DLighting: (view3DLighting) => set({ view3DLighting }),

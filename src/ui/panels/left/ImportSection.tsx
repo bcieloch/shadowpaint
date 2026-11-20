@@ -6,6 +6,7 @@ import { classifyDecodeError, decodeFileToSlot } from '@/services/importService'
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { Button } from '@/ui/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/components/ui/tooltip';
 import { useI18n } from '@/ui/hooks/useI18n';
 
 export function ImportSection() {
@@ -35,17 +36,22 @@ export function ImportSection() {
         <h2 className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
           {t('import.sectionTitle')}
         </h2>
-        <Button
-          type="button"
-          size="xs"
-          variant="secondary"
-          className="h-6 gap-1 px-2 text-[11px]"
-          onClick={() => setDialogOpen('importWizardOpen', true)}
-          data-testid="btn-import-wizard"
-        >
-          <FolderInput className="size-3" />
-          <span>{t('import.openWizard')}</span>
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="xs"
+              variant="secondary"
+              className="h-6 gap-1 px-2 text-[11px]"
+              onClick={() => setDialogOpen('importWizardOpen', true)}
+              data-testid="btn-import-wizard"
+            >
+              <FolderInput className="size-3" />
+              <span>{t('import.openWizard')}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('import.openWizardTooltip')}</TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="space-y-1.5">
