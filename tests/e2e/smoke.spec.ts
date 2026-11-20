@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-test('studio shell renders without scrollbars and switches EN/PL', async ({ page }) => {
+test('studio shell renders without scrollbars, switches EN/PL, and creates a new project', async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on('pageerror', (err) => errors.push(err.message));
   page.on('console', (msg) => {
@@ -28,6 +30,12 @@ test('studio shell renders without scrollbars and switches EN/PL', async ({ page
 
   await page.getByTestId('lang-en').click();
   await expect(page.getByTestId('topbar-project-name')).toHaveText('Untitled');
+
+  await page.getByTestId('btn-new-project').click();
+  await page.locator('#np-name').fill('Aurora Relief');
+  await page.locator('#np-px-cm').fill('10');
+  await page.getByTestId('new-project-submit').click();
+  await expect(page.getByTestId('topbar-project-name')).toHaveText('Aurora Relief');
 
   expect(errors).toEqual([]);
 });

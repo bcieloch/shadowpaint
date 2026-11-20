@@ -3,11 +3,14 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '@/ui/components/ui/resizable';
+import { ImportWizardDialog } from '@/ui/dialogs/ImportWizard/ImportWizardDialog';
+import { NewProjectDialog } from '@/ui/dialogs/NewProjectDialog';
 import { LeftPanel } from '@/ui/shell/LeftPanel';
 import { RightPanel } from '@/ui/shell/RightPanel';
 import { StatusBar } from '@/ui/shell/StatusBar';
 import { TopBar } from '@/ui/shell/TopBar';
 import { ViewportHost } from '@/ui/shell/ViewportHost';
+import { WindowDropOverlay } from '@/ui/shell/WindowDropOverlay';
 
 export function StudioShell() {
   return (
@@ -29,6 +32,9 @@ export function StudioShell() {
         </ResizablePanelGroup>
       </div>
       <StatusBar />
+      <NewProjectDialog />
+      <ImportWizardDialog />
+      <WindowDropOverlay />
     </div>
   );
 }

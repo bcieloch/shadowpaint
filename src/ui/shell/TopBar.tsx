@@ -1,4 +1,6 @@
-import { Layers3 } from 'lucide-react';
+import { FilePlus2, Layers3 } from 'lucide-react';
+import { useProjectStore } from '@/state/projectStore';
+import { useUiStore } from '@/state/uiStore';
 import { Button } from '@/ui/components/ui/button';
 import { Separator } from '@/ui/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/components/ui/tooltip';
@@ -6,6 +8,11 @@ import { useI18n } from '@/ui/hooks/useI18n';
 
 export function TopBar() {
   const { locale, setLocale, t } = useI18n();
+  const projectName = useProjectStore((s) => s.project.name);
+  const setDialogOpen = useUiStore((s) => s.setDialogOpen);
+
+  const displayName =
+    projectName === 'Untitled' ? t('app.untitledProject') : projectName;
 
   return (
     <header className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card px-3 select-none">
@@ -19,8 +26,25 @@ export function TopBar() {
           className="max-w-52 truncate text-xs text-muted-foreground"
           data-testid="topbar-project-name"
         >
-          {t('app.untitledProject')}
+          {displayName}
         </span>
+        <Separator orientation="vertical" className="h-4" />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              className="gap-1.5"
+              onClick={() => setDialogOpen('newProjectOpen', true)}
+              data-testid="btn-new-project"
+            >
+              <FilePlus2 className="size-3.5" />
+              <span>{t('topbar.newProject')}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('topbar.newProjectTooltip')}</TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="flex items-center gap-2">
