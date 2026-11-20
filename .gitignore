@@ -1,0 +1,73 @@
+# ───────────── Local AI agent memory & config (never commit) ─────────────
+.memory/
+skills/
+.agent/
+.agents/
+.gemini/
+.claude/
+.cursor/
+.windsurf/
+.aider*
+.continue/
+.copilot/
+CLAUDE.local.md
+GEMINI.local.md
+AGENTS.local.md
+
+# ───────────── Dependencies ─────────────
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+!.yarn/releases
+.pnp.*
+
+# ───────────── Build & cache ─────────────
+dist/
+dist-ssr/
+dev-dist/
+build/
+.vite/
+*.tsbuildinfo
+.eslintcache
+.cache/
+.turbo/
+
+# ───────────── Tests ─────────────
+coverage/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+tests/e2e/.downloads/
+
+# ───────────── Environment & secrets ─────────────
+.env
+.env.*
+!.env.example
+*.local
+
+# ───────────── Logs ─────────────
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ───────────── Editors & OS ─────────────
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ───────────── Project artifacts & exports ─────────────
+*.relief
+/exports/
+/scratch/
