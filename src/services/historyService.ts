@@ -66,6 +66,20 @@ export function formatHistoryMeta(meta: HistoryMeta, t: TranslateFn): string {
       return t('history.resetAdjustments', { map: mapName });
     case 'settingsChange':
       return t('history.settingsChange');
+    case 'selectShape':
+      return t('history.selectShape');
+    case 'selectWand':
+      return t('history.selectWand');
+    case 'selectAll':
+      return t('history.selectAll');
+    case 'selectClear':
+      return t('history.selectClear');
+    case 'selectInvert':
+      return t('history.selectInvert');
+    case 'selectFeather':
+      return t('history.selectFeather');
+    case 'maskBrush':
+      return t('history.maskBrush');
   }
 }
 
@@ -149,6 +163,9 @@ function applySettingsPatch(patch: SettingsPatch, direction: 'undo' | 'redo'): v
     } else if (patch.path === 'material') {
       const value = direction === 'undo' ? patch.before : patch.after;
       draft.material = { ...value };
+    } else if (patch.path === 'selection') {
+      const value = direction === 'undo' ? patch.before : patch.after;
+      draft.selection = { ...value };
     } else {
       const value = direction === 'undo' ? patch.before : patch.after;
       draft.export = { ...value };
@@ -200,6 +217,22 @@ function applyHistoryEntry(entry: HistoryEntry, direction: 'undo' | 'redo'): voi
       { x: 0, y: 0, w: mapRegistry.width, h: mapRegistry.height },
     );
     mapRegistry.emitReplaced(entry.mapId);
+    return;
+  }
+
+  if (entry.kind === 'selection') {
+    if (!mapRegistry.isAllocated) return;
+    const maskData = direction === 'undo' ? entry.before : entry.after;
+    const modeValue = direction === 'undo' ? entry.modeBefore : entry.modeAfter;
+    if (mapRegistry.selection.length === maskData.length) {
+      mapRegistry.selection.set(maskData);
+    }
+    useProjectStore.getState().updateProject((draft) => {
+      draft.selection.mode = modeValue;
+    }, true);
+    const hasSel = mapRegistry.refreshSelectionState();
+    useEditorStore.getState().setHasSelection(hasSel);
+    mapRegistry.emitSelectionChanged();
     return;
   }
 

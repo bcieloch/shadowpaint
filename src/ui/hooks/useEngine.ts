@@ -37,6 +37,8 @@ export function useEngine(): UseEngineResult {
   const viewportSizeRef = useRef<ViewportSize>({ width: 1, height: 1 });
   const didInitialFitRef = useRef(false);
   const lastDimsRef = useRef<{ widthPx: number; heightPx: number } | null>(null);
+  const antsRafRef = useRef<number | null>(null);
+  const antsPhaseRef = useRef(0);
 
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 1, height: 1 });
 
@@ -44,19 +46,53 @@ export function useEngine(): UseEngineResult {
     const overlay = overlayRef.current;
     if (!overlay) return;
     const { canvas } = useProjectStore.getState().project;
-    const { layout, pane2D } = useEditorStore.getState();
+    const { layout, pane2D, viewMode2D, showMaskOverlay } = useEditorStore.getState();
     if (layout === '3d') {
       overlay.clear();
       return;
     }
+    const isLit2D = viewMode2D === 'front' || viewMode2D === 'back' || viewMode2D === 'combined';
     overlay.render({
       viewport: viewportSizeRef.current,
       imageWidth: canvas.widthPx,
       imageHeight: canvas.heightPx,
       transform: pane2D,
       cursor: cursorRef.current,
+      selectionMask: mapRegistry.isAllocated ? mapRegistry.selection : null,
+      hasSelection: mapRegistry.hasSelection,
+      marchingAntsPhasePx: antsPhaseRef.current,
+      tintRedOverlay: showMaskOverlay && isLit2D,
     });
   }, []);
+
+  const syncAntsAnimation = useCallback(() => {
+    const { layout } = useEditorStore.getState();
+    const shouldAnimate = mapRegistry.hasSelection && layout !== '3d';
+    if (!shouldAnimate) {
+      if (antsRafRef.current !== null) {
+        cancelAnimationFrame(antsRafRef.current);
+        antsRafRef.current = null;
+      }
+      return;
+    }
+    if (antsRafRef.current !== null) return;
+
+    let lastTick = performance.now();
+    const step = (now: number) => {
+      const editorNow = useEditorStore.getState();
+      if (!mapRegistry.hasSelection || editorNow.layout === '3d') {
+        antsRafRef.current = null;
+        return;
+      }
+      if (now - lastTick >= 65) {
+        antsPhaseRef.current = (antsPhaseRef.current + 1) % 8;
+        lastTick = now;
+        renderOverlay();
+      }
+      antsRafRef.current = requestAnimationFrame(step);
+    };
+    antsRafRef.current = requestAnimationFrame(step);
+  }, [renderOverlay]);
 
   const syncEngineParams = useCallback(() => {
     const engine = engineRef.current;
@@ -73,10 +109,12 @@ export function useEngine(): UseEngineResult {
       heightDisplay: editor.heightDisplay,
       contourStepMm: editor.heightContourStepMm,
       showLampGizmos: editor.showLampGizmos,
+      showMaskOverlay: editor.showMaskOverlay,
       pane2D: editor.pane2D,
     });
     renderOverlay();
-  }, [renderOverlay]);
+    syncAntsAnimation();
+  }, [renderOverlay, syncAntsAnimation]);
 
   const fitView = useCallback(() => {
     const { canvas } = useProjectStore.getState().project;
@@ -144,6 +182,20 @@ export function useEngine(): UseEngineResult {
         get3DStats: () => engine?.get3DStats() ?? null,
         getFrontLightStats: () => engine?.getFrontLightStats() ?? null,
         getBackLightStats: () => engine?.getBackLightStats() ?? null,
+        getSelectionStats: () => {
+          let selectedPixels = 0;
+          if (mapRegistry.isAllocated) {
+            const mask = mapRegistry.selection;
+            for (let i = 0; i < mask.length; i++) {
+              if ((mask[i] ?? 0) > 0) selectedPixels++;
+            }
+          }
+          return {
+            hasSelection: mapRegistry.hasSelection,
+            selectedPixels,
+            mode: useProjectStore.getState().project.selection.mode,
+          };
+        },
         readFlatCanvasRgba: (w, h, options) =>
           engine?.readFlatCanvasRgba(w, h, options) ?? new Uint8Array(0),
         read3DViewportRgba: (w, h) => engine?.read3DViewportRgba(w, h) ?? new Uint8Array(0),
@@ -279,13 +331,23 @@ export function useEngine(): UseEngineResult {
       refreshCursorReadout();
     });
 
+    const unsubSelectionChanged = mapRegistry.events.on('selectionChanged', () => {
+      renderOverlay();
+      syncAntsAnimation();
+    });
+
     return () => {
+      if (antsRafRef.current !== null) {
+        cancelAnimationFrame(antsRafRef.current);
+        antsRafRef.current = null;
+      }
       clearCursorReadout();
       observer.disconnect();
       unsubProject();
       unsubEditor();
       unsubMapDirty();
       unsubMapReplaced();
+      unsubSelectionChanged();
       if (window.__shadowpaintDebug) {
         delete window.__shadowpaintDebug;
       }
@@ -294,7 +356,7 @@ export function useEngine(): UseEngineResult {
       engineRef.current = null;
       overlayRef.current = null;
     };
-  }, [syncEngineParams, t]);
+  }, [renderOverlay, syncAntsAnimation, syncEngineParams, t]);
 
   return {
     containerRef,

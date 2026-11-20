@@ -18,6 +18,8 @@ export type PdfOrientation = 'portrait' | 'landscape';
 
 export type SelectionMode = 'protect' | 'editInside';
 
+export type SelectionCombineMode = 'replace' | 'add' | 'subtract' | 'intersect';
+
 export interface Vec2 {
   x: number;
   y: number;

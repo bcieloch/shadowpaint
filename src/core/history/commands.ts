@@ -1,7 +1,7 @@
 import type {
   CanvasSettings,
-  ExportSettings,
   ColorAdjustments,
+  ExportSettings,
   HeightAdjustments,
   LightingSettings,
   MapId,
@@ -10,6 +10,7 @@ import type {
   OpacityAdjustments,
   Rect,
   SelectionMode,
+  SelectionSettings,
   View3DSettings,
 } from '@/core/types';
 
@@ -25,7 +26,14 @@ export type HistoryActionKind =
   | 'importMap'
   | 'adjustment'
   | 'resetAdjustments'
-  | 'settingsChange';
+  | 'settingsChange'
+  | 'selectShape'
+  | 'selectWand'
+  | 'selectAll'
+  | 'selectClear'
+  | 'selectInvert'
+  | 'selectFeather'
+  | 'maskBrush';
 
 export interface HistoryMeta {
   action: HistoryActionKind;
@@ -112,6 +120,11 @@ export type SettingsPatch =
       after: MaterialSettings;
     }
   | {
+      path: 'selection';
+      before: SelectionSettings;
+      after: SelectionSettings;
+    }
+  | {
       path: 'export';
       before: ExportSettings;
       after: ExportSettings;
@@ -161,6 +174,10 @@ export function estimateFullMapEntryBytes(
     (baseAfter?.byteLength ?? 0) +
     256
   );
+}
+
+export function estimateSelectionEntryBytes(before: Uint8Array, after: Uint8Array): number {
+  return before.byteLength + after.byteLength + 128;
 }
 
 export function estimateSettingsEntryBytes(): number {

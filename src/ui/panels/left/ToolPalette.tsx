@@ -1,4 +1,14 @@
-import { Eraser, Hand, Paintbrush, Pipette } from 'lucide-react';
+import {
+  CircleDashed,
+  Eraser,
+  Hand,
+  Lasso,
+  Paintbrush,
+  Pipette,
+  Shield,
+  SquareDashed,
+  WandSparkles,
+} from 'lucide-react';
 import { useEditorStore, type ToolId } from '@/state/editorStore';
 import { Button } from '@/ui/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/components/ui/tooltip';
@@ -6,12 +16,26 @@ import { useI18n } from '@/ui/hooks/useI18n';
 
 interface ToolItem {
   id: ToolId;
-  labelKey: 'tools.brush' | 'tools.eraser' | 'tools.eyedropper' | 'tools.pan';
+  labelKey:
+    | 'tools.brush'
+    | 'tools.eraser'
+    | 'tools.eyedropper'
+    | 'tools.pan'
+    | 'tools.selectRect'
+    | 'tools.selectEllipse'
+    | 'tools.selectLasso'
+    | 'tools.magicWand'
+    | 'tools.maskBrush';
   tooltipKey:
     | 'tools.brushTooltip'
     | 'tools.eraserTooltip'
     | 'tools.eyedropperTooltip'
-    | 'tools.panTooltip';
+    | 'tools.panTooltip'
+    | 'tools.selectRectTooltip'
+    | 'tools.selectEllipseTooltip'
+    | 'tools.selectLassoTooltip'
+    | 'tools.magicWandTooltip'
+    | 'tools.maskBrushTooltip';
   icon: typeof Paintbrush;
 }
 
@@ -25,6 +49,36 @@ const TOOL_ITEMS: readonly ToolItem[] = [
     icon: Pipette,
   },
   { id: 'pan', labelKey: 'tools.pan', tooltipKey: 'tools.panTooltip', icon: Hand },
+  {
+    id: 'selectRect',
+    labelKey: 'tools.selectRect',
+    tooltipKey: 'tools.selectRectTooltip',
+    icon: SquareDashed,
+  },
+  {
+    id: 'selectEllipse',
+    labelKey: 'tools.selectEllipse',
+    tooltipKey: 'tools.selectEllipseTooltip',
+    icon: CircleDashed,
+  },
+  {
+    id: 'selectLasso',
+    labelKey: 'tools.selectLasso',
+    tooltipKey: 'tools.selectLassoTooltip',
+    icon: Lasso,
+  },
+  {
+    id: 'magicWand',
+    labelKey: 'tools.magicWand',
+    tooltipKey: 'tools.magicWandTooltip',
+    icon: WandSparkles,
+  },
+  {
+    id: 'maskBrush',
+    labelKey: 'tools.maskBrush',
+    tooltipKey: 'tools.maskBrushTooltip',
+    icon: Shield,
+  },
 ];
 
 export function ToolPalette() {
@@ -33,11 +87,11 @@ export function ToolPalette() {
   const setTool = useEditorStore((s) => s.setTool);
 
   return (
-    <section className="space-y-2 border-b border-border p-3">
-      <h2 className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+    <section className="border-border space-y-2 border-b p-3">
+      <h2 className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
         {t('tools.sectionTitle')}
       </h2>
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-5 gap-1.5">
         {TOOL_ITEMS.map(({ id, labelKey, tooltipKey, icon: Icon }) => {
           const active = activeTool === id;
           return (

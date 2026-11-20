@@ -108,7 +108,7 @@ test.describe('2D WebGL2 Viewport & Engine', () => {
     const fittedText = await page.getByTestId('viewport-zoom-pct').textContent();
     expect(fittedText).not.toBe('100%');
 
-    // 5. Create 5 new projects in a row and verify renderer.info.memory.textures remains constant
+    // 5. Create 5 new projects in a row and verify renderer.info.memory.textures remains constant (4 map textures: color, height, opacity, mask)
     const textureCounts: number[] = [];
     for (let i = 1; i <= 5; i++) {
       await page.getByTestId('btn-new-project').click();
@@ -131,7 +131,7 @@ test.describe('2D WebGL2 Viewport & Engine', () => {
       }
     }
 
-    expect(textureCounts).toEqual([3, 3, 3, 3, 3]);
+    expect(textureCounts).toEqual([4, 4, 4, 4, 4]);
     expect(errors).toEqual([]);
   });
 });

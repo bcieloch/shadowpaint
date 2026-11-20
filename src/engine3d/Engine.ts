@@ -49,6 +49,7 @@ export interface EngineRenderParams {
   heightDisplay: HeightRenderDisplay;
   contourStepMm: number;
   showLampGizmos: boolean;
+  showMaskOverlay?: boolean;
   pane2D: ViewTransformState;
 }
 
@@ -127,6 +128,8 @@ export class Engine {
     height: null,
     opacity: null,
   };
+  private pendingMaskFull = false;
+  private pendingMaskDirty: Rect | null = null;
 
   private rafId: number | null = null;
   private contextLost = false;
@@ -134,6 +137,7 @@ export class Engine {
 
   private readonly unsubDirty: () => void;
   private readonly unsubReplaced: () => void;
+  private readonly unsubSelectionChanged: () => void;
 
   private readonly handleContextLost = (e: Event): void => {
     e.preventDefault();
@@ -202,9 +206,24 @@ export class Engine {
         this.needsRebuild = true;
         this.pendingFull = { color: false, height: false, opacity: false };
         this.pendingDirty = { color: null, height: null, opacity: null };
+        this.pendingMaskFull = false;
+        this.pendingMaskDirty = null;
       } else {
         this.pendingFull[mapId] = true;
         this.pendingDirty[mapId] = null;
+      }
+      this.invalidate();
+    });
+
+    this.unsubSelectionChanged = this.registry.events.on('selectionChanged', ({ rect }) => {
+      if (this.needsRebuild) return;
+      if (rect && !this.pendingMaskFull) {
+        this.pendingMaskDirty = this.pendingMaskDirty
+          ? unionRect(this.pendingMaskDirty, rect)
+          : { ...rect };
+      } else {
+        this.pendingMaskFull = true;
+        this.pendingMaskDirty = null;
       }
       this.invalidate();
     });
@@ -299,6 +318,7 @@ export class Engine {
         heightDisplay,
         contourStepMm,
         showLampGizmos,
+        showMaskOverlay = true,
         pane2D,
       } = this.params;
 
@@ -368,6 +388,9 @@ export class Engine {
       if (uniforms.uMinMm) uniforms.uMinMm.value = canvas.minThicknessMm;
       if (uniforms.uMaxMm) uniforms.uMaxMm.value = canvas.maxThicknessMm;
       if (uniforms.uContourStepMm) uniforms.uContourStepMm.value = contourStepMm;
+      if (uniforms.uShowMaskOverlay) {
+        uniforms.uShowMaskOverlay.value = showMaskOverlay && this.registry.hasSelection ? 1 : 0;
+      }
 
       this.mapTextures.setNearest(pane2D.zoom >= 4, this.renderer);
       this.ortho2D.update(this.viewport, canvas, pane2D);
@@ -428,6 +451,8 @@ export class Engine {
     this.needsRebuild = false;
     this.pendingFull = { color: false, height: false, opacity: false };
     this.pendingDirty = { color: null, height: null, opacity: null };
+    this.pendingMaskFull = false;
+    this.pendingMaskDirty = null;
   }
 
   /**
@@ -449,8 +474,16 @@ export class Engine {
 
     const w = Math.max(1, targetWidth ?? this.registry.width);
     const h = Math.max(1, targetHeight ?? this.registry.height);
-    const { canvas, material, lighting, view3d, viewMode2D, heightDisplay, contourStepMm } =
-      this.params;
+    const {
+      canvas,
+      material,
+      lighting,
+      view3d,
+      viewMode2D,
+      heightDisplay,
+      contourStepMm,
+      showMaskOverlay = true,
+    } = this.params;
 
     const halfW = canvas.widthCm / 2;
     const halfH = canvas.heightCm / 2;
@@ -512,6 +545,9 @@ export class Engine {
         if (uniforms.uMinMm) uniforms.uMinMm.value = canvas.minThicknessMm;
         if (uniforms.uMaxMm) uniforms.uMaxMm.value = canvas.maxThicknessMm;
         if (uniforms.uContourStepMm) uniforms.uContourStepMm.value = contourStepMm;
+        if (uniforms.uShowMaskOverlay) {
+          uniforms.uShowMaskOverlay.value = showMaskOverlay && this.registry.hasSelection ? 1 : 0;
+        }
 
         this.renderer.toneMapping = THREE.NoToneMapping;
         this.renderer.toneMappingExposure = 1;
@@ -826,6 +862,15 @@ export class Engine {
         }
       }
     }
+
+    if (this.pendingMaskFull) {
+      this.mapTextures.uploadMaskFull(this.registry);
+      this.pendingMaskFull = false;
+      this.pendingMaskDirty = null;
+    } else if (this.pendingMaskDirty) {
+      this.mapTextures.uploadMaskDirtyRect(this.renderer, this.registry, this.pendingMaskDirty);
+      this.pendingMaskDirty = null;
+    }
   }
 
   private disposeSceneResources(): void {
@@ -854,6 +899,7 @@ export class Engine {
     }
     this.unsubDirty();
     this.unsubReplaced();
+    this.unsubSelectionChanged();
     this.canvasElement.removeEventListener('webglcontextlost', this.handleContextLost);
     this.canvasElement.removeEventListener('webglcontextrestored', this.handleContextRestored);
     this.orbit3D.dispose();

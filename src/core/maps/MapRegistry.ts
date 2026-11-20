@@ -14,9 +14,15 @@ export interface MapReplacedEvent {
   height: number;
 }
 
+export interface SelectionChangedEvent {
+  rect?: Rect;
+  hasSelection: boolean;
+}
+
 export type MapRegistryEvents = {
   dirty: MapDirtyEvent;
   replaced: MapReplacedEvent;
+  selectionChanged: SelectionChangedEvent;
 };
 
 export class MapMemoryError extends Error {
@@ -55,6 +61,14 @@ export interface ReplaceAllMapsParams {
 
 const BYTES_PER_PIXEL_TOTAL = 4 * 3 + 4 * 3 + 4 * 3 + 1; // 37 bytes/px
 
+export function computeHasSelection(mask: Uint8Array | null): boolean {
+  if (!mask) return false;
+  for (let i = 0; i < mask.length; i++) {
+    if ((mask[i] ?? 0) > 0) return true;
+  }
+  return false;
+}
+
 export class MapRegistry {
   readonly events = new TypedEmitter<MapRegistryEvents>();
 
@@ -64,6 +78,7 @@ export class MapRegistry {
   private _heightMap: MapBuffer<'height'> | null = null;
   private _opacity: MapBuffer<'opacity'> | null = null;
   private _selection: Uint8Array | null = null;
+  private _hasSelection = false;
 
   static estimateBytes(width: number, height: number): number {
     return Math.max(0, width) * Math.max(0, height) * BYTES_PER_PIXEL_TOTAL;
@@ -106,6 +121,10 @@ export class MapRegistry {
     return this._selection;
   }
 
+  get hasSelection(): boolean {
+    return this._hasSelection;
+  }
+
   getMap<M extends MapId>(mapId: M): MapBuffer<M> {
     if (mapId === 'color') return this.color as MapBuffer<M>;
     if (mapId === 'height') return this.heightMap as MapBuffer<M>;
@@ -136,11 +155,13 @@ export class MapRegistry {
       this._heightMap = nextHeight;
       this._opacity = nextOpacity;
       this._selection = nextSelection;
+      this._hasSelection = false;
     } catch (err) {
       throw new MapMemoryError(requiredBytes, err);
     }
 
     this.events.emit('replaced', { mapId: 'all', width, height });
+    this.events.emit('selectionChanged', { hasSelection: false });
   }
 
   replaceAll(params: ReplaceAllMapsParams): void {
@@ -177,6 +198,7 @@ export class MapRegistry {
       this._heightMap = nextHeight;
       this._opacity = nextOpacity;
       this._selection = nextSelection;
+      this._hasSelection = computeHasSelection(nextSelection);
     } catch (err) {
       if (err instanceof RangeError) {
         throw new MapMemoryError(requiredBytes, err);
@@ -185,6 +207,7 @@ export class MapRegistry {
     }
 
     this.events.emit('replaced', { mapId: 'all', width, height });
+    this.events.emit('selectionChanged', { hasSelection: this._hasSelection });
   }
 
   emitDirty(mapId: MapId, rect: Rect): void {
@@ -193,6 +216,16 @@ export class MapRegistry {
 
   emitReplaced(mapId: MapId | 'all'): void {
     this.events.emit('replaced', { mapId, width: this._width, height: this._height });
+  }
+
+  refreshSelectionState(): boolean {
+    this._hasSelection = computeHasSelection(this._selection);
+    return this._hasSelection;
+  }
+
+  emitSelectionChanged(rect?: Rect): void {
+    this.refreshSelectionState();
+    this.events.emit('selectionChanged', { rect, hasSelection: this._hasSelection });
   }
 }
 

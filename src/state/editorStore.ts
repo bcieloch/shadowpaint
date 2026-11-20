@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { DEFAULT_COLOR_HEX } from '@/core/constants';
-import type { LightingMode, MapId, Vec2 } from '@/core/types';
+import type { LightingMode, MapId, SelectionCombineMode, Vec2 } from '@/core/types';
 
 export type ToolId =
   | 'brush'
@@ -38,6 +38,14 @@ export interface BrushOptions {
   opacityPct: number;
 }
 
+export interface SelectionToolOptions {
+  combineMode: SelectionCombineMode;
+  wandTolerancePct: number;
+  wandContiguous: boolean;
+  wandSampleMap: 'active' | MapId;
+  maskBrushErase: boolean;
+}
+
 export interface Pane2DState {
   zoom: number;
   panX: number;
@@ -53,6 +61,9 @@ export interface EditorState {
   activeMap: MapId;
   tool: ToolId;
   brush: BrushOptions;
+  selectionTools: SelectionToolOptions;
+  hasSelection: boolean;
+  showMaskOverlay: boolean;
   layout: LayoutMode;
   viewMode2D: ViewMode2D;
   view3DLighting: LightingMode;
@@ -66,6 +77,12 @@ export interface EditorState {
   setActiveMap: (mapId: MapId) => void;
   setTool: (tool: ToolId) => void;
   setBrushOption: <K extends keyof BrushOptions>(key: K, value: BrushOptions[K]) => void;
+  setSelectionToolOption: <K extends keyof SelectionToolOptions>(
+    key: K,
+    value: SelectionToolOptions[K],
+  ) => void;
+  setHasSelection: (hasSelection: boolean) => void;
+  setShowMaskOverlay: (show: boolean) => void;
   setLayout: (layout: LayoutMode) => void;
   setViewMode2D: (mode: ViewMode2D) => void;
   setView3DLighting: (mode: LightingMode) => void;
@@ -93,6 +110,15 @@ export const useEditorStore = create<EditorState>((set) => ({
     heightMm: 2.5,
     opacityPct: 50,
   },
+  selectionTools: {
+    combineMode: 'replace',
+    wandTolerancePct: 12,
+    wandContiguous: true,
+    wandSampleMap: 'active',
+    maskBrushErase: false,
+  },
+  hasSelection: false,
+  showMaskOverlay: true,
   layout: '2d',
   viewMode2D: 'color',
   view3DLighting: 'combined',
@@ -106,6 +132,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   setActiveMap: (activeMap) => set({ activeMap }),
   setTool: (tool) => set({ tool }),
   setBrushOption: (key, value) => set((s) => ({ brush: { ...s.brush, [key]: value } })),
+  setSelectionToolOption: (key, value) =>
+    set((s) => ({ selectionTools: { ...s.selectionTools, [key]: value } })),
+  setHasSelection: (hasSelection) => set({ hasSelection }),
+  setShowMaskOverlay: (showMaskOverlay) => set({ showMaskOverlay }),
   setLayout: (layout) => set({ layout }),
   setViewMode2D: (viewMode2D) => set({ viewMode2D }),
   setView3DLighting: (view3DLighting) => set({ view3DLighting }),

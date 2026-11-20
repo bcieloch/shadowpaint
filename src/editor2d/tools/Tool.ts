@@ -1,6 +1,7 @@
 import type { NewHistoryEntry, TilesMapHistoryEntry } from '@/core/history/commands';
 import type { MapRegistry } from '@/core/maps/MapRegistry';
 import type { MapId, ProjectSettings, Vec2 } from '@/core/types';
+import type { SelectionDraftPreview } from '@/editor2d/overlay/OverlayRenderer';
 import type { BrushOptions, EditorState, ToolId } from '@/state/editorStore';
 
 export interface ToolPointerEvent {
@@ -28,4 +29,5 @@ export interface Tool {
   onMove(e: ToolPointerEvent, ctx: ToolContext): void;
   onUp(e: ToolPointerEvent, ctx: ToolContext): void;
   onCancel(ctx: ToolContext): void;
+  getOverlayPreview?(): SelectionDraftPreview | null;
 }

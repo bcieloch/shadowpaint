@@ -7,6 +7,7 @@ import { Label } from '@/ui/components/ui/label';
 import { Switch } from '@/ui/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/ui/toggle-group';
 import { useI18n } from '@/ui/hooks/useI18n';
+import { SelectionOptions } from '@/ui/panels/left/SelectionOptions';
 import { LabeledSlider } from '@/ui/widgets/LabeledSlider';
 
 function ColorField() {
@@ -26,7 +27,7 @@ function ColorField() {
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-normal text-muted-foreground">
+      <Label className="text-muted-foreground text-xs font-normal">
         {t('toolOptions.colorValue')}
       </Label>
       <div className="flex items-center gap-2">
@@ -39,7 +40,7 @@ function ColorField() {
             setHexDraft(null);
             setBrushOption('colorHex', e.target.value);
           }}
-          className="h-7 w-9 cursor-pointer rounded border border-border bg-transparent p-0.5"
+          className="border-border h-7 w-9 cursor-pointer rounded border bg-transparent p-0.5"
         />
         <Input
           type="text"
@@ -90,13 +91,15 @@ export function ToolOptions() {
     }
   };
 
+  const showBrushSliders = tool === 'brush' || tool === 'eraser' || tool === 'maskBrush';
+
   return (
     <section className="space-y-3 p-3">
-      <h2 className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+      <h2 className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
         {t('toolOptions.sectionTitle')}
       </h2>
 
-      {(tool === 'brush' || tool === 'eraser') && (
+      {showBrushSliders && (
         <div className="space-y-3">
           <LabeledSlider
             label={t('toolOptions.size')}
@@ -167,7 +170,7 @@ export function ToolOptions() {
           />
 
           <div className="flex items-center justify-between pt-0.5">
-            <Label htmlFor="brush-pressure" className="text-xs font-normal text-muted-foreground">
+            <Label htmlFor="brush-pressure" className="text-muted-foreground text-xs font-normal">
               {t('toolOptions.pressure')}
             </Label>
             <Switch
@@ -180,9 +183,9 @@ export function ToolOptions() {
           {tool === 'brush' && activeMap === 'color' && <ColorField />}
 
           {tool === 'brush' && (activeMap === 'height' || activeMap === 'opacity') && (
-            <div className="space-y-3 border-t border-border pt-2.5">
+            <div className="border-border space-y-3 border-t pt-2.5">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-muted-foreground">{t('toolOptions.mode')}</span>
+                <span className="text-muted-foreground text-xs">{t('toolOptions.mode')}</span>
                 <ToggleGroup
                   type="single"
                   size="sm"
@@ -250,7 +253,7 @@ export function ToolOptions() {
           )}
 
           {tool === 'eraser' && (
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
+            <p className="text-muted-foreground text-[11px] leading-relaxed">
               {t('toolOptions.eraserHint')}
             </p>
           )}
@@ -258,9 +261,9 @@ export function ToolOptions() {
       )}
 
       {tool === 'eyedropper' && (
-        <div className="space-y-2 text-xs text-muted-foreground">
+        <div className="text-muted-foreground space-y-2 text-xs">
           <p className="leading-relaxed">{t('toolOptions.eyedropperHint')}</p>
-          <p className="font-mono text-[11px] text-foreground">
+          <p className="text-foreground font-mono text-[11px]">
             {activeMap === 'color'
               ? t('toolOptions.sampledColor', { hex: brush.colorHex.toUpperCase() })
               : activeMap === 'height'
@@ -271,8 +274,10 @@ export function ToolOptions() {
       )}
 
       {tool === 'pan' && (
-        <p className="text-xs leading-relaxed text-muted-foreground">{t('toolOptions.panHint')}</p>
+        <p className="text-muted-foreground text-xs leading-relaxed">{t('toolOptions.panHint')}</p>
       )}
+
+      <SelectionOptions />
     </section>
   );
 }
