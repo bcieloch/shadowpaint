@@ -16,6 +16,7 @@ export interface PointerRouterDeps {
   getEditor: () => EditorState;
   setPane2D: (pane: Partial<Pane2DState>) => void;
   setCursor: (cursor: OverlayCursorState | null) => void;
+  onCursorImageMove?: (imagePos: Vec2 | null) => void;
   onPanningChange?: (isPanning: boolean) => void;
   toolContext: ToolContext;
 }
@@ -61,6 +62,7 @@ export class PointerRouter {
       this.cancelActive();
       this.lastScreenPos = null;
       this.deps.setCursor(null);
+      this.deps.onCursorImageMove?.(null);
     }
   }
 
@@ -225,6 +227,7 @@ export class PointerRouter {
     if (!this.enabled || this.activePointerId !== null || this.panDrag !== null) return;
     this.lastScreenPos = null;
     this.deps.setCursor(null);
+    this.deps.onCursorImageMove?.(null);
   };
 
   private readonly handleAuxClick = (e: MouseEvent): void => {
@@ -287,6 +290,7 @@ export class PointerRouter {
       imagePos,
       radiusPx,
     });
+    this.deps.onCursorImageMove?.(imagePos);
   }
 
   private setCaptureSafe(pointerId: number): void {

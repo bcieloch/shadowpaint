@@ -16,6 +16,11 @@ export const en = {
     rightPanelTitle: 'Inspector',
     viewportTitle: 'Viewport',
     statusBarReady: 'Ready',
+    readoutCoords: 'x {xPx} px / {xCm} cm · y {yPx} px / {yCm} cm',
+    readoutRgb: 'RGB {hex}',
+    readoutHeight: 'H {mm} mm (L={level} → {mmL} mm)',
+    readoutOpacity: 'T {pct} %',
+    readoutBackT: 'back T {pct} %',
     webgl2RequiredTitle: 'WebGL2 is required',
     webgl2RequiredDescription:
       'ShadowPaint requires a browser and GPU driver with WebGL2 support to render relief geometry and lighting simulations. Enable hardware acceleration or switch to a supported browser.',
