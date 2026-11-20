@@ -1,8 +1,4 @@
-import {
-  DEFAULT_COLOR_HEX,
-  DEFAULT_HEIGHT_VALUE,
-  DEFAULT_OPACITY_VALUE,
-} from '@/core/constants';
+import { DEFAULT_COLOR_HEX, DEFAULT_HEIGHT_VALUE, DEFAULT_OPACITY_VALUE } from '@/core/constants';
 import { TypedEmitter } from '@/core/events';
 import { MapBuffer } from '@/core/maps/MapBuffer';
 import type { MapId, Rect } from '@/core/types';
@@ -40,6 +36,21 @@ export interface MapDefaults {
   color?: string;
   height?: number;
   opacity?: number;
+}
+
+export interface ReplaceAllMapsParams {
+  width: number;
+  height: number;
+  colorBase: Uint8ClampedArray;
+  colorWorking: Uint8ClampedArray;
+  colorEffective: Uint8ClampedArray;
+  heightBase: Float32Array;
+  heightWorking: Float32Array;
+  heightEffective: Float32Array;
+  opacityBase: Float32Array;
+  opacityWorking: Float32Array;
+  opacityEffective: Float32Array;
+  selection?: Uint8Array;
 }
 
 const BYTES_PER_PIXEL_TOTAL = 4 * 3 + 4 * 3 + 4 * 3 + 1; // 37 bytes/px
@@ -127,6 +138,50 @@ export class MapRegistry {
       this._selection = nextSelection;
     } catch (err) {
       throw new MapMemoryError(requiredBytes, err);
+    }
+
+    this.events.emit('replaced', { mapId: 'all', width, height });
+  }
+
+  replaceAll(params: ReplaceAllMapsParams): void {
+    const { width, height } = params;
+    const pixelCount = width * height;
+    const requiredBytes = MapRegistry.estimateBytes(width, height);
+
+    try {
+      const nextColor = MapBuffer.fromBuffers('color', width, height, {
+        base: params.colorBase,
+        working: params.colorWorking,
+        effective: params.colorEffective,
+      });
+      const nextHeight = MapBuffer.fromBuffers('height', width, height, {
+        base: params.heightBase,
+        working: params.heightWorking,
+        effective: params.heightEffective,
+      });
+      const nextOpacity = MapBuffer.fromBuffers('opacity', width, height, {
+        base: params.opacityBase,
+        working: params.opacityWorking,
+        effective: params.opacityEffective,
+      });
+      const nextSelection = params.selection ?? new Uint8Array(pixelCount);
+      if (nextSelection.length !== pixelCount) {
+        throw new Error(
+          `Selection buffer length mismatch: expected ${pixelCount}, got ${nextSelection.length}`,
+        );
+      }
+
+      this._width = width;
+      this._height = height;
+      this._color = nextColor;
+      this._heightMap = nextHeight;
+      this._opacity = nextOpacity;
+      this._selection = nextSelection;
+    } catch (err) {
+      if (err instanceof RangeError) {
+        throw new MapMemoryError(requiredBytes, err);
+      }
+      throw err;
     }
 
     this.events.emit('replaced', { mapId: 'all', width, height });

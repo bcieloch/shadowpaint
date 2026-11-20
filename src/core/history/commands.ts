@@ -1,4 +1,5 @@
 import type {
+  CanvasSettings,
   ColorAdjustments,
   HeightAdjustments,
   MapId,
@@ -6,6 +7,7 @@ import type {
   OpacityAdjustments,
   Rect,
   SelectionMode,
+  View3DSettings,
 } from '@/core/types';
 
 export const DEFAULT_HISTORY_MAX_BYTES = 512 * 1024 * 1024;
@@ -85,6 +87,16 @@ export type SettingsPatch =
       affectedMapId: 'opacity';
       before: OpacityAdjustments;
       after: OpacityAdjustments;
+    }
+  | {
+      path: 'canvas';
+      before: CanvasSettings;
+      after: CanvasSettings;
+    }
+  | {
+      path: 'view3d';
+      before: View3DSettings;
+      after: View3DSettings;
     };
 
 export interface SettingsHistoryEntry {

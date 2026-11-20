@@ -10,7 +10,7 @@ import {
   MM_PER_CM,
 } from '@/core/constants';
 import { clamp01 } from '@/core/maps/quantize';
-import type { CanvasSettings, Vec2 } from '@/core/types';
+import type { CanvasSettings, MeshDetail, Vec2 } from '@/core/types';
 
 export interface CalibrationMetrics {
   pxPerCmX: number;
@@ -19,6 +19,12 @@ export interface CalibrationMetrics {
   dpi: number;
   aspectDeviation: number;
   isAspectConsistent: boolean;
+}
+
+export interface MeshSegmentMetrics {
+  segX: number;
+  segY: number;
+  vertices: number;
 }
 
 export function getCalibrationMetrics(canvas: CanvasSettings): CalibrationMetrics {
@@ -32,6 +38,22 @@ export function getCalibrationMetrics(canvas: CanvasSettings): CalibrationMetric
     dpi: pxPerCmX * CM_PER_INCH,
     aspectDeviation,
     isAspectConsistent: aspectDeviation <= ASPECT_RATIO_TOLERANCE,
+  };
+}
+
+export function computeMeshSegments(
+  widthCm: number,
+  heightCm: number,
+  meshDetail: MeshDetail,
+): MeshSegmentMetrics {
+  const safeW = Math.max(1e-3, widthCm);
+  const safeH = Math.max(1e-3, heightCm);
+  const segX = safeW >= safeH ? meshDetail : Math.max(1, Math.round(meshDetail * (safeW / safeH)));
+  const segY = safeH > safeW ? meshDetail : Math.max(1, Math.round(meshDetail * (safeH / safeW)));
+  return {
+    segX,
+    segY,
+    vertices: (segX + 1) * (segY + 1),
   };
 }
 
@@ -110,12 +132,20 @@ export function brushSizeToPx(value: number, unit: 'px' | 'cm', pxPerCm: number)
   return unit === 'cm' ? value * pxPerCm : value;
 }
 
-export function computeHeightFromWidthPx(widthPx: number, widthCm: number, heightCm: number): number {
+export function computeHeightFromWidthPx(
+  widthPx: number,
+  widthCm: number,
+  heightCm: number,
+): number {
   if (widthCm <= 0) return MIN_PROJECT_PX;
   return Math.max(MIN_PROJECT_PX, Math.round((widthPx * heightCm) / widthCm));
 }
 
-export function computeWidthFromHeightPx(heightPx: number, widthCm: number, heightCm: number): number {
+export function computeWidthFromHeightPx(
+  heightPx: number,
+  widthCm: number,
+  heightCm: number,
+): number {
   if (heightCm <= 0) return MIN_PROJECT_PX;
   return Math.max(MIN_PROJECT_PX, Math.round((heightPx * widthCm) / heightCm));
 }
@@ -135,10 +165,18 @@ export function validateCanvasSettings(
   const errors: CanvasValidationError[] = [];
   const maxPx = Math.min(maxTextureSize, MAX_PROJECT_PX);
 
-  if (!Number.isFinite(canvas.widthCm) || canvas.widthCm < MIN_CANVAS_CM || canvas.widthCm > MAX_CANVAS_CM) {
+  if (
+    !Number.isFinite(canvas.widthCm) ||
+    canvas.widthCm < MIN_CANVAS_CM ||
+    canvas.widthCm > MAX_CANVAS_CM
+  ) {
     errors.push('invalidWidthCm');
   }
-  if (!Number.isFinite(canvas.heightCm) || canvas.heightCm < MIN_CANVAS_CM || canvas.heightCm > MAX_CANVAS_CM) {
+  if (
+    !Number.isFinite(canvas.heightCm) ||
+    canvas.heightCm < MIN_CANVAS_CM ||
+    canvas.heightCm > MAX_CANVAS_CM
+  ) {
     errors.push('invalidHeightCm');
   }
   if (
@@ -165,12 +203,7 @@ export function validateCanvasSettings(
     errors.push('invalidThicknessRange');
   }
 
-  if (
-    canvas.widthCm > 0 &&
-    canvas.heightCm > 0 &&
-    canvas.widthPx > 0 &&
-    canvas.heightPx > 0
-  ) {
+  if (canvas.widthCm > 0 && canvas.heightCm > 0 && canvas.widthPx > 0 && canvas.heightPx > 0) {
     const metrics = getCalibrationMetrics(canvas);
     if (!metrics.isAspectConsistent) {
       errors.push('aspectMismatch');

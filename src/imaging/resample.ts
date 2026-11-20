@@ -1,5 +1,9 @@
 import type { FitMode, ImportTransform } from '@/core/types';
-import { computeTransformScales, mapDstPixelToSrc } from '@/imaging/transform';
+import {
+  computeTransformScales,
+  createDefaultTransform,
+  mapDstPixelToSrc,
+} from '@/imaging/transform';
 
 function catmullRomWeights(t: number): [number, number, number, number] {
   const t2 = t * t;
@@ -225,5 +229,43 @@ export function resampleFloatWithTransform(opts: ResampleFloatOptions): Float32A
   }
 
   onProgress?.(1);
+  return dst;
+}
+
+export function resampleMaskUint8(
+  src: Uint8Array,
+  srcWidth: number,
+  srcHeight: number,
+  dstWidth: number,
+  dstHeight: number,
+): Uint8Array {
+  let hasNonZero = false;
+  for (let i = 0; i < src.length; i++) {
+    if ((src[i] ?? 0) !== 0) {
+      hasNonZero = true;
+      break;
+    }
+  }
+  const dst = new Uint8Array(dstWidth * dstHeight);
+  if (!hasNonZero) {
+    return dst;
+  }
+
+  const floatSrc = new Float32Array(src.length);
+  for (let i = 0; i < src.length; i++) {
+    floatSrc[i] = (src[i] ?? 0) / 255;
+  }
+  const resampled = resampleFloatWithTransform({
+    src: floatSrc,
+    srcWidth,
+    srcHeight,
+    dstWidth,
+    dstHeight,
+    fit: 'stretch',
+    transform: createDefaultTransform(srcWidth, srcHeight),
+  });
+  for (let i = 0; i < resampled.length; i++) {
+    dst[i] = clampCoord(Math.round((resampled[i] ?? 0) * 255), 0, 255);
+  }
   return dst;
 }

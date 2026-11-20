@@ -1,15 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { mapRegistry } from '@/core/maps/MapRegistry';
-import {
-  OverlayRenderer,
-  type OverlayCursorState,
-} from '@/editor2d/overlay/OverlayRenderer';
-import {
-  fitToViewport,
-  zoom100,
-  type ViewportSize,
-} from '@/editor2d/viewTransform';
+import { OverlayRenderer, type OverlayCursorState } from '@/editor2d/overlay/OverlayRenderer';
+import { fitToViewport, zoom100, type ViewportSize } from '@/editor2d/viewTransform';
 import { Engine, type FlatRenderMode } from '@/engine3d/Engine';
 import { detectWebGL2Support } from '@/lib/webgl';
 import { ensureInitialProjectAllocated } from '@/services/projectService';
@@ -124,6 +117,8 @@ export function useEngine(): UseEngineResult {
 
       window.__shadowpaintDebug = {
         getMemoryInfo: () => engine?.getMemoryInfo() ?? { geometries: 0, textures: 0, programs: 0 },
+        getBuiltDimensions: () =>
+          engine?.getBuiltDimensions() ?? { widthPx: 0, heightPx: 0, widthCm: 0, heightCm: 0 },
         readFlatCanvasRgba: (w, h) => engine?.readFlatCanvasRgba(w, h) ?? new Uint8Array(0),
         getMapEffectiveRgba: () =>
           mapRegistry.isAllocated ? mapRegistry.color.effective : new Uint8ClampedArray(0),
@@ -157,7 +152,9 @@ export function useEngine(): UseEngineResult {
         lastDimsRef.current = { widthPx: canvas.widthPx, heightPx: canvas.heightPx };
         useEditorStore
           .getState()
-          .setPane2D(fitToViewport({ width: nextW, height: nextH }, canvas.widthPx, canvas.heightPx));
+          .setPane2D(
+            fitToViewport({ width: nextW, height: nextH }, canvas.widthPx, canvas.heightPx),
+          );
       }
       syncEngineParams();
     };

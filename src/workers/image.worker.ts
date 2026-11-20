@@ -5,6 +5,7 @@ import {
   applyOpacityAdjustments,
 } from '@/core/maps/adjustments';
 import type {
+  AdjustmentsSettings,
   ColorAdjustments,
   FitMode,
   HeightAdjustments,
@@ -21,7 +22,11 @@ import {
 } from '@/imaging/decodeTiff';
 import { detectImageFormat } from '@/imaging/detectFormat';
 import { rgbaToGrayscaleFloat32 } from '@/imaging/grayscale';
-import { resampleFloatWithTransform, resampleRgbaWithTransform } from '@/imaging/resample';
+import {
+  resampleFloatWithTransform,
+  resampleMaskUint8,
+  resampleRgbaWithTransform,
+} from '@/imaging/resample';
 import { createDefaultTransform } from '@/imaging/transform';
 
 export type ProgressCallback = (progress: number) => void;
@@ -36,6 +41,34 @@ export interface DecodedAssetResult {
   thumbRgba: Uint8ClampedArray;
   thumbWidth: number;
   thumbHeight: number;
+}
+
+export interface ResizeProjectMapsParams {
+  srcWidth: number;
+  srcHeight: number;
+  dstWidth: number;
+  dstHeight: number;
+  colorBase: Uint8ClampedArray;
+  colorWorking: Uint8ClampedArray;
+  heightBase: Float32Array;
+  heightWorking: Float32Array;
+  opacityBase: Float32Array;
+  opacityWorking: Float32Array;
+  selection?: Uint8Array;
+  adjustments?: AdjustmentsSettings;
+}
+
+export interface ResizeProjectMapsResult {
+  colorBase: Uint8ClampedArray;
+  colorWorking: Uint8ClampedArray;
+  colorEffective: Uint8ClampedArray;
+  heightBase: Float32Array;
+  heightWorking: Float32Array;
+  heightEffective: Float32Array;
+  opacityBase: Float32Array;
+  opacityWorking: Float32Array;
+  opacityEffective: Float32Array;
+  selection: Uint8Array;
 }
 
 function buildThumbnail(
@@ -235,30 +268,11 @@ const imageWorkerApi = {
   },
 
   resizeProjectMaps(
-    params: {
-      srcWidth: number;
-      srcHeight: number;
-      dstWidth: number;
-      dstHeight: number;
-      colorBase: Uint8ClampedArray;
-      colorWorking: Uint8ClampedArray;
-      heightBase: Float32Array;
-      heightWorking: Float32Array;
-      opacityBase: Float32Array;
-      opacityWorking: Float32Array;
-    },
+    params: ResizeProjectMapsParams,
     onProgress?: ProgressCallback,
-  ): {
-    colorBase: Uint8ClampedArray;
-    colorWorking: Uint8ClampedArray;
-    heightBase: Float32Array;
-    heightWorking: Float32Array;
-    opacityBase: Float32Array;
-    opacityWorking: Float32Array;
-  } {
+  ): ResizeProjectMapsResult {
     const transform = createDefaultTransform(params.srcWidth, params.srcHeight);
-    const step = (offset: number, span: number) => (p: number) =>
-      onProgress?.(offset + p * span);
+    const step = (offset: number, span: number) => (p: number) => onProgress?.(offset + p * span);
 
     const colorBase = resampleRgbaWithTransform({
       src: params.colorBase,
@@ -268,7 +282,7 @@ const imageWorkerApi = {
       dstHeight: params.dstHeight,
       fit: 'stretch',
       transform,
-      onProgress: step(0, 0.2),
+      onProgress: step(0, 0.16),
     });
     const colorWorking = resampleRgbaWithTransform({
       src: params.colorWorking,
@@ -278,7 +292,7 @@ const imageWorkerApi = {
       dstHeight: params.dstHeight,
       fit: 'stretch',
       transform,
-      onProgress: step(0.2, 0.2),
+      onProgress: step(0.16, 0.16),
     });
     const heightBase = resampleFloatWithTransform({
       src: params.heightBase,
@@ -288,7 +302,7 @@ const imageWorkerApi = {
       dstHeight: params.dstHeight,
       fit: 'stretch',
       transform,
-      onProgress: step(0.4, 0.15),
+      onProgress: step(0.32, 0.15),
     });
     const heightWorking = resampleFloatWithTransform({
       src: params.heightWorking,
@@ -298,7 +312,7 @@ const imageWorkerApi = {
       dstHeight: params.dstHeight,
       fit: 'stretch',
       transform,
-      onProgress: step(0.55, 0.15),
+      onProgress: step(0.47, 0.15),
     });
     const opacityBase = resampleFloatWithTransform({
       src: params.opacityBase,
@@ -308,7 +322,7 @@ const imageWorkerApi = {
       dstHeight: params.dstHeight,
       fit: 'stretch',
       transform,
-      onProgress: step(0.7, 0.15),
+      onProgress: step(0.62, 0.14),
     });
     const opacityWorking = resampleFloatWithTransform({
       src: params.opacityWorking,
@@ -318,25 +332,77 @@ const imageWorkerApi = {
       dstHeight: params.dstHeight,
       fit: 'stretch',
       transform,
-      onProgress: step(0.85, 0.15),
+      onProgress: step(0.76, 0.14),
     });
+
+    const selection = params.selection
+      ? resampleMaskUint8(
+          params.selection,
+          params.srcWidth,
+          params.srcHeight,
+          params.dstWidth,
+          params.dstHeight,
+        )
+      : new Uint8Array(params.dstWidth * params.dstHeight);
+
+    const colorEffective = new Uint8ClampedArray(colorWorking.length);
+    const heightEffective = new Float32Array(heightWorking.length);
+    const opacityEffective = new Float32Array(opacityWorking.length);
+
+    if (params.adjustments) {
+      applyColorAdjustments(
+        colorWorking,
+        colorEffective,
+        params.dstWidth,
+        params.dstHeight,
+        params.adjustments.color,
+      );
+      applyHeightAdjustments(
+        heightWorking,
+        heightEffective,
+        params.dstWidth,
+        params.dstHeight,
+        params.adjustments.height,
+      );
+      applyOpacityAdjustments(
+        opacityWorking,
+        opacityEffective,
+        params.dstWidth,
+        params.dstHeight,
+        params.adjustments.opacity,
+      );
+    } else {
+      colorEffective.set(colorWorking);
+      heightEffective.set(heightWorking);
+      opacityEffective.set(opacityWorking);
+    }
+
+    onProgress?.(1);
 
     return transfer(
       {
         colorBase,
         colorWorking,
+        colorEffective,
         heightBase,
         heightWorking,
+        heightEffective,
         opacityBase,
         opacityWorking,
+        opacityEffective,
+        selection,
       },
       [
         colorBase.buffer,
         colorWorking.buffer,
+        colorEffective.buffer,
         heightBase.buffer,
         heightWorking.buffer,
+        heightEffective.buffer,
         opacityBase.buffer,
         opacityWorking.buffer,
+        opacityEffective.buffer,
+        selection.buffer,
       ],
     );
   },
