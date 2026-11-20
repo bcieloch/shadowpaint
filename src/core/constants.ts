@@ -46,6 +46,24 @@ export const MIN_SHADOW_DISTANCE_CM = 1;
 export const MIN_INCIDENCE_DEG = 0;
 export const MAX_INCIDENCE_DEG = 89;
 
+export const MIN_BACK_DISTANCE_CM = 1;
+export const MAX_BACK_DISTANCE_CM = 500;
+export const MIN_GLOBAL_TRANSMISSION_PCT = 0;
+export const MAX_GLOBAL_TRANSMISSION_PCT = 200;
+export const MIN_ATTENUATION = 0;
+export const MAX_ATTENUATION = 5;
+
+export const MIN_ROUGHNESS = 0.05;
+export const MAX_ROUGHNESS = 1;
+export const MIN_MU_A = 0;
+export const MAX_MU_A = 20;
+export const MIN_MU_S = 0;
+export const MAX_MU_S = 20;
+export const MIN_K_TINT = 0;
+export const MAX_K_TINT = 1;
+export const MIN_CANVAS_TRANSMITTANCE = 0;
+export const MAX_CANVAS_TRANSMITTANCE = 1;
+
 export const DEFAULT_COLOR_HEX = '#f4f1ea';
 export const DEFAULT_HEIGHT_VALUE = 0;
 export const DEFAULT_OPACITY_VALUE = 1;

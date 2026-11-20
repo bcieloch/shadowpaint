@@ -2,8 +2,9 @@ import { ScrollArea } from '@/ui/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/components/ui/tabs';
 import { useI18n } from '@/ui/hooks/useI18n';
 import { CanvasCalibrationPanel } from '@/ui/panels/right/CanvasCalibrationPanel';
-import { FrontLightPanel } from '@/ui/panels/right/FrontLightPanel';
+import { LightPanel } from '@/ui/panels/right/LightPanel';
 import { MapParamsPanel } from '@/ui/panels/right/MapParamsPanel';
+import { MaterialPanel } from '@/ui/panels/right/MaterialPanel';
 
 export function RightPanel() {
   const { t } = useI18n();
@@ -36,6 +37,13 @@ export function RightPanel() {
             >
               {t('rightTabs.light')}
             </TabsTrigger>
+            <TabsTrigger
+              value="material"
+              data-testid="right-tab-material"
+              className="h-5 px-2.5 text-[11px]"
+            >
+              {t('rightTabs.material')}
+            </TabsTrigger>
           </TabsList>
         </div>
         <ScrollArea className="min-h-0 flex-1">
@@ -46,7 +54,10 @@ export function RightPanel() {
             <CanvasCalibrationPanel />
           </TabsContent>
           <TabsContent value="light" className="mt-0 p-3">
-            <FrontLightPanel />
+            <LightPanel />
+          </TabsContent>
+          <TabsContent value="material" className="mt-0 p-3">
+            <MaterialPanel />
           </TabsContent>
         </ScrollArea>
       </Tabs>

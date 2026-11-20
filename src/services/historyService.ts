@@ -140,12 +140,15 @@ function applySettingsPatch(patch: SettingsPatch, direction: 'undo' | 'redo'): v
     } else if (patch.path === 'canvas') {
       const value = direction === 'undo' ? patch.before : patch.after;
       draft.canvas = { ...value };
+    } else if (patch.path === 'lighting') {
+      const value = direction === 'undo' ? patch.before : patch.after;
+      draft.lighting = structuredClone(value);
     } else if (patch.path === 'view3d') {
       const value = direction === 'undo' ? patch.before : patch.after;
       draft.view3d = { ...value };
     } else {
       const value = direction === 'undo' ? patch.before : patch.after;
-      draft.lighting = structuredClone(value);
+      draft.material = { ...value };
     }
   }, true);
 

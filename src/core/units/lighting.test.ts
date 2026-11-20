@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultProject, FRONT_LIGHT_INTENSITY_FACTOR } from '@/core/constants';
 import {
+  backLightToWorld,
   clampShadowMapSize,
   computeFrontShadowParams,
   computeFrontSpotIntensity,
+  computeLightingMix,
   frontLightToPolar,
   frontLightToWorld,
   polarToFrontLightCartesian,
 } from '@/core/units/lighting';
 
-describe('Front light coordinate & shadow calibration math', () => {
+describe('Front & Back light coordinate, mix, and shadow calibration math', () => {
   const project = createDefaultProject();
   const canvas = project.canvas; // 50 x 70 cm
 
@@ -18,6 +20,48 @@ describe('Front light coordinate & shadow calibration math', () => {
     expect(world.position).toEqual({ x: 0, y: 65, z: 60 });
     expect(world.target).toEqual({ x: 0, y: 0, z: 0 });
     expect(world.distanceToTargetCm).toBeCloseTo(Math.hypot(65, 60), 6);
+  });
+
+  it('maps back light coordinates to world cm behind the canvas (z < 0)', () => {
+    const worldDefault = backLightToWorld(project.lighting.back, canvas);
+    expect(worldDefault.position).toEqual({ x: 0, y: 0, z: -20 });
+    expect(worldDefault.zDistanceCm).toBe(20);
+
+    const worldCorner = backLightToWorld({ xCm: 10, yCm: 15, distanceBehindCm: 35 }, canvas);
+    expect(worldCorner.position).toEqual({ x: -15, y: 20, z: -35 });
+    expect(worldCorner.zDistanceCm).toBe(35);
+  });
+
+  it('computes front/back scales and ambient intensity for front, back, and combined modes', () => {
+    const base = { balance: 0.5, ambientFront: 0.08, ambientRoom: 0.02 };
+
+    expect(computeLightingMix('front', base)).toEqual({
+      frontScale: 1,
+      backScale: 0,
+      ambient: 0.08,
+    });
+
+    expect(computeLightingMix('back', base)).toEqual({
+      frontScale: 0,
+      backScale: 1,
+      ambient: 0.02,
+    });
+
+    expect(computeLightingMix('combined', base)).toEqual({
+      frontScale: 1,
+      backScale: 1,
+      ambient: 0.1,
+    });
+
+    const frontBiased = computeLightingMix('combined', { ...base, balance: 0.25 });
+    expect(frontBiased.frontScale).toBeCloseTo(1, 6);
+    expect(frontBiased.backScale).toBeCloseTo(0.5, 6);
+    expect(frontBiased.ambient).toBeCloseTo(0.1, 6);
+
+    const backBiased = computeLightingMix('combined', { ...base, balance: 0.75 });
+    expect(backBiased.frontScale).toBeCloseTo(0.5, 6);
+    expect(backBiased.backScale).toBeCloseTo(1, 6);
+    expect(backBiased.ambient).toBeCloseTo(0.06, 6);
   });
 
   it('converts Cartesian -> Polar with azimuth 0° above, +90° right, ±180° below, -90° left', () => {
