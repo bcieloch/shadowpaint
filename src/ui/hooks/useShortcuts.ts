@@ -312,7 +312,10 @@ export function useShortcuts({
       } else if (lower === 'q') {
         editor.setTool('maskBrush');
       } else if (e.key === 'Escape') {
-        if (editor.tool === 'ruler' && editor.rulerLine) {
+        if (uiState.leftDrawerOpen || uiState.rightDrawerOpen) {
+          uiState.setLeftDrawerOpen(false);
+          uiState.setRightDrawerOpen(false);
+        } else if (editor.tool === 'ruler' && editor.rulerLine) {
           editor.setRulerLine(null);
         } else if (editor.tool === 'crossSection' && editor.crossSectionLine) {
           editor.setCrossSectionLine(null);

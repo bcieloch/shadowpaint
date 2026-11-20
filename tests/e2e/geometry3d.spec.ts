@@ -100,7 +100,7 @@ test.describe('3D Relief Geometry & View', () => {
     await page.waitForTimeout(80);
 
     // Adjust reliefMultiplier in Canvas tab -> badge, displacement, and 3D render update
-    await page.getByLabel('Relief multiplier').fill('9');
+    await page.getByLabel('Relief multiplier', { exact: true }).fill('9');
     await expect(page.getByTestId('badge-relief-multiplier')).toHaveText('Relief ×9');
 
     const scaledStats = await page.evaluate(() => window.__shadowpaintDebug?.get3DStats());

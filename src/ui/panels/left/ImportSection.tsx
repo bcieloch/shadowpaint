@@ -77,7 +77,7 @@ export function ImportSection() {
                   setDialogOpen('importWizardOpen', true);
                 }
               }}
-              className={`flex cursor-pointer items-center justify-between rounded border px-2 py-1.5 text-xs transition-colors ${
+              className={`flex cursor-pointer items-center justify-between rounded border px-2 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 isOver
                   ? 'border-primary bg-primary/15'
                   : 'border-border bg-background/60 hover:border-border/80 hover:bg-accent/50'

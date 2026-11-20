@@ -136,7 +136,7 @@ export function MapLayers() {
                     onClick={() => setActiveMap(id)}
                     aria-pressed={selected}
                     data-testid={`map-layer-${id}`}
-                    className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left"
+                    className="flex min-w-0 flex-1 items-center gap-2.5 rounded px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <MapThumbnail mapId={id} />
                     <span className="flex-1 truncate font-medium">{mapName}</span>

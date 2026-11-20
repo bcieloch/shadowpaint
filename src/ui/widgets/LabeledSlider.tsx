@@ -3,6 +3,7 @@ import { useId } from 'react';
 import { Input } from '@/ui/components/ui/input';
 import { Label } from '@/ui/components/ui/label';
 import { Slider } from '@/ui/components/ui/slider';
+import { useI18n } from '@/ui/hooks/useI18n';
 
 interface LabeledSliderProps {
   label: string;
@@ -31,6 +32,7 @@ export function LabeledSlider({
   onValueChange,
   onValueCommit,
 }: LabeledSliderProps) {
+  const { t } = useI18n();
   const id = useId();
   const clamped = Math.max(min, Math.min(max, value));
 
@@ -66,6 +68,7 @@ export function LabeledSlider({
         </div>
       </div>
       <Slider
+        aria-label={t('common.sliderLabel', { label })}
         value={[clamped]}
         min={min}
         max={max}

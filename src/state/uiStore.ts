@@ -1,8 +1,9 @@
 import { create } from 'zustand';
+import type { RightTabId } from '@/core/layout';
 import type { TranslationKey, TranslationParams } from '@/i18n';
 import type { ReliefFileHandle } from '@/persistence/fileAccess';
 
-export type RightTabId = 'map' | 'canvas' | 'light' | 'material' | 'section' | 'export';
+export type { RightTabId };
 
 export interface BackgroundTask {
   id: string;
@@ -43,6 +44,8 @@ export interface UiState {
   dialogs: UiDialogsState;
   pendingOpenRelief: PendingOpenRelief | null;
   rightTab: RightTabId;
+  leftDrawerOpen: boolean;
+  rightDrawerOpen: boolean;
   tasks: BackgroundTask[];
   autosaveStatus: AutosaveStatus;
   autosaveTimestamp: string | null;
@@ -50,6 +53,8 @@ export interface UiState {
   setDialogOpen: (dialog: keyof UiDialogsState, open: boolean) => void;
   setPendingOpenRelief: (pending: PendingOpenRelief | null) => void;
   setRightTab: (tab: RightTabId) => void;
+  setLeftDrawerOpen: (open: boolean) => void;
+  setRightDrawerOpen: (open: boolean) => void;
   upsertTask: (task: BackgroundTask) => void;
   removeTask: (id: string) => void;
   setAutosaveStatus: (status: AutosaveStatus, timestamp?: string | null) => void;
@@ -66,6 +71,8 @@ export const useUiStore = create<UiState>((set) => ({
   },
   pendingOpenRelief: null,
   rightTab: 'map',
+  leftDrawerOpen: false,
+  rightDrawerOpen: false,
   tasks: [],
   autosaveStatus: 'idle',
   autosaveTimestamp: null,
@@ -74,6 +81,8 @@ export const useUiStore = create<UiState>((set) => ({
     set((s) => ({ dialogs: { ...s.dialogs, [dialog]: open } })),
   setPendingOpenRelief: (pendingOpenRelief) => set({ pendingOpenRelief }),
   setRightTab: (rightTab) => set({ rightTab }),
+  setLeftDrawerOpen: (leftDrawerOpen) => set({ leftDrawerOpen }),
+  setRightDrawerOpen: (rightDrawerOpen) => set({ rightDrawerOpen }),
   upsertTask: (task) =>
     set((s) => {
       const idx = s.tasks.findIndex((t) => t.id === task.id);

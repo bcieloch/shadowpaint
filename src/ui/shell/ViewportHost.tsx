@@ -493,6 +493,7 @@ export function ViewportHost() {
               variant="ghost"
               size="xs"
               data-testid="btn-zoom-fit"
+              aria-label={t('viewport.zoomFitTooltip')}
               onClick={fitView}
               className="gap-1 text-xs"
             >
@@ -509,6 +510,7 @@ export function ViewportHost() {
               variant="ghost"
               size="xs"
               data-testid="btn-zoom-100"
+              aria-label={t('viewport.zoom100Tooltip')}
               onClick={setZoom100}
               className="gap-1 font-mono text-xs"
             >
@@ -654,7 +656,7 @@ export function ViewportHost() {
           <div className="flex flex-wrap items-center gap-1.5">{render3DControls(true)}</div>
         </div>
       ) : (
-        <div className="border-border bg-card/70 flex h-9 shrink-0 items-center justify-between gap-2 border-b px-2.5">
+        <div className="border-border bg-card/70 flex h-9 shrink-0 items-center justify-between gap-2 overflow-x-auto border-b px-2.5">
           {layout === '3d' ? render3DControls(false) : render2DControls(false)}
         </div>
       )}

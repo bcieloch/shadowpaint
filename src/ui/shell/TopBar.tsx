@@ -11,9 +11,13 @@ import {
   Info,
   Keyboard,
   Layers3,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightOpen,
   Redo2,
   Save,
   SaveAll,
+  SlidersHorizontal,
   Square,
   Undo2,
 } from 'lucide-react';
@@ -48,6 +52,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/ui/components/ui/popo
 import { Separator } from '@/ui/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/components/ui/tooltip';
 import { useI18n } from '@/ui/hooks/useI18n';
+import { useViewportBreakpoint } from '@/ui/hooks/useViewportBreakpoint';
 import { AutosaveIndicator } from '@/ui/widgets/AutosaveIndicator';
 
 function GithubIcon({ className }: { className?: string }) {
@@ -60,12 +65,21 @@ function GithubIcon({ className }: { className?: string }) {
 
 export function TopBar() {
   const { locale, setLocale, t } = useI18n();
+  const breakpoint = useViewportBreakpoint();
+  const isDrawerMode = breakpoint === 'drawer';
+
   const projectName = useProjectStore((s) => s.project.name);
   const isDirty = useProjectStore((s) => s.isDirty);
   const setDialogOpen = useUiStore((s) => s.setDialogOpen);
+  const leftDrawerOpen = useUiStore((s) => s.leftDrawerOpen);
+  const rightDrawerOpen = useUiStore((s) => s.rightDrawerOpen);
+  const setLeftDrawerOpen = useUiStore((s) => s.setLeftDrawerOpen);
+  const setRightDrawerOpen = useUiStore((s) => s.setRightDrawerOpen);
   const isTaskBusy = useUiStore((s) => s.tasks.length > 0);
   const layout = useEditorStore((s) => s.layout);
   const setLayout = useEditorStore((s) => s.setLayout);
+  const panelsHidden = useEditorStore((s) => s.panelsHidden);
+  const togglePanelsHidden = useEditorStore((s) => s.togglePanelsHidden);
   const undoEntry = useHistoryStore(selectGlobalUndoEntry);
   const redoEntry = useHistoryStore(selectGlobalRedoEntry);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -102,15 +116,36 @@ export function TopBar() {
     : t('topbar.redoEmptyTooltip');
 
   return (
-    <header className="border-border bg-card flex h-11 shrink-0 items-center justify-between border-b px-3 select-none">
-      <div className="flex items-center gap-1.5">
+    <header className="border-border bg-card flex h-11 shrink-0 items-center justify-between gap-2 overflow-x-auto border-b px-2.5 select-none xl:px-3">
+      <div className="flex min-w-0 items-center gap-1 xl:gap-1.5">
+        {isDrawerMode && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="xs"
+                variant={leftDrawerOpen ? 'secondary' : 'ghost'}
+                className="shrink-0 gap-1 px-2"
+                aria-label={t('topbar.toggleLeftDrawerTooltip')}
+                aria-expanded={leftDrawerOpen}
+                onClick={() => setLeftDrawerOpen(!leftDrawerOpen)}
+                data-testid="btn-toggle-left-drawer"
+              >
+                <SlidersHorizontal className="size-3.5" />
+                <span className="hidden md:inline">{t('topbar.toggleLeftDrawer')}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('topbar.toggleLeftDrawerTooltip')}</TooltipContent>
+          </Tooltip>
+        )}
+
         <div className="text-foreground flex shrink-0 items-center gap-1.5 font-semibold tracking-tight">
           <Layers3 className="text-primary size-4" aria-hidden="true" />
           <span>{t('app.name')}</span>
         </div>
-        <Separator orientation="vertical" className="h-4" />
+        <Separator orientation="vertical" className="hidden h-4 lg:block" />
         <span
-          className="text-muted-foreground max-w-32 truncate text-xs 2xl:max-w-44"
+          className="text-muted-foreground hidden max-w-28 truncate text-xs lg:inline 2xl:max-w-44"
           data-testid="topbar-project-name"
         >
           {displayName}
@@ -124,11 +159,12 @@ export function TopBar() {
               size="xs"
               variant="ghost"
               className="shrink-0 gap-1"
+              aria-label={t('topbar.newProject')}
               onClick={() => setDialogOpen('newProjectOpen', true)}
               data-testid="btn-new-project"
             >
               <FilePlus2 className="size-3.5" />
-              <span>{t('topbar.newProject')}</span>
+              <span className="hidden xl:inline">{t('topbar.newProject')}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>{t('topbar.newProjectTooltip')}</TooltipContent>
@@ -156,12 +192,13 @@ export function TopBar() {
               size="xs"
               variant="ghost"
               className="shrink-0 gap-1"
+              aria-label={t('topbar.openProject')}
               disabled={isTaskBusy}
               onClick={() => void handleOpenProject()}
               data-testid="btn-open-project"
             >
               <FolderOpen className="size-3.5" />
-              <span>{t('topbar.openProject')}</span>
+              <span className="hidden xl:inline">{t('topbar.openProject')}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>{t('topbar.openProjectTooltip')}</TooltipContent>
@@ -176,12 +213,13 @@ export function TopBar() {
                   size="xs"
                   variant="ghost"
                   className="shrink-0 gap-1"
+                  aria-label={t('topbar.saveMenu')}
                   disabled={isTaskBusy}
                   data-testid="btn-save-menu"
                   data-dirty={isDirty ? 'true' : 'false'}
                 >
                   <Save className="size-3.5" />
-                  <span>{t('topbar.saveMenu')}</span>
+                  <span className="hidden xl:inline">{t('topbar.saveMenu')}</span>
                   {isDirty && (
                     <span
                       className="bg-primary size-1.5 rounded-full"
@@ -230,12 +268,13 @@ export function TopBar() {
               size="xs"
               variant="ghost"
               className="shrink-0 gap-1"
+              aria-label={t('topbar.exportPackage')}
               disabled={isTaskBusy}
               onClick={() => void exportPackage()}
               data-testid="btn-export-package"
             >
               <Archive className="size-3.5" />
-              <span>{t('topbar.exportPackage')}</span>
+              <span className="hidden xl:inline">{t('topbar.exportPackage')}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>{t('topbar.exportPackageTooltip')}</TooltipContent>
@@ -258,7 +297,7 @@ export function TopBar() {
                   data-testid="btn-undo"
                 >
                   <Undo2 className="size-3.5" />
-                  <span>{t('topbar.undo')}</span>
+                  <span className="hidden xl:inline">{t('topbar.undo')}</span>
                 </Button>
               </span>
             </TooltipTrigger>
@@ -279,7 +318,7 @@ export function TopBar() {
                   data-testid="btn-redo"
                 >
                   <Redo2 className="size-3.5" />
-                  <span>{t('topbar.redo')}</span>
+                  <span className="hidden xl:inline">{t('topbar.redo')}</span>
                 </Button>
               </span>
             </TooltipTrigger>
@@ -300,7 +339,7 @@ export function TopBar() {
                 type="button"
                 size="xs"
                 variant={layout === '2d' ? 'secondary' : 'ghost'}
-                className="h-6 gap-1 px-2 text-[11px] font-medium"
+                className="h-6 gap-1 px-1.5 text-[11px] font-medium xl:px-2"
                 onClick={() => setLayout('2d')}
                 aria-pressed={layout === '2d'}
                 data-testid="layout-2d"
@@ -317,7 +356,7 @@ export function TopBar() {
                 type="button"
                 size="xs"
                 variant={layout === '3d' ? 'secondary' : 'ghost'}
-                className="h-6 gap-1 px-2 text-[11px] font-medium"
+                className="h-6 gap-1 px-1.5 text-[11px] font-medium xl:px-2"
                 onClick={() => setLayout('3d')}
                 aria-pressed={layout === '3d'}
                 data-testid="layout-3d"
@@ -334,7 +373,7 @@ export function TopBar() {
                 type="button"
                 size="xs"
                 variant={layout === 'split' ? 'secondary' : 'ghost'}
-                className="h-6 gap-1 px-2 text-[11px] font-medium"
+                className="h-6 gap-1 px-1.5 text-[11px] font-medium xl:px-2"
                 onClick={() => setLayout('split')}
                 aria-pressed={layout === 'split'}
                 data-testid="layout-split"
@@ -348,9 +387,54 @@ export function TopBar() {
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1 xl:gap-1.5">
         <AutosaveIndicator />
         <Separator orientation="vertical" className="h-4" />
+
+        {isDrawerMode ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="xs"
+                variant={rightDrawerOpen ? 'secondary' : 'ghost'}
+                className="gap-1 px-2"
+                aria-label={t('topbar.toggleRightDrawerTooltip')}
+                aria-expanded={rightDrawerOpen}
+                onClick={() => setRightDrawerOpen(!rightDrawerOpen)}
+                data-testid="btn-toggle-right-drawer"
+              >
+                <PanelRightOpen className="size-3.5" />
+                <span className="hidden md:inline">{t('topbar.toggleRightDrawer')}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('topbar.toggleRightDrawerTooltip')}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="xs"
+                variant={panelsHidden ? 'secondary' : 'ghost'}
+                className="gap-1 px-2"
+                aria-label={
+                  panelsHidden ? t('topbar.togglePanelsShow') : t('topbar.togglePanelsHide')
+                }
+                aria-pressed={!panelsHidden}
+                onClick={() => togglePanelsHidden()}
+                data-testid="btn-toggle-panels"
+              >
+                {panelsHidden ? (
+                  <PanelLeftOpen className="size-3.5" />
+                ) : (
+                  <PanelLeftClose className="size-3.5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('topbar.togglePanelsTooltip')}</TooltipContent>
+          </Tooltip>
+        )}
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -379,10 +463,11 @@ export function TopBar() {
                   size="xs"
                   variant="ghost"
                   className="gap-1 px-2"
+                  aria-label={t('topbar.about')}
                   data-testid="btn-about"
                 >
                   <Info className="size-3.5" />
-                  <span>{t('topbar.about')}</span>
+                  <span className="hidden xl:inline">{t('topbar.about')}</span>
                 </Button>
               </PopoverTrigger>
             </TooltipTrigger>
@@ -435,7 +520,7 @@ export function TopBar() {
                 aria-label={t('topbar.githubTooltip', { license: LICENSE_SPDX })}
               >
                 <GithubIcon className="size-3.5" />
-                <span>{t('topbar.github')}</span>
+                <span className="hidden xl:inline">{t('topbar.github')}</span>
               </a>
             </Button>
           </TooltipTrigger>

@@ -83,7 +83,7 @@ export function SlotCard({
         <div className="flex items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" size="icon-xs" title={t('import.swapWith')}>
+              <Button type="button" variant="ghost" size="icon-xs" aria-label={t('import.swapWith')} title={t('import.swapWith')}>
                 <ArrowLeftRight className="size-3.5" />
               </Button>
             </DropdownMenuTrigger>
@@ -104,6 +104,7 @@ export function SlotCard({
                 setEditingTransform(false);
                 onClear(mapId);
               }}
+              aria-label={t('common.clear')}
               title={t('common.clear')}
             >
               <Trash2 className="size-3.5 text-destructive" />
@@ -184,6 +185,7 @@ export function SlotCard({
               onClick={() =>
                 onChangeTransform(mapId, { ...slot.transform, flipH: !slot.transform.flipH })
               }
+              aria-label={t('import.flipH')}
               title={t('import.flipH')}
             >
               <FlipHorizontal2 className="size-3.5" />
@@ -195,6 +197,7 @@ export function SlotCard({
               onClick={() =>
                 onChangeTransform(mapId, { ...slot.transform, flipV: !slot.transform.flipV })
               }
+              aria-label={t('import.flipV')}
               title={t('import.flipV')}
             >
               <FlipVertical2 className="size-3.5" />
@@ -209,6 +212,7 @@ export function SlotCard({
                   rotate90: ((slot.transform.rotate90 + 1) % 4) as 0 | 1 | 2 | 3,
                 })
               }
+              aria-label={t('import.rotate90')}
               title={t('import.rotate90')}
             >
               <RotateCw className="size-3.5" />

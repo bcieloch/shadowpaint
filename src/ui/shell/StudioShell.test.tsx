@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AUTHOR_NAME, IDEA_AUTHOR_NAME, LICENSE_SPDX, REPOSITORY_URL } from '@/core/constants';
 import { useLocaleStore } from '@/i18n/localeStore';
+import { useEditorStore } from '@/state/editorStore';
 import { TooltipProvider } from '@/ui/components/ui/tooltip';
 import { StudioShell } from '@/ui/shell/StudioShell';
 import { WebGL2Gate } from '@/ui/shell/WebGL2Gate';
@@ -9,6 +10,13 @@ import { WebGL2Gate } from '@/ui/shell/WebGL2Gate';
 describe('StudioShell and WebGL2Gate', () => {
   beforeEach(() => {
     useLocaleStore.getState().setLocale('en');
+    useEditorStore.getState().setPanelsHidden(false);
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      writable: true,
+      value: 1280,
+    });
+    window.dispatchEvent(new Event('resize'));
   });
 
   afterEach(() => {
@@ -76,5 +84,51 @@ describe('StudioShell and WebGL2Gate', () => {
     expect(statusbarCredits).toHaveTextContent(`Pomysł: ${IDEA_AUTHOR_NAME}`);
     expect(aboutPopover).toHaveTextContent(`Stworzone przez: ${AUTHOR_NAME}`);
     expect(aboutPopover).toHaveTextContent(`Pomysł: ${IDEA_AUTHOR_NAME}`);
+  });
+
+  it('switches to slide-over drawers below 1024px and restores docked panels at desktop', () => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      writable: true,
+      value: 900,
+    });
+    window.dispatchEvent(new Event('resize'));
+
+    render(
+      <TooltipProvider>
+        <WebGL2Gate supported>
+          <StudioShell />
+        </WebGL2Gate>
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByTestId('btn-toggle-left-drawer')).toBeInTheDocument();
+    expect(screen.getByTestId('btn-toggle-right-drawer')).toBeInTheDocument();
+    expect(screen.queryByTestId('btn-toggle-panels')).not.toBeInTheDocument();
+    expect(screen.queryByText('Workspace & Tools')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('btn-toggle-left-drawer'));
+    expect(screen.getByTestId('left-drawer-sheet')).toBeInTheDocument();
+    expect(screen.getByTestId('tool-brush')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('btn-toggle-right-drawer'));
+    expect(screen.getByTestId('right-drawer-sheet')).toBeInTheDocument();
+  });
+
+  it('toggles docked panels visibility via TopBar panel button', () => {
+    render(
+      <TooltipProvider>
+        <WebGL2Gate supported>
+          <StudioShell />
+        </WebGL2Gate>
+      </TooltipProvider>,
+    );
+
+    const toggleBtn = screen.getByTestId('btn-toggle-panels');
+    expect(useEditorStore.getState().panelsHidden).toBe(false);
+    fireEvent.click(toggleBtn);
+    expect(useEditorStore.getState().panelsHidden).toBe(true);
+    fireEvent.click(toggleBtn);
+    expect(useEditorStore.getState().panelsHidden).toBe(false);
   });
 });
