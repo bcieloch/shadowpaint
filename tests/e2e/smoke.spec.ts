@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('studio shell renders without scrollbars, switches EN/PL, and creates a new project', async ({
+test('studio shell renders without scrollbars, displays GitHub link & credits, switches EN/PL, and creates a new project', async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -16,6 +16,23 @@ test('studio shell renders without scrollbars, switches EN/PL, and creates a new
   await expect(page).toHaveTitle(/ShadowPaint/);
   await expect(page.getByTestId('topbar-project-name')).toHaveText('Untitled');
 
+  const githubLink = page.getByTestId('link-github');
+  await expect(githubLink).toHaveAttribute('href', 'https://github.com/bcieloch/shadowpaint');
+  await expect(page.getByTestId('statusbar-credits')).toContainText(
+    'Created by Brajan Cieloch · Idea by Mateusz Prawecki',
+  );
+
+  await page.getByTestId('btn-about').click();
+  await expect(page.getByTestId('about-popover')).toContainText('Brajan Cieloch');
+  await expect(page.getByTestId('about-popover')).toContainText('Mateusz Prawecki');
+  await expect(page.getByTestId('about-popover')).toContainText('AGPL-3.0-only');
+  await expect(page.getByTestId('about-github-link')).toHaveAttribute(
+    'href',
+    'https://github.com/bcieloch/shadowpaint',
+  );
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('about-popover')).toBeHidden();
+
   const noScroll = await page.evaluate(() => ({
     scrollW: document.documentElement.scrollWidth,
     innerW: window.innerWidth,
@@ -27,6 +44,13 @@ test('studio shell renders without scrollbars, switches EN/PL, and creates a new
 
   await page.getByTestId('lang-pl').click();
   await expect(page.getByTestId('topbar-project-name')).toHaveText('Bez tytułu');
+  await expect(page.getByTestId('statusbar-credits')).toContainText(
+    'Stworzone przez: Brajan Cieloch · Pomysł: Mateusz Prawecki',
+  );
+  await page.getByTestId('btn-about').click();
+  await expect(page.getByTestId('about-popover')).toContainText('Stworzone przez: Brajan Cieloch');
+  await expect(page.getByTestId('about-popover')).toContainText('Pomysł: Mateusz Prawecki');
+  await page.keyboard.press('Escape');
 
   await page.getByTestId('lang-en').click();
   await expect(page.getByTestId('topbar-project-name')).toHaveText('Untitled');

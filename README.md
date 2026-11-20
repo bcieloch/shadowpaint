@@ -41,6 +41,13 @@ pnpm dev
 
 The UI and exported PDF documentation support **English** (default) and **Polish**, switchable directly from the top toolbar.
 
+## Credits
+
+- **Created by:** Brajan Cieloch
+- **Original idea:** Mateusz Prawecki
+
 ## License
 
 GNU Affero General Public License v3.0 only (`AGPL-3.0-only`). See [LICENSE](LICENSE).
+
+Source repository: [https://github.com/bcieloch/shadowpaint](https://github.com/bcieloch/shadowpaint).
