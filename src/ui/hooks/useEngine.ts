@@ -46,8 +46,17 @@ export function useEngine(): UseEngineResult {
     const overlay = overlayRef.current;
     if (!overlay) return;
     const { canvas, grid } = useProjectStore.getState().project;
-    const { layout, pane2D, viewMode2D, showMaskOverlay, showRulers, rulerLine, tool } =
-      useEditorStore.getState();
+    const {
+      layout,
+      pane2D,
+      viewMode2D,
+      showMaskOverlay,
+      showRulers,
+      rulerLine,
+      crossSectionLine,
+      crossSectionHoverT,
+      tool,
+    } = useEditorStore.getState();
     if (layout === '3d') {
       overlay.clear();
       return;
@@ -65,6 +74,9 @@ export function useEngine(): UseEngineResult {
       showRulers,
       rulerLine,
       isRulerToolActive: tool === 'ruler',
+      crossSectionLine,
+      crossSectionHoverT,
+      isCrossSectionToolActive: tool === 'crossSection',
       selectionMask: mapRegistry.isAllocated ? mapRegistry.selection : null,
       hasSelection: mapRegistry.hasSelection,
       marchingAntsPhasePx: antsPhaseRef.current,
@@ -119,6 +131,8 @@ export function useEngine(): UseEngineResult {
       showLampGizmos: editor.showLampGizmos,
       showMaskOverlay: editor.showMaskOverlay,
       pane2D: editor.pane2D,
+      crossSectionLine: editor.crossSectionLine,
+      crossSectionHoverT: editor.crossSectionHoverT,
     });
     renderOverlay();
     syncAntsAnimation();
@@ -190,6 +204,7 @@ export function useEngine(): UseEngineResult {
         get3DStats: () => engine?.get3DStats() ?? null,
         getFrontLightStats: () => engine?.getFrontLightStats() ?? null,
         getBackLightStats: () => engine?.getBackLightStats() ?? null,
+        getCrossSection3DStats: () => engine?.getCrossSection3DStats() ?? null,
         getSelectionStats: () => {
           let selectedPixels = 0;
           if (mapRegistry.isAllocated) {
@@ -329,11 +344,12 @@ export function useEngine(): UseEngineResult {
     });
 
     const unsubMapDirty = mapRegistry.events.on('dirty', () => {
+      syncEngineParams();
       refreshCursorReadout();
     });
 
     const unsubMapReplaced = mapRegistry.events.on('replaced', ({ mapId }) => {
-      if (mapId === 'all') {
+      if (mapId === 'all' || mapId === 'height') {
         syncEngineParams();
       }
       refreshCursorReadout();

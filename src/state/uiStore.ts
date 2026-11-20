@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { TranslationKey, TranslationParams } from '@/i18n';
 
+export type RightTabId = 'map' | 'canvas' | 'light' | 'material' | 'section' | 'export';
+
 export interface BackgroundTask {
   id: string;
   labelKey: TranslationKey;
@@ -20,11 +22,13 @@ export interface UiDialogsState {
 
 export interface UiState {
   dialogs: UiDialogsState;
+  rightTab: RightTabId;
   tasks: BackgroundTask[];
   autosaveStatus: AutosaveStatus;
   autosaveTimestamp: string | null;
   statusMessage: { key: TranslationKey; params?: TranslationParams } | null;
   setDialogOpen: (dialog: keyof UiDialogsState, open: boolean) => void;
+  setRightTab: (tab: RightTabId) => void;
   upsertTask: (task: BackgroundTask) => void;
   removeTask: (id: string) => void;
   setAutosaveStatus: (status: AutosaveStatus, timestamp?: string | null) => void;
@@ -37,12 +41,14 @@ export const useUiStore = create<UiState>((set) => ({
     importWizardOpen: false,
     exportOpen: false,
   },
+  rightTab: 'map',
   tasks: [],
   autosaveStatus: 'idle',
   autosaveTimestamp: null,
   statusMessage: null,
   setDialogOpen: (dialog, open) =>
     set((s) => ({ dialogs: { ...s.dialogs, [dialog]: open } })),
+  setRightTab: (rightTab) => set({ rightTab }),
   upsertTask: (task) =>
     set((s) => {
       const idx = s.tasks.findIndex((t) => t.id === task.id);

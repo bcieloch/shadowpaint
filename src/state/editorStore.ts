@@ -102,6 +102,7 @@ export interface EditorState {
   splitRatio: number;
   rulerLine: LineSegment | null;
   crossSectionLine: LineSegment | null;
+  crossSectionHoverT: number | null;
   setActiveMap: (mapId: MapId) => void;
   setTool: (tool: ToolId) => void;
   setBrushOption: <K extends keyof BrushOptions>(key: K, value: BrushOptions[K]) => void;
@@ -132,6 +133,7 @@ export interface EditorState {
   setSplitRatio: (ratio: number) => void;
   setRulerLine: (line: LineSegment | null) => void;
   setCrossSectionLine: (line: LineSegment | null) => void;
+  setCrossSectionHoverT: (t: number | null) => void;
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -190,6 +192,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   splitRatio: 0.5,
   rulerLine: null,
   crossSectionLine: null,
+  crossSectionHoverT: null,
   setActiveMap: (activeMap) => set({ activeMap }),
   setTool: (tool) => set({ tool }),
   setBrushOption: (key, value) => set((s) => ({ brush: { ...s.brush, [key]: value } })),
@@ -213,5 +216,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   setPane2D: (pane) => set((s) => ({ pane2D: { ...s.pane2D, ...pane } })),
   setSplitRatio: (splitRatio) => set({ splitRatio }),
   setRulerLine: (rulerLine) => set({ rulerLine }),
-  setCrossSectionLine: (crossSectionLine) => set({ crossSectionLine }),
+  setCrossSectionLine: (crossSectionLine) =>
+    set((s) => ({
+      crossSectionLine,
+      crossSectionHoverT: crossSectionLine ? s.crossSectionHoverT : null,
+    })),
+  setCrossSectionHoverT: (crossSectionHoverT) => set({ crossSectionHoverT }),
 }));

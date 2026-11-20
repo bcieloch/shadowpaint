@@ -1,4 +1,5 @@
 import {
+  Activity,
   Blend,
   CircleDashed,
   Contrast,
@@ -31,6 +32,7 @@ interface ToolItem {
     | 'tools.eyedropper'
     | 'tools.pan'
     | 'tools.ruler'
+    | 'tools.crossSection'
     | 'tools.selectRect'
     | 'tools.selectEllipse'
     | 'tools.selectLasso'
@@ -46,6 +48,7 @@ interface ToolItem {
     | 'tools.eyedropperTooltip'
     | 'tools.panTooltip'
     | 'tools.rulerTooltip'
+    | 'tools.crossSectionTooltip'
     | 'tools.selectRectTooltip'
     | 'tools.selectEllipseTooltip'
     | 'tools.selectLassoTooltip'
@@ -74,6 +77,12 @@ const TOOL_ITEMS: readonly ToolItem[] = [
   },
   { id: 'pan', labelKey: 'tools.pan', tooltipKey: 'tools.panTooltip', icon: Hand },
   { id: 'ruler', labelKey: 'tools.ruler', tooltipKey: 'tools.rulerTooltip', icon: Ruler },
+  {
+    id: 'crossSection',
+    labelKey: 'tools.crossSection',
+    tooltipKey: 'tools.crossSectionTooltip',
+    icon: Activity,
+  },
   {
     id: 'selectRect',
     labelKey: 'tools.selectRect',

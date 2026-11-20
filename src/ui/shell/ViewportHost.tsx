@@ -149,6 +149,9 @@ export function ViewportHost() {
         setRulerLine: (line) => {
           useEditorStore.getState().setRulerLine(line);
         },
+        setCrossSectionLine: (line) => {
+          useEditorStore.getState().setCrossSectionLine(line);
+        },
         onLockedMapAttempt: (mapId) => {
           useUiStore.getState().setStatusMessage({ key: getLockedWarningKey(mapId) });
           if (statusClearTimerRef.current !== null) {
@@ -398,6 +401,8 @@ export function ViewportHost() {
         editor.setTool('pan');
       } else if (lower === 'u') {
         editor.setTool('ruler');
+      } else if (lower === 'x') {
+        editor.setTool('crossSection');
       } else if (lower === 'm') {
         editor.setTool('selectRect');
       } else if (lower === 'l') {
@@ -408,6 +413,8 @@ export function ViewportHost() {
         editor.setTool('maskBrush');
       } else if (e.key === 'Escape' && editor.tool === 'ruler' && editor.rulerLine) {
         editor.setRulerLine(null);
+      } else if (e.key === 'Escape' && editor.tool === 'crossSection' && editor.crossSectionLine) {
+        editor.setCrossSectionLine(null);
       } else if (e.key === '[') {
         e.preventDefault();
         adjustBrushSize(1 / 1.18);
