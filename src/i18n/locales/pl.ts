@@ -39,6 +39,23 @@ export const pl: TranslationDictionary = {
   topbar: {
     newProject: 'Nowy projekt',
     newProjectTooltip: 'Utwórz nowy projekt malarski (Ctrl+Alt+N)',
+    undo: 'Cofnij',
+    redo: 'Ponów',
+    undoTooltip: 'Cofnij: {action} (Ctrl+Z)',
+    undoEmptyTooltip: 'Brak akcji do cofnięcia (Ctrl+Z)',
+    redoTooltip: 'Ponów: {action} (Ctrl+Shift+Z / Ctrl+Y)',
+    redoEmptyTooltip: 'Brak akcji do ponowienia (Ctrl+Shift+Z / Ctrl+Y)',
+  },
+  history: {
+    brushStroke: 'Pociągnięcie pędzlem ({map})',
+    eraserStroke: 'Gumka ({map})',
+    smoothMap: 'Wygładzenie ({map})',
+    importMap: 'Import ({map})',
+    adjustment: 'Korekty ({map})',
+    resetAdjustments: 'Reset korekt ({map})',
+    settingsChange: 'Ustawienia projektu',
+    undoneStatus: 'Cofnięto: {action}',
+    redoneStatus: 'Ponowiono: {action}',
   },
   viewport: {
     modeColor: 'Kolor',
@@ -69,6 +86,8 @@ export const pl: TranslationDictionary = {
     opacityShort: 'Przepuszcz.',
     lockMap: 'Zablokuj: {map}',
     unlockMap: 'Odblokuj: {map}',
+    undoMap: 'Cofnij ({map}): {action} (Ctrl+Alt+Z)',
+    undoMapEmpty: 'Brak edycji do cofnięcia: {map}',
     lockedBadge: 'Zablokowana',
     lockedWarningColor: 'Mapa kolorów jest zablokowana — odblokuj ją, aby edytować.',
     lockedWarningHeight: 'Mapa wysokości jest zablokowana — odblokuj ją, aby edytować.',
@@ -209,8 +228,7 @@ export const pl: TranslationDictionary = {
     summaryMemory: 'Szacowana pamięć buforów: ~{mb} MB',
     highMemoryWarning:
       'Duża liczba pikseli ({mp} MP, ~{mb} MB RAM). Bardzo duże płótna mogą obciążyć pamięć przeglądarki.',
-    unsavedConfirm:
-      'Bieżący projekt ma niezapisane zmiany. Utworzenie nowego projektu je odrzuci.',
+    unsavedConfirm: 'Bieżący projekt ma niezapisane zmiany. Utworzenie nowego projektu je odrzuci.',
     createdToast: 'Utworzono projekt „{name}” ({wCm} × {hCm} cm, {wPx} × {hPx} px)',
     outOfMemoryError:
       'Brak wystarczającej pamięci przeglądarki na przydzielenie ~{mb} MB dla tych wymiarów map. Zmniejsz rozdzielczość.',
@@ -220,8 +238,7 @@ export const pl: TranslationDictionary = {
     invalidHeightCm: 'Wysokość płótna musi mieścić się w zakresie 1–1000 cm.',
     invalidWidthPx: 'Szerokość w pikselach musi być liczbą całkowitą z zakresu 16–{max} px.',
     invalidHeightPx: 'Wysokość w pikselach musi być liczbą całkowitą z zakresu 16–{max} px.',
-    invalidThicknessRange:
-      'Zakres grubości musi spełniać warunek 0 ≤ min < maks ≤ 50 mm.',
+    invalidThicknessRange: 'Zakres grubości musi spełniać warunek 0 ≤ min < maks ≤ 50 mm.',
     aspectMismatch: 'Proporcje w pikselach nie zgadzają się z fizycznymi proporcjami płótna.',
   },
   tasks: {

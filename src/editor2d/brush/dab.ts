@@ -20,6 +20,22 @@ export interface BrushDabConfig {
 
 const DEFAULT_RAISE_LOWER_STEP = 0.08;
 
+export function computeDabBounds(
+  cx: number,
+  cy: number,
+  radiusPx: number,
+  width: number,
+  height: number,
+): Rect | null {
+  const radius = Math.max(0.5, radiusPx);
+  const x0 = Math.max(0, Math.floor(cx - radius));
+  const y0 = Math.max(0, Math.floor(cy - radius));
+  const x1 = Math.min(width, Math.ceil(cx + radius));
+  const y1 = Math.min(height, Math.ceil(cy + radius));
+  if (x0 >= x1 || y0 >= y1) return null;
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
 export function computeBrushFalloff(dist: number, radiusPx: number, hardness: number): number {
   if (radiusPx <= 0 || dist >= radiusPx) return 0;
   const h = Math.max(0, Math.min(1, hardness));
@@ -38,12 +54,13 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
   const flow = Math.max(0, Math.min(1, config.flow));
   if (flow <= 0) return null;
 
-  const x0 = Math.max(0, Math.floor(config.cx - radius));
-  const y0 = Math.max(0, Math.floor(config.cy - radius));
-  const x1 = Math.min(width, Math.ceil(config.cx + radius));
-  const y1 = Math.min(height, Math.ceil(config.cy + radius));
+  const bounds = computeDabBounds(config.cx, config.cy, radius, width, height);
+  if (!bounds) return null;
 
-  if (x0 >= x1 || y0 >= y1) return null;
+  const x0 = bounds.x;
+  const y0 = bounds.y;
+  const x1 = bounds.x + bounds.w;
+  const y1 = bounds.y + bounds.h;
 
   const isSinglePixelBrush = radius < 1;
   const singlePxX = Math.floor(config.cx);
@@ -103,7 +120,7 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
       }
     }
 
-    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    return bounds;
   }
 
   const buf = registry.getMap(config.mapId);
@@ -145,5 +162,5 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
     }
   }
 
-  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  return bounds;
 }

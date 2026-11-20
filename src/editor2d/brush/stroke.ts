@@ -2,7 +2,7 @@ import { recomputeEffectiveRect } from '@/core/maps/adjustments';
 import type { MapRegistry } from '@/core/maps/MapRegistry';
 import { isEmptyRect, unionRect } from '@/core/maps/rect';
 import type { MapId, ProjectSettings, Rect, Vec2 } from '@/core/types';
-import { stampDab, type BrushMode } from '@/editor2d/brush/dab';
+import { computeDabBounds, stampDab, type BrushMode } from '@/editor2d/brush/dab';
 
 export interface StrokeParams {
   kind: 'brush' | 'eraser';
@@ -18,16 +18,22 @@ export interface StrokeParams {
   adjustments: ProjectSettings['adjustments'];
 }
 
+export interface StrokeHooks {
+  onBeforeWriteRect?: (rect: Rect) => void;
+}
+
 export class StrokeSession {
   private readonly registry: MapRegistry;
+  private readonly hooks: StrokeHooks | undefined;
   private active = false;
   private lastPos: Vec2 = { x: 0, y: 0 };
   private lastPressure = 1;
   private residualDist = 0;
   private totalDirtyRect: Rect | null = null;
 
-  constructor(registry: MapRegistry) {
+  constructor(registry: MapRegistry, hooks?: StrokeHooks) {
     this.registry = registry;
+    this.hooks = hooks;
   }
 
   get isActive(): boolean {
@@ -44,6 +50,19 @@ export class StrokeSession {
     this.totalDirtyRect = null;
 
     const effectiveFlow = this.computeEffectiveFlow(params.flow, pressure, params.usePressure);
+    if (effectiveFlow > 0) {
+      const predicted = computeDabBounds(
+        pos.x,
+        pos.y,
+        params.radiusPx,
+        this.registry.width,
+        this.registry.height,
+      );
+      if (predicted) {
+        this.hooks?.onBeforeWriteRect?.(predicted);
+      }
+    }
+
     const rect = stampDab(this.registry, {
       kind: params.kind,
       mapId: params.mapId,
@@ -88,6 +107,19 @@ export class StrokeSession {
       const cy = this.lastPos.y + dy * t;
       const p = this.lastPressure + (pressure - this.lastPressure) * t;
       const effectiveFlow = this.computeEffectiveFlow(params.flow, p, params.usePressure);
+
+      if (effectiveFlow > 0) {
+        const predicted = computeDabBounds(
+          cx,
+          cy,
+          params.radiusPx,
+          this.registry.width,
+          this.registry.height,
+        );
+        if (predicted) {
+          this.hooks?.onBeforeWriteRect?.(predicted);
+        }
+      }
 
       const rect = stampDab(this.registry, {
         kind: params.kind,

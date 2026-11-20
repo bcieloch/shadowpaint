@@ -1,7 +1,9 @@
 import { proxy, transfer } from 'comlink';
+import { estimateFullMapEntryBytes } from '@/core/history/commands';
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import type { MapId } from '@/core/types';
 import { valueToMm } from '@/core/units/calibration';
+import { useHistoryStore } from '@/state/historyStore';
 import { useProjectStore } from '@/state/projectStore';
 import { getImageWorker } from '@/workers/client';
 import { runTask } from '@/workers/tasks';
@@ -59,14 +61,12 @@ export async function recomputeEffectiveMap(mapId: MapId): Promise<void> {
   mapRegistry.emitReplaced('opacity');
 }
 
-export async function smoothFloatMap(
-  mapId: 'height' | 'opacity',
-  radiusPx: number,
-): Promise<void> {
+export async function smoothFloatMap(mapId: 'height' | 'opacity', radiusPx: number): Promise<void> {
   if (!mapRegistry.isAllocated) return;
   const { width, height } = mapRegistry;
   const worker = getImageWorker();
   const buf = mapRegistry.getMap(mapId);
+  const workingBefore = new Float32Array(buf.working);
   const workingCopy = new Float32Array(buf.working);
 
   const smoothed = await runTask(
@@ -81,7 +81,17 @@ export async function smoothFloatMap(
       ),
   );
 
+  const workingAfter = new Float32Array(smoothed);
   buf.replaceWorking(smoothed);
+  useHistoryStore.getState().pushMapEntry(mapId, {
+    kind: 'full',
+    mapId,
+    meta: { action: 'smoothMap', mapId },
+    workingBefore,
+    workingAfter,
+    byteSize: estimateFullMapEntryBytes(workingBefore, workingAfter),
+  });
+  useProjectStore.getState().updateProject(() => {}, true);
   await recomputeEffectiveMap(mapId);
 }
 

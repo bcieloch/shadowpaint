@@ -1,3 +1,4 @@
+import type { NewHistoryEntry, TilesMapHistoryEntry } from '@/core/history/commands';
 import type { MapRegistry } from '@/core/maps/MapRegistry';
 import type { MapId, ProjectSettings, Vec2 } from '@/core/types';
 import type { BrushOptions, EditorState, ToolId } from '@/state/editorStore';
@@ -18,6 +19,7 @@ export interface ToolContext {
   getEditor: () => EditorState;
   setBrushOption: <K extends keyof BrushOptions>(key: K, value: BrushOptions[K]) => void;
   onLockedMapAttempt: (mapId: MapId) => void;
+  recordMapTileEntry?: (entry: NewHistoryEntry<TilesMapHistoryEntry>) => void;
 }
 
 export interface Tool {
