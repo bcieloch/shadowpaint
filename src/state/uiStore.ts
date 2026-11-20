@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { TranslationKey, TranslationParams } from '@/i18n';
+import type { ReliefFileHandle } from '@/persistence/fileAccess';
 
 export type RightTabId = 'map' | 'canvas' | 'light' | 'material' | 'section' | 'export';
 
@@ -14,6 +15,11 @@ export interface BackgroundTask {
 
 export type AutosaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error';
 
+export interface PendingOpenRelief {
+  file: File;
+  handle: ReliefFileHandle | null;
+}
+
 export interface UiDialogsState {
   newProjectOpen: boolean;
   importWizardOpen: boolean;
@@ -23,12 +29,14 @@ export interface UiDialogsState {
 
 export interface UiState {
   dialogs: UiDialogsState;
+  pendingOpenRelief: PendingOpenRelief | null;
   rightTab: RightTabId;
   tasks: BackgroundTask[];
   autosaveStatus: AutosaveStatus;
   autosaveTimestamp: string | null;
   statusMessage: { key: TranslationKey; params?: TranslationParams } | null;
   setDialogOpen: (dialog: keyof UiDialogsState, open: boolean) => void;
+  setPendingOpenRelief: (pending: PendingOpenRelief | null) => void;
   setRightTab: (tab: RightTabId) => void;
   upsertTask: (task: BackgroundTask) => void;
   removeTask: (id: string) => void;
@@ -43,6 +51,7 @@ export const useUiStore = create<UiState>((set) => ({
     exportOpen: false,
     recentProjectsOpen: false,
   },
+  pendingOpenRelief: null,
   rightTab: 'map',
   tasks: [],
   autosaveStatus: 'idle',
@@ -50,6 +59,7 @@ export const useUiStore = create<UiState>((set) => ({
   statusMessage: null,
   setDialogOpen: (dialog, open) =>
     set((s) => ({ dialogs: { ...s.dialogs, [dialog]: open } })),
+  setPendingOpenRelief: (pendingOpenRelief) => set({ pendingOpenRelief }),
   setRightTab: (rightTab) => set({ rightTab }),
   upsertTask: (task) =>
     set((s) => {

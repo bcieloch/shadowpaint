@@ -4,6 +4,7 @@ import { createTranslator } from '@/i18n';
 import { useLocaleStore } from '@/i18n/localeStore';
 import { autosaveController, runWithoutAutosaveTracking } from '@/persistence/autosave';
 import { ensureInitialProjectAllocated } from '@/services/projectService';
+import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { Toaster } from '@/ui/components/ui/sonner';
 import { TooltipProvider } from '@/ui/components/ui/tooltip';
@@ -29,7 +30,15 @@ export function App() {
     });
     autosaveController.start();
 
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!useProjectStore.getState().isDirty) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       autosaveController.setOnQuotaExceeded(undefined);
       autosaveController.stop();
     };
