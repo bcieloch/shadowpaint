@@ -30,8 +30,10 @@ export async function runTask<T>(
   const controller = new AbortController();
   const { upsertTask, removeTask } = useUiStore.getState();
   const cancellable = options.cancellable ?? false;
+  let settled = false;
 
   const setProgress = (progress: number) => {
+    if (settled) return;
     const clamped = Math.max(0, Math.min(1, progress));
     upsertTask({
       id,
@@ -59,6 +61,7 @@ export async function runTask<T>(
   try {
     return await fn(ctx);
   } finally {
+    settled = true;
     removeTask(id);
   }
 }

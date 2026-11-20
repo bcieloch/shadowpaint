@@ -19,6 +19,17 @@ describe('runTask', () => {
     expect(useUiStore.getState().tasks).toHaveLength(0);
   });
 
+  it('ignores late setProgress callbacks after task settles', async () => {
+    let capturedProgress!: (p: number) => void;
+    await runTask({ labelKey: 'common.loading', cancellable: false }, async (ctx) => {
+      capturedProgress = ctx.setProgress;
+      return 'done';
+    });
+
+    capturedProgress(0.99);
+    expect(useUiStore.getState().tasks).toHaveLength(0);
+  });
+
   it('supports cancellation via signal and task.cancel()', async () => {
     await expect(
       runTask({ labelKey: 'common.loading', cancellable: true }, async (ctx) => {

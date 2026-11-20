@@ -6,6 +6,7 @@ import { OverlayRenderer, type OverlayCursorState } from '@/editor2d/overlay/Ove
 import { fitToViewport, zoom100, type ViewportSize } from '@/editor2d/viewTransform';
 import { Engine } from '@/engine3d/Engine';
 import { detectWebGL2Support } from '@/lib/webgl';
+import { setExportPreviewRenderer } from '@/services/exportService';
 import { ensureInitialProjectAllocated } from '@/services/projectService';
 import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
@@ -132,6 +133,9 @@ export function useEngine(): UseEngineResult {
         },
       });
       engineRef.current = engine;
+      setExportPreviewRenderer(
+        (mode, longestSide) => engine?.renderPreview(mode, longestSide) ?? null,
+      );
 
       window.__shadowpaintDebug = {
         getMemoryInfo: () => engine?.getMemoryInfo() ?? { geometries: 0, textures: 0, programs: 0 },
@@ -285,6 +289,7 @@ export function useEngine(): UseEngineResult {
       if (window.__shadowpaintDebug) {
         delete window.__shadowpaintDebug;
       }
+      setExportPreviewRenderer(null);
       engine?.dispose();
       engineRef.current = null;
       overlayRef.current = null;

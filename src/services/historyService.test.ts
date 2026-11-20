@@ -233,6 +233,31 @@ describe('historyStore and historyService', () => {
     expect(useProjectStore.getState().project.material).toEqual(after);
   });
 
+  it('undoes and redoes export settings patches cleanly', () => {
+    const before = structuredClone(useProjectStore.getState().project.export);
+    const after = structuredClone(before);
+    after.pdfPageSize = 'A3';
+    after.pdfOrientation = 'portrait';
+    after.previewLongestSide = 1024;
+    after.includePreviews = false;
+    after.colorPngAlpha = true;
+
+    useProjectStore.getState().updateProject((d) => {
+      d.export = structuredClone(after);
+    });
+    recordSettingsPatchHistory('settingsChange', {
+      path: 'export',
+      before,
+      after,
+    });
+
+    expect(useProjectStore.getState().project.export.pdfPageSize).toBe('A3');
+    undoGlobal();
+    expect(useProjectStore.getState().project.export).toEqual(before);
+    redoGlobal();
+    expect(useProjectStore.getState().project.export).toEqual(after);
+  });
+
   it('evicts oldest entries when step limit or memory limit is exceeded', () => {
     const ctx = makeToolContext();
     const brush: Tool = new BrushTool();

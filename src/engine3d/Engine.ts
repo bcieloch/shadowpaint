@@ -27,6 +27,10 @@ import {
   createFlatViewMaterial,
   resolveFlatViewShaderMode,
 } from '@/engine3d/materials/flatViewMaterial';
+import {
+  renderOffscreenPreview,
+  type RenderedPreviewImage,
+} from '@/engine3d/offscreen/renderPreview';
 import type { CanvasMeshStats } from '@/engine3d/scene/CanvasMesh';
 import { PaintingScene } from '@/engine3d/scene/PaintingScene';
 import { MapTextures } from '@/engine3d/textures/MapTextures';
@@ -607,6 +611,35 @@ export class Engine {
       this.renderer.setRenderTarget(prevTarget);
       rt.dispose();
     }
+  }
+
+  renderPreview(mode: LightingMode, longestSide: number): RenderedPreviewImage | null {
+    if (this.disposed || this.contextLost || !this.registry.isAllocated || !this.params) {
+      return null;
+    }
+    this.flushPendingResources();
+    if (!this.mapTextures || !this.paintingScene) {
+      return null;
+    }
+    const { canvas, material, lighting, view3d } = this.params;
+    const result = renderOffscreenPreview({
+      renderer: this.renderer,
+      paintingScene: this.paintingScene,
+      mapTextures: this.mapTextures,
+      canvas,
+      material,
+      lighting,
+      view3d,
+      maxTextureSize: this.getMaxTextureSize(),
+      mode,
+      longestSide,
+      forceShadowUpdate: this.shadowDirty,
+    });
+    if (lighting.front.castShadows) {
+      this.shadowDirty = false;
+    }
+    this.invalidate();
+    return result;
   }
 
   get3DStats(): CanvasMeshStats | null {

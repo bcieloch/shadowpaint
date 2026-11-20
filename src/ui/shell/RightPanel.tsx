@@ -2,6 +2,7 @@ import { ScrollArea } from '@/ui/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/components/ui/tabs';
 import { useI18n } from '@/ui/hooks/useI18n';
 import { CanvasCalibrationPanel } from '@/ui/panels/right/CanvasCalibrationPanel';
+import { ExportPanel } from '@/ui/panels/right/ExportPanel';
 import { LightPanel } from '@/ui/panels/right/LightPanel';
 import { MapParamsPanel } from '@/ui/panels/right/MapParamsPanel';
 import { MaterialPanel } from '@/ui/panels/right/MaterialPanel';
@@ -20,29 +21,36 @@ export function RightPanel() {
       <Tabs defaultValue="map" className="flex min-h-0 flex-1 flex-col">
         <div className="border-border shrink-0 border-b px-2 py-1.5">
           <TabsList className="h-7 w-full justify-start">
-            <TabsTrigger value="map" data-testid="right-tab-map" className="h-5 px-2.5 text-[11px]">
+            <TabsTrigger value="map" data-testid="right-tab-map" className="h-5 px-2 text-[11px]">
               {t('rightTabs.map')}
             </TabsTrigger>
             <TabsTrigger
               value="canvas"
               data-testid="right-tab-canvas"
-              className="h-5 px-2.5 text-[11px]"
+              className="h-5 px-2 text-[11px]"
             >
               {t('rightTabs.canvas')}
             </TabsTrigger>
             <TabsTrigger
               value="light"
               data-testid="right-tab-light"
-              className="h-5 px-2.5 text-[11px]"
+              className="h-5 px-2 text-[11px]"
             >
               {t('rightTabs.light')}
             </TabsTrigger>
             <TabsTrigger
               value="material"
               data-testid="right-tab-material"
-              className="h-5 px-2.5 text-[11px]"
+              className="h-5 px-2 text-[11px]"
             >
               {t('rightTabs.material')}
+            </TabsTrigger>
+            <TabsTrigger
+              value="export"
+              data-testid="right-tab-export"
+              className="h-5 px-2 text-[11px]"
+            >
+              {t('rightTabs.export')}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -58,6 +66,9 @@ export function RightPanel() {
           </TabsContent>
           <TabsContent value="material" className="mt-0 p-3">
             <MaterialPanel />
+          </TabsContent>
+          <TabsContent value="export" className="mt-0 p-3">
+            <ExportPanel />
           </TabsContent>
         </ScrollArea>
       </Tabs>

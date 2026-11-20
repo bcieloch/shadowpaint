@@ -5,6 +5,11 @@ declare module '*.glsl?raw' {
   export default source;
 }
 
+declare module '*.ttf?inline' {
+  const dataUrl: string;
+  export default dataUrl;
+}
+
 export interface ShadowPaintDebugHandle {
   getMemoryInfo: () => { geometries: number; textures: number; programs: number };
   getBuiltDimensions: () => {
