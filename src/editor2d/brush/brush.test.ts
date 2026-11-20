@@ -1,14 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultProject } from '@/core/constants';
+import { mapRegistry } from '@/core/maps/MapRegistry';
 import { MapRegistry } from '@/core/maps/MapRegistry';
 import { computeBrushFalloff, stampDab } from '@/editor2d/brush/dab';
 import { StrokeSession } from '@/editor2d/brush/stroke';
+import { BlurTool } from '@/editor2d/tools/BlurTool';
 import { BrushTool } from '@/editor2d/tools/BrushTool';
 import { EraserTool } from '@/editor2d/tools/EraserTool';
 import { EyedropperTool } from '@/editor2d/tools/EyedropperTool';
 import { MaskBrushTool } from '@/editor2d/tools/MaskBrushTool';
+import { SmoothTool } from '@/editor2d/tools/SmoothTool';
 import type { Tool, ToolContext, ToolPointerEvent } from '@/editor2d/tools/Tool';
 import { useEditorStore } from '@/state/editorStore';
+import { useProjectStore } from '@/state/projectStore';
 
 function makePointerEvent(x: number, y: number, pressure = 1, altKey = false): ToolPointerEvent {
   return {
@@ -326,5 +330,115 @@ describe('brush dab, stroke, and tools', () => {
     expect(registry.selection[16 * 32 + 16]).toBe(255);
     maskBrush.onCancel(ctx);
     expect(registry.selection[16 * 32 + 16]).toBe(0);
+  });
+
+  it('SmoothTool smooths height spikes, respects selection mask, and rolls back on cancel', () => {
+    const registry = new MapRegistry();
+    registry.allocate(32, 32, { height: 0 });
+    registry.heightMap.working[16 * 32 + 16] = 1;
+    registry.heightMap.working[16 * 32 + 8] = 1;
+    registry.selection[16 * 32 + 8] = 255;
+    registry.refreshSelectionState();
+
+    const project = createDefaultProject({
+      canvas: { widthPx: 32, heightPx: 32, widthCm: 10, heightCm: 10 },
+    });
+
+    useEditorStore.getState().setActiveMap('height');
+    useEditorStore.getState().setBrushOption('sizeUnit', 'px');
+    useEditorStore.getState().setBrushOption('sizeValue', 24);
+    useEditorStore.getState().setBrushOption('hardness', 1);
+    useEditorStore.getState().setBrushOption('flow', 1);
+    useEditorStore.getState().setSmoothToolOption('iterations', 3);
+
+    const recordSpy = vi.fn();
+    const ctx: ToolContext = {
+      ...makeToolContext(registry, project),
+      recordMapTileEntry: recordSpy,
+    };
+
+    const smooth = new SmoothTool();
+    smooth.onDown(makePointerEvent(16.5, 16.5), ctx);
+    smooth.onUp(makePointerEvent(16.5, 16.5), ctx);
+
+    // Protected pixel (8, 16) stays 1, unprotected spike (16, 16) decreases and spreads
+    expect(registry.heightMap.working[16 * 32 + 8]).toBeCloseTo(1, 5);
+    expect(registry.heightMap.working[16 * 32 + 16]).toBeLessThan(0.8);
+    expect(registry.heightMap.working[16 * 32 + 15]).toBeGreaterThan(0.05);
+    expect(recordSpy).toHaveBeenCalledTimes(1);
+
+    // Cancel rolls back live dab edits
+    const beforeCancel = registry.heightMap.working[16 * 32 + 16];
+    smooth.onDown(makePointerEvent(16.5, 16.5), ctx);
+    expect(registry.heightMap.working[16 * 32 + 16]).toBeLessThan(beforeCancel ?? 1);
+    smooth.onCancel(ctx);
+    expect(registry.heightMap.working[16 * 32 + 16]).toBeCloseTo(beforeCancel ?? 0, 5);
+  });
+
+  it('BlurTool blurs locally for small radius and via region path for large radius (>12px)', async () => {
+    const registry = new MapRegistry();
+    registry.allocate(64, 64, { height: 0 });
+    for (let y = 24; y < 40; y++) {
+      for (let x = 24; x < 40; x++) {
+        registry.heightMap.working[y * 64 + x] = 1;
+      }
+    }
+
+    const project = createDefaultProject({
+      canvas: { widthPx: 64, heightPx: 64, widthCm: 10, heightCm: 10 },
+    });
+
+    useEditorStore.getState().setActiveMap('height');
+    useEditorStore.getState().setBrushOption('sizeUnit', 'px');
+    useEditorStore.getState().setBrushOption('sizeValue', 20);
+    useEditorStore.getState().setBrushOption('hardness', 1);
+    useEditorStore.getState().setBrushOption('flow', 1);
+    useEditorStore.getState().setBlurToolOption('radiusUnit', 'px');
+    useEditorStore.getState().setBlurToolOption('radiusValue', 4);
+
+    const recordSpy = vi.fn();
+    const ctx: ToolContext = {
+      ...makeToolContext(registry, project),
+      recordMapTileEntry: recordSpy,
+    };
+
+    const blur = new BlurTool();
+    blur.onDown(makePointerEvent(24, 32), ctx);
+    blur.onUp(makePointerEvent(24, 32), ctx);
+
+    // Edge outside bright square receives blurred height and center softens
+    expect(registry.heightMap.working[32 * 64 + 22]).toBeGreaterThan(0.01);
+    expect(registry.heightMap.working[32 * 64 + 25]).toBeLessThan(0.99);
+    expect(recordSpy).toHaveBeenCalledTimes(1);
+
+    // Test large radius (>12px) against singleton mapRegistry used by filterService
+    mapRegistry.allocate(64, 64, { color: '#000000' });
+    for (let y = 0; y < 64; y++) {
+      for (let x = 32; x < 64; x++) {
+        const idx = (y * 64 + x) * 4;
+        mapRegistry.color.working[idx] = 255;
+        mapRegistry.color.working[idx + 1] = 255;
+        mapRegistry.color.working[idx + 2] = 255;
+      }
+    }
+    useProjectStore.getState().setProject(
+      createDefaultProject({
+        canvas: { widthPx: 64, heightPx: 64, widthCm: 10, heightCm: 10 },
+      }),
+    );
+    useEditorStore.getState().setActiveMap('color');
+    useEditorStore.getState().setBrushOption('sizeValue', 30);
+    useEditorStore.getState().setBlurToolOption('radiusValue', 16);
+
+    const ctxGlobal = makeToolContext(mapRegistry, useProjectStore.getState().project);
+    blur.onDown(makePointerEvent(32, 32), ctxGlobal);
+    blur.onMove(makePointerEvent(36, 32), ctxGlobal);
+    expect(blur.getOverlayPreview()?.kind).toBe('stroke');
+    blur.onUp(makePointerEvent(36, 32), ctxGlobal);
+
+    // Async fallback settles quickly (microtask/promise flush)
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mapRegistry.color.working[(32 * 64 + 28) * 4]).toBeGreaterThan(20);
+    expect(mapRegistry.color.working[(32 * 64 + 36) * 4]).toBeLessThan(235);
   });
 });

@@ -56,6 +56,10 @@ export function formatHistoryMeta(meta: HistoryMeta, t: TranslateFn): string {
       return t('history.brushStroke', { map: mapName });
     case 'eraserStroke':
       return t('history.eraserStroke', { map: mapName });
+    case 'smoothStroke':
+      return t('history.smoothStroke', { map: mapName });
+    case 'blurStroke':
+      return t('history.blurStroke', { map: mapName });
     case 'smoothMap':
       return t('history.smoothMap', { map: mapName });
     case 'importMap':

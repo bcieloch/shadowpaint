@@ -281,7 +281,11 @@ export class PointerRouter {
 
     let radiusPx: number | undefined;
     if (
-      (editor.tool === 'brush' || editor.tool === 'eraser' || editor.tool === 'maskBrush') &&
+      (editor.tool === 'brush' ||
+        editor.tool === 'eraser' ||
+        editor.tool === 'smooth' ||
+        editor.tool === 'blur' ||
+        editor.tool === 'maskBrush') &&
       !this.spacePressed
     ) {
       const metrics = getCalibrationMetrics(project.canvas);

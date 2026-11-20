@@ -353,6 +353,10 @@ export function ViewportHost() {
         editor.setTool('brush');
       } else if (lower === 'e') {
         editor.setTool('eraser');
+      } else if (lower === 's') {
+        editor.setTool('smooth');
+      } else if (lower === 'r') {
+        editor.setTool('blur');
       } else if (lower === 'i') {
         editor.setTool('eyedropper');
       } else if (lower === 'h') {
