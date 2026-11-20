@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { Maximize2, Scan } from 'lucide-react';
-import { screenToImagePx, zoomAtPoint } from '@/editor2d/viewTransform';
+import { mapRegistry } from '@/core/maps/MapRegistry';
+import type { MapId } from '@/core/types';
+import { getCalibrationMetrics } from '@/core/units/calibration';
+import { PointerRouter } from '@/editor2d/input/PointerRouter';
+import { zoomAtPoint, type ViewportSize } from '@/editor2d/viewTransform';
 import {
   useEditorStore,
   type HeightDisplayMode,
   type ViewMode2D,
 } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
+import { useUiStore } from '@/state/uiStore';
 import { Button } from '@/ui/components/ui/button';
 import {
   Select,
@@ -30,6 +35,12 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
 }
 
+function getLockedWarningKey(mapId: MapId) {
+  if (mapId === 'color') return 'maps.lockedWarningColor' as const;
+  if (mapId === 'height') return 'maps.lockedWarningHeight' as const;
+  return 'maps.lockedWarningOpacity' as const;
+}
+
 export function ViewportHost() {
   const { t } = useI18n();
   const canvas = useProjectStore((s) => s.project.canvas);
@@ -37,10 +48,12 @@ export function ViewportHost() {
   const heightDisplay = useEditorStore((s) => s.heightDisplay);
   const heightContourStepMm = useEditorStore((s) => s.heightContourStepMm);
   const pane2D = useEditorStore((s) => s.pane2D);
+  const tool = useEditorStore((s) => s.tool);
+  const brushSizeValue = useEditorStore((s) => s.brush.sizeValue);
+  const brushSizeUnit = useEditorStore((s) => s.brush.sizeUnit);
   const setViewMode2D = useEditorStore((s) => s.setViewMode2D);
   const setHeightDisplay = useEditorStore((s) => s.setHeightDisplay);
   const setHeightContourStepMm = useEditorStore((s) => s.setHeightContourStepMm);
-  const setPane2D = useEditorStore((s) => s.setPane2D);
 
   const {
     containerRef,
@@ -54,13 +67,62 @@ export function ViewportHost() {
 
   const [spacePressed, setSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
-  const panDragRef = useRef<{
-    pointerId: number;
-    startClientX: number;
-    startClientY: number;
-    startPanX: number;
-    startPanY: number;
-  } | null>(null);
+
+  const viewportSizeRef = useRef<ViewportSize>(viewportSize);
+  const pointerRouterRef = useRef<PointerRouter | null>(null);
+  const statusClearTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    viewportSizeRef.current = viewportSize;
+  }, [viewportSize]);
+
+  // Attach PointerRouter to the 2D viewport container
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const router = new PointerRouter({
+      element: el,
+      getViewportSize: () => viewportSizeRef.current,
+      getEditor: () => useEditorStore.getState(),
+      setPane2D: (pane) => useEditorStore.getState().setPane2D(pane),
+      setCursor,
+      onPanningChange: setIsPanning,
+      toolContext: {
+        registry: mapRegistry,
+        getProject: () => useProjectStore.getState().project,
+        getEditor: () => useEditorStore.getState(),
+        setBrushOption: (key, value) => {
+          useEditorStore.getState().setBrushOption(key, value);
+        },
+        onLockedMapAttempt: (mapId) => {
+          useUiStore.getState().setStatusMessage({ key: getLockedWarningKey(mapId) });
+          if (statusClearTimerRef.current !== null) {
+            window.clearTimeout(statusClearTimerRef.current);
+          }
+          statusClearTimerRef.current = window.setTimeout(() => {
+            useUiStore.getState().setStatusMessage(null);
+            statusClearTimerRef.current = null;
+          }, 4000);
+        },
+      },
+    });
+    pointerRouterRef.current = router;
+
+    return () => {
+      router.dispose();
+      pointerRouterRef.current = null;
+      if (statusClearTimerRef.current !== null) {
+        window.clearTimeout(statusClearTimerRef.current);
+        statusClearTimerRef.current = null;
+      }
+    };
+  }, [containerRef, setCursor]);
+
+  // Refresh overlay cursor ring when tool or brush size changes
+  useEffect(() => {
+    pointerRouterRef.current?.refreshCursor();
+  }, [tool, brushSizeValue, brushSizeUnit]);
 
   // Non-passive wheel zoom anchored to cursor
   useEffect(() => {
@@ -93,14 +155,45 @@ export function ViewportHost() {
     };
   }, [containerRef]);
 
-  // Basic viewport keyboard shortcuts: Space pan, Ctrl+0 fit, Ctrl+1 1:1
+  // Keyboard shortcuts: Space pan, Ctrl+0 fit, Ctrl+1 1:1, B/E/I/H, [/], 1/2/3
   useEffect(() => {
+    const adjustBrushSize = (scale: number) => {
+      const editor = useEditorStore.getState();
+      const projCanvas = useProjectStore.getState().project.canvas;
+      const pxPerCm = Math.max(0.001, getCalibrationMetrics(projCanvas).pxPerCm);
+      const { sizeValue, sizeUnit } = editor.brush;
+
+      if (sizeUnit === 'px') {
+        const next = Math.max(
+          1,
+          Math.min(
+            2000,
+            scale > 1
+              ? Math.max(sizeValue + 1, Math.round(sizeValue * scale))
+              : Math.min(sizeValue - 1, Math.round(sizeValue * scale)),
+          ),
+        );
+        editor.setBrushOption('sizeValue', next);
+      } else {
+        const minCm = Math.max(0.05, Number((1 / pxPerCm).toFixed(2)));
+        const maxCm = Math.max(0.5, Number((2000 / pxPerCm).toFixed(2)));
+        const next = Math.max(
+          minCm,
+          Math.min(maxCm, Number((sizeValue * scale).toFixed(2))),
+        );
+        editor.setBrushOption('sizeValue', next);
+      }
+      pointerRouterRef.current?.refreshCursor();
+    };
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (isEditableTarget(e.target)) return;
 
       if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
         setSpacePressed(true);
+        pointerRouterRef.current?.setSpacePressed(true);
+        pointerRouterRef.current?.refreshCursor();
         return;
       }
 
@@ -112,19 +205,50 @@ export function ViewportHost() {
           e.preventDefault();
           setZoom100();
         }
+        return;
+      }
+
+      if (e.altKey) return;
+
+      const lower = e.key.toLowerCase();
+      const editor = useEditorStore.getState();
+
+      if (lower === 'b') {
+        editor.setTool('brush');
+      } else if (lower === 'e') {
+        editor.setTool('eraser');
+      } else if (lower === 'i') {
+        editor.setTool('eyedropper');
+      } else if (lower === 'h') {
+        editor.setTool('pan');
+      } else if (e.key === '[') {
+        e.preventDefault();
+        adjustBrushSize(1 / 1.18);
+      } else if (e.key === ']') {
+        e.preventDefault();
+        adjustBrushSize(1.18);
+      } else if (e.key === '1') {
+        editor.setActiveMap('color');
+      } else if (e.key === '2') {
+        editor.setActiveMap('height');
+      } else if (e.key === '3') {
+        editor.setActiveMap('opacity');
       }
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
         setSpacePressed(false);
+        pointerRouterRef.current?.setSpacePressed(false);
+        pointerRouterRef.current?.refreshCursor();
       }
     };
 
     const onBlur = () => {
       setSpacePressed(false);
       setIsPanning(false);
-      panDragRef.current = null;
+      pointerRouterRef.current?.setSpacePressed(false);
+      pointerRouterRef.current?.cancelActive();
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -140,68 +264,9 @@ export function ViewportHost() {
   const activeFlatMode: 'color' | 'height' | 'opacity' =
     viewMode2D === 'height' || viewMode2D === 'opacity' ? viewMode2D : 'color';
 
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    const isMiddle = e.button === 1;
-    const isSpaceLeft = spacePressed && e.button === 0;
-    if (!isMiddle && !isSpaceLeft) return;
-
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const { pane2D: currentPane } = useEditorStore.getState();
-    panDragRef.current = {
-      pointerId: e.pointerId,
-      startClientX: e.clientX,
-      startClientY: e.clientY,
-      startPanX: currentPane.panX,
-      startPanY: currentPane.panY,
-    };
-    setIsPanning(true);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const el = containerRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-
-    if (panDragRef.current && panDragRef.current.pointerId === e.pointerId) {
-      const dx = e.clientX - panDragRef.current.startClientX;
-      const dy = e.clientY - panDragRef.current.startClientY;
-      setPane2D({
-        panX: panDragRef.current.startPanX + dx,
-        panY: panDragRef.current.startPanY + dy,
-      });
-    }
-
-    const currentPane = useEditorStore.getState().pane2D;
-    const imgPos = screenToImagePx(
-      currentPane,
-      viewportSize,
-      canvas.widthPx,
-      canvas.heightPx,
-      sx,
-      sy,
-    );
-    setCursor({
-      screenPos: { x: sx, y: sy },
-      imagePos: imgPos,
-    });
-  };
-
-  const handlePointerUpOrCancel = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (panDragRef.current && panDragRef.current.pointerId === e.pointerId) {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-      panDragRef.current = null;
-      setIsPanning(false);
-    }
-  };
-
   const cursorClass = isPanning
     ? 'cursor-grabbing'
-    : spacePressed
+    : spacePressed || tool === 'pan'
       ? 'cursor-grab'
       : 'cursor-crosshair';
 
@@ -338,14 +403,6 @@ export function ViewportHost() {
       <div
         ref={containerRef}
         data-testid="viewport-canvas-area"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUpOrCancel}
-        onPointerCancel={handlePointerUpOrCancel}
-        onPointerLeave={() => setCursor(null)}
-        onAuxClick={(e) => {
-          if (e.button === 1) e.preventDefault();
-        }}
         className={`relative min-h-0 flex-1 overflow-hidden bg-[#121214] select-none ${cursorClass}`}
       >
         <canvas
