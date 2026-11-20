@@ -5,6 +5,7 @@ import {
   computeMeshSegments,
   type DisplacementParams,
 } from '@/core/units/calibration';
+import type { BackLightShaderParams } from '@/engine3d/lights/BackLight';
 import {
   createPaintDepthMaterial,
   updatePaintDepthMaterial,
@@ -118,6 +119,7 @@ export class CanvasMesh {
     canvas: CanvasSettings,
     materialSettings: MaterialSettings,
     view3d: View3DSettings,
+    backParams?: BackLightShaderParams,
   ) {
     this.group = new THREE.Group();
     this.group.name = 'CanvasRoot';
@@ -141,7 +143,13 @@ export class CanvasMesh {
       view3d.reliefMultiplier,
     );
 
-    this.paintMaterial = createPaintMaterial(textures, canvas, materialSettings, view3d);
+    this.paintMaterial = createPaintMaterial(
+      textures,
+      canvas,
+      materialSettings,
+      view3d,
+      backParams,
+    );
     this.paintDepthMaterial = createPaintDepthMaterial(
       textures.heightTex,
       this.lastDisplacement.displacementScale,
@@ -162,6 +170,8 @@ export class CanvasMesh {
       metalness: 0,
       side: THREE.BackSide,
     });
+    this.updateBackFaceLighting(materialSettings, backParams);
+
     this.backMesh = new THREE.Mesh(backGeo, this.backMaterial);
     this.backMesh.name = 'CanvasBackMesh';
     this.backMesh.position.set(0, 0, -0.02);
@@ -184,6 +194,7 @@ export class CanvasMesh {
     canvas: CanvasSettings,
     materialSettings: MaterialSettings,
     view3d: View3DSettings,
+    backParams?: BackLightShaderParams,
   ): void {
     if (this.disposed) return;
 
@@ -209,6 +220,7 @@ export class CanvasMesh {
       view3d,
       textures.width,
       textures.height,
+      backParams,
     );
     updatePaintDepthMaterial(
       this.paintDepthMaterial,
@@ -216,8 +228,23 @@ export class CanvasMesh {
       this.lastDisplacement.displacementBias,
     );
 
-    this.backMaterial.color.set(materialSettings.canvasBackColor);
+    this.updateBackFaceLighting(materialSettings, backParams);
     this.frameGroup.visible = view3d.showFrame;
+  }
+
+  private updateBackFaceLighting(
+    materialSettings: MaterialSettings,
+    backParams?: BackLightShaderParams,
+  ): void {
+    this.backMaterial.color.set(materialSettings.canvasBackColor);
+    if (backParams && backParams.backScale > 0 && backParams.intensity > 0) {
+      this.backMaterial.emissive.copy(backParams.colorLinear);
+      this.backMaterial.emissiveIntensity =
+        0.18 * backParams.backScale * Math.min(2, backParams.intensity);
+    } else {
+      this.backMaterial.emissive.setRGB(0, 0, 0);
+      this.backMaterial.emissiveIntensity = 0;
+    }
   }
 
   getStats(): CanvasMeshStats {

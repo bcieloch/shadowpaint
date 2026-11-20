@@ -34,11 +34,32 @@ export interface ShadowPaintDebugHandle {
     shadowMapSize: 2048 | 4096 | 8192;
     gizmoVisible: boolean;
   } | null;
-  readFlatCanvasRgba: (width?: number, height?: number) => Uint8Array;
+  getBackLightStats: () => {
+    type: 'point' | 'panel';
+    position: { x: number; y: number; z: number };
+    intensity: number;
+    globalTransmissionPct: number;
+    attenuation: number;
+    backScale: number;
+    gizmoVisible: boolean;
+  } | null;
+  readFlatCanvasRgba: (
+    width?: number,
+    height?: number,
+    options?: { toneMapping?: 'aces' | 'none' },
+  ) => Uint8Array;
   read3DViewportRgba: (width?: number, height?: number) => Uint8Array;
   getMapEffectiveRgba: () => Uint8ClampedArray;
   emitColorDirtyPixel: (x: number, y: number, rgba: [number, number, number, number]) => void;
+  emitColorDirtyBlock: (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    rgba: [number, number, number, number],
+  ) => void;
   emitHeightDirtyBlock: (x: number, y: number, w: number, h: number, value: number) => void;
+  emitOpacityDirtyBlock: (x: number, y: number, w: number, h: number, value: number) => void;
 }
 
 declare global {

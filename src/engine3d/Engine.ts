@@ -3,6 +3,7 @@ import type { MapRegistry } from '@/core/maps/MapRegistry';
 import { unionRect } from '@/core/maps/rect';
 import type {
   CanvasSettings,
+  LightingMode,
   LightingSettings,
   MapId,
   MaterialSettings,
@@ -17,6 +18,7 @@ import {
   getRendererMemoryInfo,
   type RendererMemoryInfo,
 } from '@/engine3d/dispose';
+import type { BackLightStateSnapshot } from '@/engine3d/lights/BackLight';
 import type { FrontLightStateSnapshot } from '@/engine3d/lights/FrontLight';
 import {
   createCanvasQuadGeometry,
@@ -50,10 +52,18 @@ export interface EngineCallbacks {
   onError?: (error: Error) => void;
 }
 
+export interface ReadFlatCanvasOptions {
+  toneMapping?: 'aces' | 'none';
+}
+
 function toFlatShaderKey(viewMode: ViewMode2D): FlatRenderMode {
   if (viewMode === 'height') return 'height';
   if (viewMode === 'opacity') return 'opacity';
   return 'color';
+}
+
+function isLit2DMode(viewMode: ViewMode2D): viewMode is LightingMode {
+  return viewMode === 'front' || viewMode === 'back' || viewMode === 'combined';
 }
 
 function frontLightShadowRelevantChanged(
@@ -283,7 +293,7 @@ export class Engine {
       } = this.params;
 
       if (layout === '3d') {
-        const { shadowConfigChanged } = this.paintingScene.update(
+        const { shadowConfigChanged, frontScale } = this.paintingScene.update(
           this.mapTextures,
           canvas,
           material,
@@ -291,13 +301,14 @@ export class Engine {
           view3d,
           this.getMaxTextureSize(),
           showLampGizmos,
+          lighting.mode,
         );
         if (shadowConfigChanged) {
           this.shadowDirty = true;
         }
         this.orbit3D.update();
         this.mapTextures.setNearest(false, this.renderer);
-        if (this.shadowDirty) {
+        if (this.shadowDirty && frontScale > 0 && lighting.front.castShadows) {
           this.renderer.shadowMap.needsUpdate = true;
           this.shadowDirty = false;
         }
@@ -309,8 +320,8 @@ export class Engine {
         return;
       }
 
-      if (viewMode2D === 'front') {
-        const { shadowConfigChanged } = this.paintingScene.update(
+      if (isLit2DMode(viewMode2D)) {
+        const { shadowConfigChanged, frontScale } = this.paintingScene.update(
           this.mapTextures,
           canvas,
           material,
@@ -318,13 +329,14 @@ export class Engine {
           view3d,
           this.getMaxTextureSize(),
           false,
+          viewMode2D,
         );
         if (shadowConfigChanged) {
           this.shadowDirty = true;
         }
         this.mapTextures.setNearest(pane2D.zoom >= 4, this.renderer);
         this.ortho2D.update(this.viewport, canvas, pane2D);
-        if (this.shadowDirty) {
+        if (this.shadowDirty && frontScale > 0 && lighting.front.castShadows) {
           this.renderer.shadowMap.needsUpdate = true;
           this.shadowDirty = false;
         }
@@ -366,11 +378,14 @@ export class Engine {
 
     this.disposeSceneResources();
 
-    const { canvas, material, lighting, view3d, layout, showLampGizmos } = this.params;
+    const { canvas, material, lighting, view3d, layout, viewMode2D, showLampGizmos } = this.params;
     const textures = new MapTextures(this.registry, this.renderer);
     const flatMat = createFlatViewMaterial(textures);
     const flatGeo = createCanvasQuadGeometry(canvas.widthCm, canvas.heightCm);
     const flatMesh = new THREE.Mesh(flatGeo, flatMat);
+
+    const effectiveMode =
+      layout === '3d' ? lighting.mode : isLit2DMode(viewMode2D) ? viewMode2D : lighting.mode;
 
     const paintingScene = new PaintingScene(
       textures,
@@ -380,6 +395,7 @@ export class Engine {
       view3d,
       this.getMaxTextureSize(),
       layout === '3d' && showLampGizmos,
+      effectiveMode,
     );
 
     this.mapTextures = textures;
@@ -408,7 +424,11 @@ export class Engine {
    * Renders the full canvas orthogonally into a temporary sRGB render target and
    * returns top-down RGBA8 bytes. Used for verification and diagnostics.
    */
-  readFlatCanvasRgba(targetWidth?: number, targetHeight?: number): Uint8Array {
+  readFlatCanvasRgba(
+    targetWidth?: number,
+    targetHeight?: number,
+    options: ReadFlatCanvasOptions = {},
+  ): Uint8Array {
     if (this.disposed || !this.registry.isAllocated || !this.params) {
       return new Uint8Array(0);
     }
@@ -429,7 +449,7 @@ export class Engine {
     cam.lookAt(0, 0, 0);
     cam.updateProjectionMatrix();
 
-    const isLit2D = viewMode2D === 'front';
+    const isLit2D = isLit2DMode(viewMode2D);
     const rt = new THREE.WebGLRenderTarget(w, h, {
       colorSpace: THREE.SRGBColorSpace,
       type: THREE.UnsignedByteType,
@@ -445,7 +465,7 @@ export class Engine {
 
     try {
       if (isLit2D) {
-        const { shadowConfigChanged } = this.paintingScene.update(
+        const { shadowConfigChanged, frontScale } = this.paintingScene.update(
           this.mapTextures,
           canvas,
           material,
@@ -453,13 +473,22 @@ export class Engine {
           view3d,
           this.getMaxTextureSize(),
           false,
+          viewMode2D,
         );
-        if (shadowConfigChanged || this.shadowDirty) {
+        if (shadowConfigChanged) {
+          this.shadowDirty = true;
+        }
+        if (this.shadowDirty && frontScale > 0 && lighting.front.castShadows) {
           this.renderer.shadowMap.needsUpdate = true;
           this.shadowDirty = false;
         }
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = lighting.exposure;
+        if (options.toneMapping === 'none') {
+          this.renderer.toneMapping = THREE.NoToneMapping;
+          this.renderer.toneMappingExposure = 1;
+        } else {
+          this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+          this.renderer.toneMappingExposure = lighting.exposure;
+        }
         this.renderer.setRenderTarget(rt);
         this.renderer.render(this.paintingScene.scene, cam);
       } else {
@@ -512,7 +541,7 @@ export class Engine {
     }
 
     const { canvas, material, lighting, view3d, showLampGizmos } = this.params;
-    const { shadowConfigChanged } = this.paintingScene.update(
+    const { shadowConfigChanged, frontScale } = this.paintingScene.update(
       this.mapTextures,
       canvas,
       material,
@@ -520,6 +549,7 @@ export class Engine {
       view3d,
       this.getMaxTextureSize(),
       showLampGizmos,
+      lighting.mode,
     );
     if (shadowConfigChanged) {
       this.shadowDirty = true;
@@ -544,7 +574,7 @@ export class Engine {
     try {
       this.orbit3D.camera.aspect = w / h;
       this.orbit3D.camera.updateProjectionMatrix();
-      if (this.shadowDirty) {
+      if (this.shadowDirty && frontScale > 0 && lighting.front.castShadows) {
         this.renderer.shadowMap.needsUpdate = true;
         this.shadowDirty = false;
       }
@@ -575,6 +605,12 @@ export class Engine {
 
   get3DStats(): CanvasMeshStats | null {
     if (!this.paintingScene || !this.params || !this.mapTextures) return null;
+    const effectiveMode =
+      this.params.layout === '3d'
+        ? this.params.lighting.mode
+        : isLit2DMode(this.params.viewMode2D)
+          ? this.params.viewMode2D
+          : this.params.lighting.mode;
     this.paintingScene.update(
       this.mapTextures,
       this.params.canvas,
@@ -583,12 +619,19 @@ export class Engine {
       this.params.view3d,
       this.getMaxTextureSize(),
       this.params.layout === '3d' && this.params.showLampGizmos,
+      effectiveMode,
     );
     return this.paintingScene.getCanvasStats();
   }
 
   getFrontLightStats(): FrontLightStateSnapshot | null {
     if (!this.paintingScene || !this.params || !this.mapTextures) return null;
+    const effectiveMode =
+      this.params.layout === '3d'
+        ? this.params.lighting.mode
+        : isLit2DMode(this.params.viewMode2D)
+          ? this.params.viewMode2D
+          : this.params.lighting.mode;
     this.paintingScene.update(
       this.mapTextures,
       this.params.canvas,
@@ -597,8 +640,30 @@ export class Engine {
       this.params.view3d,
       this.getMaxTextureSize(),
       this.params.layout === '3d' && this.params.showLampGizmos,
+      effectiveMode,
     );
     return this.paintingScene.getFrontLightStats();
+  }
+
+  getBackLightStats(): BackLightStateSnapshot | null {
+    if (!this.paintingScene || !this.params || !this.mapTextures) return null;
+    const effectiveMode =
+      this.params.layout === '3d'
+        ? this.params.lighting.mode
+        : isLit2DMode(this.params.viewMode2D)
+          ? this.params.viewMode2D
+          : this.params.lighting.mode;
+    this.paintingScene.update(
+      this.mapTextures,
+      this.params.canvas,
+      this.params.material,
+      this.params.lighting,
+      this.params.view3d,
+      this.getMaxTextureSize(),
+      this.params.layout === '3d' && this.params.showLampGizmos,
+      effectiveMode,
+    );
+    return this.paintingScene.getBackLightStats();
   }
 
   getMemoryInfo(): RendererMemoryInfo {
@@ -625,7 +690,7 @@ export class Engine {
 
   private flushPendingResources(): void {
     if (!this.params || !this.registry.isAllocated) return;
-    const { canvas, material, lighting, view3d, layout, showLampGizmos } = this.params;
+    const { canvas, material, lighting, view3d, layout, viewMode2D, showLampGizmos } = this.params;
 
     const pixelDimsChanged =
       this.builtWidthPx !== this.registry.width || this.builtHeightPx !== this.registry.height;
@@ -650,6 +715,9 @@ export class Engine {
       this.shadowDirty = true;
     }
 
+    const effectiveMode =
+      layout === '3d' ? lighting.mode : isLit2DMode(viewMode2D) ? viewMode2D : lighting.mode;
+
     const { shadowConfigChanged } = this.paintingScene.update(
       this.mapTextures,
       canvas,
@@ -658,6 +726,7 @@ export class Engine {
       view3d,
       this.getMaxTextureSize(),
       layout === '3d' && showLampGizmos,
+      effectiveMode,
     );
     if (shadowConfigChanged) {
       this.shadowDirty = true;

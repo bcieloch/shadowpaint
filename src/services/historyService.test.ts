@@ -204,6 +204,35 @@ describe('historyStore and historyService', () => {
     expect(useProjectStore.getState().project.lighting).toEqual(after);
   });
 
+  it('undoes and redoes material settings patches cleanly', () => {
+    const before = structuredClone(useProjectStore.getState().project.material);
+    const after = structuredClone(before);
+    after.muA = 0.85;
+    after.muS = 1.4;
+    after.kTint = 0.72;
+    after.canvasTransmittance = 0.4;
+    after.canvasBackColor = '#e8dfd0';
+    after.roughness = 0.35;
+
+    useProjectStore.getState().updateProject((d) => {
+      d.material = structuredClone(after);
+    });
+    recordSettingsPatchHistory('settingsChange', {
+      path: 'material',
+      before,
+      after,
+    });
+
+    expect(useProjectStore.getState().project.material.muA).toBe(0.85);
+    expect(useProjectStore.getState().project.material.canvasBackColor).toBe('#e8dfd0');
+
+    undoGlobal();
+    expect(useProjectStore.getState().project.material).toEqual(before);
+
+    redoGlobal();
+    expect(useProjectStore.getState().project.material).toEqual(after);
+  });
+
   it('evicts oldest entries when step limit or memory limit is exceeded', () => {
     const ctx = makeToolContext();
     const brush: Tool = new BrushTool();

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Frame, Lightbulb, Maximize2, RotateCcw, Scan } from 'lucide-react';
 import { mapRegistry } from '@/core/maps/MapRegistry';
-import type { MapId } from '@/core/types';
+import type { LightingMode, MapId } from '@/core/types';
 import { getCalibrationMetrics } from '@/core/units/calibration';
 import { PointerRouter } from '@/editor2d/input/PointerRouter';
 import { zoomAtPoint, type ViewportSize } from '@/editor2d/viewTransform';
@@ -44,10 +44,26 @@ function getLockedWarningKey(mapId: MapId) {
   return 'maps.lockedWarningOpacity' as const;
 }
 
+function setProjectLightingModeWithHistory(mode: LightingMode): void {
+  const current = useProjectStore.getState().project.lighting;
+  if (current.mode === mode) return;
+  const before = structuredClone(current);
+  useProjectStore.getState().updateProject((d) => {
+    d.lighting.mode = mode;
+  }, true);
+  const after = structuredClone(useProjectStore.getState().project.lighting);
+  recordSettingsPatchHistory('settingsChange', {
+    path: 'lighting',
+    before,
+    after,
+  });
+}
+
 export function ViewportHost() {
   const { t } = useI18n();
   const canvas = useProjectStore((s) => s.project.canvas);
   const view3d = useProjectStore((s) => s.project.view3d);
+  const lightingMode = useProjectStore((s) => s.project.lighting.mode);
   const updateProject = useProjectStore((s) => s.updateProject);
   const layout = useEditorStore((s) => s.layout);
   const viewMode2D = useEditorStore((s) => s.viewMode2D);
@@ -172,7 +188,7 @@ export function ViewportHost() {
     };
   }, [containerRef]);
 
-  // Keyboard shortcuts: F1/F2 layout, Home reset 3D, Shift+1..4 modes, Space pan, Ctrl+Z/Shift+Z/Y/Alt+Z history, Ctrl+0/1, B/E/I/H, [/], 1/2/3
+  // Keyboard shortcuts: F1/F2 layout, Home reset 3D, Shift+1..6 modes, Space pan, Ctrl+Z/Shift+Z/Y/Alt+Z history, Ctrl+0/1, B/E/I/H, [/], 1/2/3
   useEffect(() => {
     const adjustBrushSize = (scale: number) => {
       const editor = useEditorStore.getState();
@@ -270,7 +286,25 @@ export function ViewportHost() {
           editor.setViewMode2D('opacity');
         } else if (e.code === 'Digit4') {
           e.preventDefault();
-          editor.setViewMode2D('front');
+          if (editor.layout === '3d') {
+            setProjectLightingModeWithHistory('front');
+          } else {
+            editor.setViewMode2D('front');
+          }
+        } else if (e.code === 'Digit5') {
+          e.preventDefault();
+          if (editor.layout === '3d') {
+            setProjectLightingModeWithHistory('back');
+          } else {
+            editor.setViewMode2D('back');
+          }
+        } else if (e.code === 'Digit6') {
+          e.preventDefault();
+          if (editor.layout === '3d') {
+            setProjectLightingModeWithHistory('combined');
+          } else {
+            editor.setViewMode2D('combined');
+          }
         }
         return;
       }
@@ -336,11 +370,6 @@ export function ViewportHost() {
     });
   };
 
-  const active2DMode: 'color' | 'height' | 'opacity' | 'front' =
-    viewMode2D === 'height' || viewMode2D === 'opacity' || viewMode2D === 'front'
-      ? viewMode2D
-      : 'color';
-
   const cursorClass =
     layout === '3d'
       ? 'cursor-grab active:cursor-grabbing'
@@ -359,10 +388,40 @@ export function ViewportHost() {
         {layout === '3d' ? (
           <>
             <div className="flex items-center gap-2">
-              <span className="text-foreground text-xs font-medium">
-                {t('viewport.view3dHeading')}
-              </span>
-              <span className="text-muted-foreground hidden text-[11px] md:inline">
+              <ToggleGroup
+                type="single"
+                size="sm"
+                variant="outline"
+                value={lightingMode}
+                onValueChange={(value) => {
+                  if (value === 'front' || value === 'back' || value === 'combined') {
+                    setProjectLightingModeWithHistory(value);
+                  }
+                }}
+              >
+                <ToggleGroupItem
+                  value="front"
+                  data-testid="view3d-mode-front"
+                  className="h-7 px-2.5 text-xs"
+                >
+                  {t('viewport.modeFront')}
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="back"
+                  data-testid="view3d-mode-back"
+                  className="h-7 px-2.5 text-xs"
+                >
+                  {t('viewport.modeBack')}
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="combined"
+                  data-testid="view3d-mode-combined"
+                  className="h-7 px-2.5 text-xs"
+                >
+                  {t('viewport.modeCombined')}
+                </ToggleGroupItem>
+              </ToggleGroup>
+              <span className="text-muted-foreground hidden text-[11px] lg:inline">
                 {t('viewport.orbitHint')}
               </span>
             </div>
@@ -429,13 +488,15 @@ export function ViewportHost() {
                 type="single"
                 size="sm"
                 variant="outline"
-                value={active2DMode}
+                value={viewMode2D}
                 onValueChange={(value) => {
                   if (
                     value === 'color' ||
                     value === 'height' ||
                     value === 'opacity' ||
-                    value === 'front'
+                    value === 'front' ||
+                    value === 'back' ||
+                    value === 'combined'
                   ) {
                     setViewMode2D(value);
                   }
@@ -469,9 +530,23 @@ export function ViewportHost() {
                 >
                   {t('viewport.modeFront')}
                 </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="back"
+                  data-testid="mode-back"
+                  className="h-7 px-2.5 text-xs"
+                >
+                  {t('viewport.modeBack')}
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="combined"
+                  data-testid="mode-combined"
+                  className="h-7 px-2.5 text-xs"
+                >
+                  {t('viewport.modeCombined')}
+                </ToggleGroupItem>
               </ToggleGroup>
 
-              {active2DMode === 'height' && (
+              {viewMode2D === 'height' && (
                 <div className="flex items-center gap-1.5">
                   <Select
                     value={heightDisplay}
@@ -591,14 +666,14 @@ export function ViewportHost() {
 
         {layout !== '3d' && (
           <div className="pointer-events-none absolute right-3 bottom-3 flex flex-col gap-2">
-            {active2DMode === 'height' && (
+            {viewMode2D === 'height' && (
               <HeightLegend
                 mode={heightDisplay}
                 minMm={canvas.minThicknessMm}
                 maxMm={canvas.maxThicknessMm}
               />
             )}
-            {active2DMode === 'opacity' && <OpacityLegend />}
+            {viewMode2D === 'opacity' && <OpacityLegend />}
           </div>
         )}
       </div>

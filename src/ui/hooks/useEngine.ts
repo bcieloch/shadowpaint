@@ -129,7 +129,9 @@ export function useEngine(): UseEngineResult {
           engine?.getBuiltDimensions() ?? { widthPx: 0, heightPx: 0, widthCm: 0, heightCm: 0 },
         get3DStats: () => engine?.get3DStats() ?? null,
         getFrontLightStats: () => engine?.getFrontLightStats() ?? null,
-        readFlatCanvasRgba: (w, h) => engine?.readFlatCanvasRgba(w, h) ?? new Uint8Array(0),
+        getBackLightStats: () => engine?.getBackLightStats() ?? null,
+        readFlatCanvasRgba: (w, h, options) =>
+          engine?.readFlatCanvasRgba(w, h, options) ?? new Uint8Array(0),
         read3DViewportRgba: (w, h) => engine?.read3DViewportRgba(w, h) ?? new Uint8Array(0),
         getMapEffectiveRgba: () =>
           mapRegistry.isAllocated ? mapRegistry.color.effective : new Uint8ClampedArray(0),
@@ -146,6 +148,28 @@ export function useEngine(): UseEngineResult {
           mapRegistry.color.effective[idx + 3] = rgba[3];
           mapRegistry.emitDirty('color', { x, y, w: 1, h: 1 });
         },
+        emitColorDirtyBlock: (x, y, w, h, rgba) => {
+          if (!mapRegistry.isAllocated) return;
+          const x0 = Math.max(0, Math.floor(x));
+          const y0 = Math.max(0, Math.floor(y));
+          const x1 = Math.min(mapRegistry.width, Math.ceil(x + w));
+          const y1 = Math.min(mapRegistry.height, Math.ceil(y + h));
+          for (let py = y0; py < y1; py++) {
+            const row = py * mapRegistry.width;
+            for (let px = x0; px < x1; px++) {
+              const idx = (row + px) * 4;
+              mapRegistry.color.working[idx] = rgba[0];
+              mapRegistry.color.working[idx + 1] = rgba[1];
+              mapRegistry.color.working[idx + 2] = rgba[2];
+              mapRegistry.color.working[idx + 3] = rgba[3];
+              mapRegistry.color.effective[idx] = rgba[0];
+              mapRegistry.color.effective[idx + 1] = rgba[1];
+              mapRegistry.color.effective[idx + 2] = rgba[2];
+              mapRegistry.color.effective[idx + 3] = rgba[3];
+            }
+          }
+          mapRegistry.emitDirty('color', { x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+        },
         emitHeightDirtyBlock: (x, y, w, h, value) => {
           if (!mapRegistry.isAllocated) return;
           const x0 = Math.max(0, Math.floor(x));
@@ -161,6 +185,22 @@ export function useEngine(): UseEngineResult {
             }
           }
           mapRegistry.emitDirty('height', { x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+        },
+        emitOpacityDirtyBlock: (x, y, w, h, value) => {
+          if (!mapRegistry.isAllocated) return;
+          const x0 = Math.max(0, Math.floor(x));
+          const y0 = Math.max(0, Math.floor(y));
+          const x1 = Math.min(mapRegistry.width, Math.ceil(x + w));
+          const y1 = Math.min(mapRegistry.height, Math.ceil(y + h));
+          for (let py = y0; py < y1; py++) {
+            const row = py * mapRegistry.width;
+            for (let px = x0; px < x1; px++) {
+              const idx = row + px;
+              mapRegistry.opacity.working[idx] = value;
+              mapRegistry.opacity.effective[idx] = value;
+            }
+          }
+          mapRegistry.emitDirty('opacity', { x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
         },
       };
     }

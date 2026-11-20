@@ -13,6 +13,7 @@ interface LabeledSliderProps {
   step?: number;
   decimals?: number;
   suffix?: string;
+  testId?: string;
   onValueChange: (value: number) => void;
   onValueCommit?: (value: number) => void;
 }
@@ -26,6 +27,7 @@ export function LabeledSlider({
   step = 1,
   decimals = 0,
   suffix = '',
+  testId,
   onValueChange,
   onValueCommit,
 }: LabeledSliderProps) {
@@ -36,7 +38,7 @@ export function LabeledSlider({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">
+          <Label htmlFor={id} className="text-muted-foreground text-xs font-normal">
             {label}
           </Label>
           {headerExtra}
@@ -44,6 +46,7 @@ export function LabeledSlider({
         <div className="flex items-center gap-1">
           <Input
             id={id}
+            data-testid={testId}
             type="number"
             min={min}
             max={max}
@@ -59,7 +62,7 @@ export function LabeledSlider({
             }}
             className="h-6 w-16 px-1.5 text-right font-mono text-[11px]"
           />
-          {suffix && <span className="font-mono text-[11px] text-muted-foreground">{suffix}</span>}
+          {suffix && <span className="text-muted-foreground font-mono text-[11px]">{suffix}</span>}
         </div>
       </div>
       <Slider

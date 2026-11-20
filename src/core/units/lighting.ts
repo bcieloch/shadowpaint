@@ -6,7 +6,14 @@ import {
   MIN_INCIDENCE_DEG,
   MIN_SHADOW_DISTANCE_CM,
 } from '@/core/constants';
-import type { CanvasSettings, FrontLightSettings, ShadowMapSize } from '@/core/types';
+import type {
+  BackLightSettings,
+  CanvasSettings,
+  FrontLightSettings,
+  LightingMode,
+  LightingSettings,
+  ShadowMapSize,
+} from '@/core/types';
 
 export interface Vec3 {
   x: number;
@@ -18,6 +25,11 @@ export interface FrontLightWorldMapping {
   position: Vec3;
   target: Vec3;
   distanceToTargetCm: number;
+}
+
+export interface BackLightWorldMapping {
+  position: Vec3;
+  zDistanceCm: number;
 }
 
 export interface PolarLightCoords {
@@ -35,6 +47,12 @@ export interface FrontShadowParams {
   bias: number;
   normalBias: number;
   texelWorldSize: number;
+}
+
+export interface LightingMix {
+  frontScale: number;
+  backScale: number;
+  ambient: number;
 }
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -71,6 +89,52 @@ export function frontLightToWorld(
   const distanceToTargetCm = Math.max(1e-4, Math.hypot(dx, dy, dz));
 
   return { position, target, distanceToTargetCm };
+}
+
+export function backLightToWorld(
+  back: Pick<BackLightSettings, 'xCm' | 'yCm' | 'distanceBehindCm'>,
+  canvas: Pick<CanvasSettings, 'widthCm' | 'heightCm'>,
+): BackLightWorldMapping {
+  const halfW = canvas.widthCm / 2;
+  const halfH = canvas.heightCm / 2;
+  const zDistanceCm = Math.max(0.01, back.distanceBehindCm);
+
+  return {
+    position: {
+      x: back.xCm - halfW,
+      y: halfH - back.yCm,
+      z: -zDistanceCm,
+    },
+    zDistanceCm,
+  };
+}
+
+export function computeLightingMix(
+  mode: LightingMode,
+  lighting: Pick<LightingSettings, 'balance' | 'ambientFront' | 'ambientRoom'>,
+): LightingMix {
+  if (mode === 'front') {
+    return {
+      frontScale: 1,
+      backScale: 0,
+      ambient: Math.max(0, lighting.ambientFront),
+    };
+  }
+  if (mode === 'back') {
+    return {
+      frontScale: 0,
+      backScale: 1,
+      ambient: Math.max(0, lighting.ambientRoom),
+    };
+  }
+  const b = clampNumber(lighting.balance, 0, 1);
+  const frontScale = Math.min(1, 2 * (1 - b));
+  const backScale = Math.min(1, 2 * b);
+  return {
+    frontScale,
+    backScale,
+    ambient: Math.max(0, lighting.ambientFront * frontScale + lighting.ambientRoom),
+  };
 }
 
 export function frontLightToPolar(

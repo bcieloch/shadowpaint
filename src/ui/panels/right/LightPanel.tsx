@@ -1,22 +1,28 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   MAX_AMBIENT,
+  MAX_ATTENUATION,
+  MAX_BACK_DISTANCE_CM,
   MAX_CONE_ANGLE_DEG,
   MAX_EXPOSURE,
+  MAX_GLOBAL_TRANSMISSION_PCT,
   MAX_INCIDENCE_DEG,
   MAX_KELVIN,
   MAX_LIGHT_INTENSITY,
   MAX_SOURCE_SIZE_CM,
   MIN_AMBIENT,
+  MIN_ATTENUATION,
+  MIN_BACK_DISTANCE_CM,
   MIN_CONE_ANGLE_DEG,
   MIN_EXPOSURE,
+  MIN_GLOBAL_TRANSMISSION_PCT,
   MIN_INCIDENCE_DEG,
   MIN_KELVIN,
   MIN_LIGHT_INTENSITY,
   MIN_SHADOW_DISTANCE_CM,
   MIN_SOURCE_SIZE_CM,
 } from '@/core/constants';
-import type { LightingSettings, ShadowMapSize } from '@/core/types';
+import type { BackLightType, LightingMode, LightingSettings, ShadowMapSize } from '@/core/types';
 import { kelvinToHex } from '@/core/units/colorTemperature';
 import {
   clampShadowMapSize,
@@ -46,7 +52,7 @@ type CoordMode = 'cartesian' | 'polar';
 
 const SHADOW_SIZES: readonly ShadowMapSize[] = [2048, 4096, 8192];
 
-export function FrontLightPanel() {
+export function LightPanel() {
   const { t } = useI18n();
   const canvas = useProjectStore((s) => s.project.canvas);
   const lighting = useProjectStore((s) => s.project.lighting);
@@ -57,6 +63,7 @@ export function FrontLightPanel() {
   const maxTextureSize = useMemo(() => getMaxTextureSize(), []);
 
   const front = lighting.front;
+  const back = lighting.back;
   const polar = useMemo(() => frontLightToPolar(front, canvas), [front, canvas]);
   const effectiveShadowSize = clampShadowMapSize(front.shadowMapSize, maxTextureSize);
 
@@ -120,8 +127,10 @@ export function FrontLightPanel() {
     }
   };
 
-  const colorSwatch =
+  const frontColorSwatch =
     front.color.mode === 'kelvin' ? kelvinToHex(front.color.kelvin) : front.color.rgb;
+  const backColorSwatch =
+    back.color.mode === 'kelvin' ? kelvinToHex(back.color.kelvin) : back.color.rgb;
 
   return (
     <div className="space-y-4">
@@ -130,6 +139,66 @@ export function FrontLightPanel() {
           {t('light.sceneTitle')}
         </div>
 
+        <div className="space-y-1.5">
+          <Label className="text-muted-foreground text-xs font-normal">
+            {t('light.modeLabel')}
+          </Label>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            value={lighting.mode}
+            onValueChange={(val) => {
+              if (val === 'front' || val === 'back' || val === 'combined') {
+                applyImmediateLighting((d) => {
+                  d.mode = val as LightingMode;
+                });
+              }
+            }}
+            className="w-full"
+          >
+            <ToggleGroupItem
+              value="front"
+              data-testid="lighting-mode-front"
+              className="h-7 flex-1 text-xs"
+            >
+              {t('light.modeFront')}
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="back"
+              data-testid="lighting-mode-back"
+              className="h-7 flex-1 text-xs"
+            >
+              {t('light.modeBack')}
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="combined"
+              data-testid="lighting-mode-combined"
+              className="h-7 flex-1 text-xs"
+            >
+              {t('light.modeCombined')}
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
+        {lighting.mode === 'combined' && (
+          <LabeledSlider
+            label={t('light.balance')}
+            value={lighting.balance}
+            min={0}
+            max={1}
+            step={0.02}
+            decimals={2}
+            testId="light-balance"
+            onValueChange={(v) =>
+              previewLighting((d) => {
+                d.balance = v;
+              })
+            }
+            onValueCommit={commitLighting}
+          />
+        )}
+
         <LabeledSlider
           label={t('light.exposure')}
           value={lighting.exposure}
@@ -137,6 +206,7 @@ export function FrontLightPanel() {
           max={MAX_EXPOSURE}
           step={0.05}
           decimals={2}
+          testId="light-exposure"
           onValueChange={(v) =>
             previewLighting((d) => {
               d.exposure = v;
@@ -146,15 +216,32 @@ export function FrontLightPanel() {
         />
 
         <LabeledSlider
-          label={t('light.ambient')}
+          label={t('light.ambientFront')}
           value={lighting.ambientFront}
           min={MIN_AMBIENT}
           max={MAX_AMBIENT}
           step={0.01}
           decimals={2}
+          testId="light-ambient-front"
           onValueChange={(v) =>
             previewLighting((d) => {
               d.ambientFront = v;
+            })
+          }
+          onValueCommit={commitLighting}
+        />
+
+        <LabeledSlider
+          label={t('light.ambientRoom')}
+          value={lighting.ambientRoom}
+          min={MIN_AMBIENT}
+          max={MAX_AMBIENT}
+          step={0.01}
+          decimals={2}
+          testId="light-ambient-room"
+          onValueChange={(v) =>
+            previewLighting((d) => {
+              d.ambientRoom = v;
             })
           }
           onValueCommit={commitLighting}
@@ -359,6 +446,7 @@ export function FrontLightPanel() {
           max={MAX_LIGHT_INTENSITY}
           step={0.05}
           decimals={2}
+          testId="front-intensity"
           onValueChange={(v) =>
             previewLighting((d) => {
               d.front.intensity = v;
@@ -375,7 +463,7 @@ export function FrontLightPanel() {
               </Label>
               <span
                 className="border-border inline-block size-3.5 rounded-sm border"
-                style={{ backgroundColor: colorSwatch }}
+                style={{ backgroundColor: frontColorSwatch }}
                 aria-hidden="true"
               />
             </div>
@@ -417,6 +505,7 @@ export function FrontLightPanel() {
               step={50}
               decimals={0}
               suffix="K"
+              testId="front-kelvin"
               onValueChange={(v) =>
                 previewLighting((d) => {
                   d.front.color.kelvin = v;
@@ -447,6 +536,7 @@ export function FrontLightPanel() {
           step={0.5}
           decimals={1}
           suffix="cm"
+          testId="front-source-size"
           onValueChange={(v) =>
             previewLighting((d) => {
               d.front.sourceSizeCm = v;
@@ -463,6 +553,7 @@ export function FrontLightPanel() {
           step={1}
           decimals={0}
           suffix="°"
+          testId="front-cone-angle"
           onValueChange={(v) =>
             previewLighting((d) => {
               d.front.coneAngleDeg = v;
@@ -478,6 +569,7 @@ export function FrontLightPanel() {
           max={1}
           step={0.02}
           decimals={2}
+          testId="front-penumbra"
           onValueChange={(v) =>
             previewLighting((d) => {
               d.front.penumbra = v;
@@ -533,6 +625,222 @@ export function FrontLightPanel() {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <div className="text-foreground text-xs font-semibold tracking-wide uppercase">
+          {t('light.backTitle')}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-muted-foreground text-xs font-normal">{t('light.backType')}</Label>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            value={back.type}
+            onValueChange={(val) => {
+              if (val === 'point' || val === 'panel') {
+                applyImmediateLighting((d) => {
+                  d.back.type = val as BackLightType;
+                });
+              }
+            }}
+            className="w-full"
+          >
+            <ToggleGroupItem
+              value="point"
+              data-testid="back-type-point"
+              className="h-7 flex-1 text-xs"
+            >
+              {t('light.backTypePoint')}
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="panel"
+              data-testid="back-type-panel"
+              className="h-7 flex-1 text-xs"
+            >
+              {t('light.backTypePanel')}
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
+        {back.type === 'point' && (
+          <div className="grid grid-cols-2 gap-2">
+            <UnitNumberField
+              label={t('light.backXCm')}
+              value={back.xCm}
+              min={-500}
+              max={1500}
+              step={1}
+              decimals={1}
+              suffix="cm"
+              testId="back-x-cm"
+              onValueChange={(v) =>
+                previewLighting((d) => {
+                  d.back.xCm = v;
+                })
+              }
+              onValueCommit={commitLighting}
+            />
+            <UnitNumberField
+              label={t('light.backYCm')}
+              value={back.yCm}
+              min={-500}
+              max={1500}
+              step={1}
+              decimals={1}
+              suffix="cm"
+              testId="back-y-cm"
+              onValueChange={(v) =>
+                previewLighting((d) => {
+                  d.back.yCm = v;
+                })
+              }
+              onValueCommit={commitLighting}
+            />
+            <UnitNumberField
+              label={t('light.backDistanceBehindCm')}
+              value={back.distanceBehindCm}
+              min={MIN_BACK_DISTANCE_CM}
+              max={MAX_BACK_DISTANCE_CM}
+              step={1}
+              decimals={1}
+              suffix="cm"
+              testId="back-distance-cm"
+              onValueChange={(v) =>
+                previewLighting((d) => {
+                  d.back.distanceBehindCm = v;
+                })
+              }
+              onValueCommit={commitLighting}
+            />
+          </div>
+        )}
+
+        <LabeledSlider
+          label={t('light.intensity')}
+          value={back.intensity}
+          min={MIN_LIGHT_INTENSITY}
+          max={MAX_LIGHT_INTENSITY}
+          step={0.05}
+          decimals={2}
+          testId="back-intensity"
+          onValueChange={(v) =>
+            previewLighting((d) => {
+              d.back.intensity = v;
+            })
+          }
+          onValueCommit={commitLighting}
+        />
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Label className="text-muted-foreground text-xs font-normal">
+                {t('light.color')}
+              </Label>
+              <span
+                className="border-border inline-block size-3.5 rounded-sm border"
+                style={{ backgroundColor: backColorSwatch }}
+                aria-hidden="true"
+              />
+            </div>
+            <ToggleGroup
+              type="single"
+              value={back.color.mode}
+              onValueChange={(val) => {
+                if (val === 'kelvin' || val === 'rgb') {
+                  applyImmediateLighting((d) => {
+                    d.back.color.mode = val;
+                  });
+                }
+              }}
+              size="sm"
+            >
+              <ToggleGroupItem
+                value="kelvin"
+                data-testid="back-color-kelvin"
+                className="h-6 px-2 text-[10px]"
+              >
+                {t('light.colorKelvin')}
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="rgb"
+                data-testid="back-color-rgb"
+                className="h-6 px-2 text-[10px]"
+              >
+                {t('light.colorRgb')}
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
+          {back.color.mode === 'kelvin' ? (
+            <LabeledSlider
+              label={t('light.kelvinLabel')}
+              value={back.color.kelvin}
+              min={MIN_KELVIN}
+              max={MAX_KELVIN}
+              step={50}
+              decimals={0}
+              suffix="K"
+              testId="back-kelvin"
+              onValueChange={(v) =>
+                previewLighting((d) => {
+                  d.back.color.kelvin = v;
+                })
+              }
+              onValueCommit={commitLighting}
+            />
+          ) : (
+            <ColorField
+              value={back.color.rgb}
+              pickerTestId="back-rgb-picker"
+              hexTestId="back-rgb-hex"
+              onValueChange={(hex) =>
+                previewLighting((d) => {
+                  d.back.color.rgb = hex;
+                })
+              }
+              onValueCommit={commitLighting}
+            />
+          )}
+        </div>
+
+        <LabeledSlider
+          label={t('light.backGlobalTransmission')}
+          value={back.globalTransmissionPct}
+          min={MIN_GLOBAL_TRANSMISSION_PCT}
+          max={MAX_GLOBAL_TRANSMISSION_PCT}
+          step={1}
+          decimals={0}
+          suffix="%"
+          testId="back-global-transmission"
+          onValueChange={(v) =>
+            previewLighting((d) => {
+              d.back.globalTransmissionPct = v;
+            })
+          }
+          onValueCommit={commitLighting}
+        />
+
+        <LabeledSlider
+          label={t('light.backAttenuation')}
+          value={back.attenuation}
+          min={MIN_ATTENUATION}
+          max={MAX_ATTENUATION}
+          step={0.05}
+          decimals={2}
+          testId="back-attenuation"
+          onValueChange={(v) =>
+            previewLighting((d) => {
+              d.back.attenuation = v;
+            })
+          }
+          onValueCommit={commitLighting}
+        />
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import type {
   LightingSettings,
   MapId,
   MapSourceMeta,
+  MaterialSettings,
   OpacityAdjustments,
   Rect,
   SelectionMode,
@@ -103,6 +104,11 @@ export type SettingsPatch =
       path: 'lighting';
       before: LightingSettings;
       after: LightingSettings;
+    }
+  | {
+      path: 'material';
+      before: MaterialSettings;
+      after: MaterialSettings;
     };
 
 export interface SettingsHistoryEntry {
