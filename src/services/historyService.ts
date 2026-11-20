@@ -193,7 +193,7 @@ function applySettingsPatch(patch: SettingsPatch, direction: 'undo' | 'redo'): v
       useProjectStore.getState().project.adjustments,
       { x: 0, y: 0, w: mapRegistry.width, h: mapRegistry.height },
     );
-    mapRegistry.emitReplaced(patch.affectedMapId);
+    mapRegistry.emitReplaced(patch.affectedMapId, 'effective');
   }
 }
 
@@ -227,7 +227,7 @@ function applyHistoryEntry(entry: HistoryEntry, direction: 'undo' | 'redo'): voi
       useProjectStore.getState().project.adjustments,
       { x: 0, y: 0, w: mapRegistry.width, h: mapRegistry.height },
     );
-    mapRegistry.emitReplaced(entry.mapId);
+    mapRegistry.emitReplaced(entry.mapId, entry.baseBefore ? 'all' : 'working');
     return;
   }
 

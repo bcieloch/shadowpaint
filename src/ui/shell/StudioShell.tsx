@@ -5,6 +5,8 @@ import {
 } from '@/ui/components/ui/resizable';
 import { ImportWizardDialog } from '@/ui/dialogs/ImportWizard/ImportWizardDialog';
 import { NewProjectDialog } from '@/ui/dialogs/NewProjectDialog';
+import { RecentProjectsDialog } from '@/ui/dialogs/RecentProjectsDialog';
+import { RestoreSessionDialog } from '@/ui/dialogs/RestoreSessionDialog';
 import { LeftPanel } from '@/ui/shell/LeftPanel';
 import { RightPanel } from '@/ui/shell/RightPanel';
 import { StatusBar } from '@/ui/shell/StatusBar';
@@ -34,6 +36,8 @@ export function StudioShell() {
       <StatusBar />
       <NewProjectDialog />
       <ImportWizardDialog />
+      <RecentProjectsDialog />
+      <RestoreSessionDialog />
       <WindowDropOverlay />
     </div>
   );

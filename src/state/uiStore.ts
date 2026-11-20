@@ -18,6 +18,7 @@ export interface UiDialogsState {
   newProjectOpen: boolean;
   importWizardOpen: boolean;
   exportOpen: boolean;
+  recentProjectsOpen: boolean;
 }
 
 export interface UiState {
@@ -40,6 +41,7 @@ export const useUiStore = create<UiState>((set) => ({
     newProjectOpen: false,
     importWizardOpen: false,
     exportOpen: false,
+    recentProjectsOpen: false,
   },
   rightTab: 'map',
   tasks: [],

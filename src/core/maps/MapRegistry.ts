@@ -8,10 +8,13 @@ export interface MapDirtyEvent {
   rect: Rect;
 }
 
+export type MapReplaceScope = 'effective' | 'working' | 'all';
+
 export interface MapReplacedEvent {
   mapId: MapId | 'all';
   width: number;
   height: number;
+  scope?: MapReplaceScope;
 }
 
 export interface SelectionChangedEvent {
@@ -214,8 +217,12 @@ export class MapRegistry {
     this.events.emit('dirty', { mapId, rect });
   }
 
-  emitReplaced(mapId: MapId | 'all'): void {
-    this.events.emit('replaced', { mapId, width: this._width, height: this._height });
+  emitReplaced(mapId: MapId | 'all', scope?: MapReplaceScope): void {
+    const payload: MapReplacedEvent = { mapId, width: this._width, height: this._height };
+    if (scope !== undefined) {
+      payload.scope = scope;
+    }
+    this.events.emit('replaced', payload);
   }
 
   refreshSelectionState(): boolean {

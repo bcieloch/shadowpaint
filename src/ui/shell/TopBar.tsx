@@ -26,6 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/ui/components/ui/popo
 import { Separator } from '@/ui/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/components/ui/tooltip';
 import { useI18n } from '@/ui/hooks/useI18n';
+import { AutosaveIndicator } from '@/ui/widgets/AutosaveIndicator';
 
 function GithubIcon({ className }: { className?: string }) {
   return (
@@ -57,14 +58,14 @@ export function TopBar() {
 
   return (
     <header className="border-border bg-card flex h-11 shrink-0 items-center justify-between border-b px-3 select-none">
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
         <div className="text-foreground flex items-center gap-1.5 font-semibold tracking-tight">
           <Layers3 className="text-primary size-4" aria-hidden="true" />
           <span>{t('app.name')}</span>
         </div>
         <Separator orientation="vertical" className="h-4" />
         <span
-          className="text-muted-foreground max-w-52 truncate text-xs"
+          className="text-muted-foreground max-w-44 truncate text-xs"
           data-testid="topbar-project-name"
         >
           {displayName}
@@ -196,6 +197,9 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-2">
+        <AutosaveIndicator />
+        <Separator orientation="vertical" className="h-4" />
+
         <Popover>
           <Tooltip>
             <TooltipTrigger asChild>
