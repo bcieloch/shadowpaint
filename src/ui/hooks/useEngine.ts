@@ -3,18 +3,12 @@ import { toast } from 'sonner';
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import { OverlayRenderer, type OverlayCursorState } from '@/editor2d/overlay/OverlayRenderer';
 import { fitToViewport, zoom100, type ViewportSize } from '@/editor2d/viewTransform';
-import { Engine, type FlatRenderMode } from '@/engine3d/Engine';
+import { Engine } from '@/engine3d/Engine';
 import { detectWebGL2Support } from '@/lib/webgl';
 import { ensureInitialProjectAllocated } from '@/services/projectService';
-import { useEditorStore, type ViewMode2D } from '@/state/editorStore';
+import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
 import { useI18n } from '@/ui/hooks/useI18n';
-
-function toFlatRenderMode(viewMode: ViewMode2D): FlatRenderMode {
-  if (viewMode === 'height') return 'height';
-  if (viewMode === 'opacity') return 'opacity';
-  return 'color';
-}
 
 export interface UseEngineResult {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -69,10 +63,12 @@ export function useEngine(): UseEngineResult {
       layout: editor.layout,
       canvas: project.canvas,
       material: project.material,
+      lighting: project.lighting,
       view3d: project.view3d,
-      viewMode2D: toFlatRenderMode(editor.viewMode2D),
+      viewMode2D: editor.viewMode2D,
       heightDisplay: editor.heightDisplay,
       contourStepMm: editor.heightContourStepMm,
+      showLampGizmos: editor.showLampGizmos,
       pane2D: editor.pane2D,
     });
     renderOverlay();
@@ -132,6 +128,7 @@ export function useEngine(): UseEngineResult {
         getBuiltDimensions: () =>
           engine?.getBuiltDimensions() ?? { widthPx: 0, heightPx: 0, widthCm: 0, heightCm: 0 },
         get3DStats: () => engine?.get3DStats() ?? null,
+        getFrontLightStats: () => engine?.getFrontLightStats() ?? null,
         readFlatCanvasRgba: (w, h) => engine?.readFlatCanvasRgba(w, h) ?? new Uint8Array(0),
         read3DViewportRgba: (w, h) => engine?.read3DViewportRgba(w, h) ?? new Uint8Array(0),
         getMapEffectiveRgba: () =>

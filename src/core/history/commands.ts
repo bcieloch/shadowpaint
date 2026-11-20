@@ -2,6 +2,7 @@ import type {
   CanvasSettings,
   ColorAdjustments,
   HeightAdjustments,
+  LightingSettings,
   MapId,
   MapSourceMeta,
   OpacityAdjustments,
@@ -97,6 +98,11 @@ export type SettingsPatch =
       path: 'view3d';
       before: View3DSettings;
       after: View3DSettings;
+    }
+  | {
+      path: 'lighting';
+      before: LightingSettings;
+      after: LightingSettings;
     };
 
 export interface SettingsHistoryEntry {

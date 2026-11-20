@@ -176,6 +176,34 @@ describe('historyStore and historyService', () => {
     expect(mapRegistry.heightMap.effective[0]).toBeCloseTo(1, 5);
   });
 
+  it('undoes and redoes lighting settings patches cleanly with deep clone', () => {
+    const before = structuredClone(useProjectStore.getState().project.lighting);
+    const after = structuredClone(before);
+    after.front.xCm = 90;
+    after.front.castShadows = false;
+    after.front.color.mode = 'rgb';
+    after.front.color.rgb = '#ff9944';
+    after.exposure = 1.4;
+
+    useProjectStore.getState().updateProject((d) => {
+      d.lighting = structuredClone(after);
+    });
+    recordSettingsPatchHistory('settingsChange', {
+      path: 'lighting',
+      before,
+      after,
+    });
+
+    expect(useProjectStore.getState().project.lighting.front.xCm).toBe(90);
+    expect(useProjectStore.getState().project.lighting.front.castShadows).toBe(false);
+
+    undoGlobal();
+    expect(useProjectStore.getState().project.lighting).toEqual(before);
+
+    redoGlobal();
+    expect(useProjectStore.getState().project.lighting).toEqual(after);
+  });
+
   it('evicts oldest entries when step limit or memory limit is exceeded', () => {
     const ctx = makeToolContext();
     const brush: Tool = new BrushTool();

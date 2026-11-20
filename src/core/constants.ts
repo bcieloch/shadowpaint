@@ -22,6 +22,30 @@ export const MAX_RELIEF_MULTIPLIER = 50;
 
 export const ASPECT_RATIO_TOLERANCE = 0.005;
 
+/**
+ * Calibrates Three.js physically-based SpotLight (candela, with Lambertian BRDF 1/π)
+ * in 1 world unit = 1 cm coordinates so that at intensity = 1 and exposure = 1,
+ * a perpendicular white surface at the target renders at linear radiance ≈ (0.8, 0.8, 0.8)
+ * before ACES Filmic tone mapping.
+ */
+export const FRONT_LIGHT_INTENSITY_FACTOR = 0.8 * Math.PI;
+
+export const MIN_EXPOSURE = 0.1;
+export const MAX_EXPOSURE = 4;
+export const MIN_AMBIENT = 0;
+export const MAX_AMBIENT = 1;
+export const MIN_LIGHT_INTENSITY = 0;
+export const MAX_LIGHT_INTENSITY = 10;
+export const MIN_KELVIN = 1500;
+export const MAX_KELVIN = 12000;
+export const MIN_SOURCE_SIZE_CM = 0.1;
+export const MAX_SOURCE_SIZE_CM = 50;
+export const MIN_CONE_ANGLE_DEG = 10;
+export const MAX_CONE_ANGLE_DEG = 120;
+export const MIN_SHADOW_DISTANCE_CM = 1;
+export const MIN_INCIDENCE_DEG = 0;
+export const MAX_INCIDENCE_DEG = 89;
+
 export const DEFAULT_COLOR_HEX = '#f4f1ea';
 export const DEFAULT_HEIGHT_VALUE = 0;
 export const DEFAULT_OPACITY_VALUE = 1;

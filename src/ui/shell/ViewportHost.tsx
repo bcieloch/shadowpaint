@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Frame, Maximize2, RotateCcw, Scan } from 'lucide-react';
+import { Frame, Lightbulb, Maximize2, RotateCcw, Scan } from 'lucide-react';
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import type { MapId } from '@/core/types';
 import { getCalibrationMetrics } from '@/core/units/calibration';
@@ -12,7 +12,7 @@ import {
   undoActiveMap,
   undoGlobal,
 } from '@/services/historyService';
-import { useEditorStore, type HeightDisplayMode, type ViewMode2D } from '@/state/editorStore';
+import { useEditorStore, type HeightDisplayMode } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { Button } from '@/ui/components/ui/button';
@@ -53,6 +53,7 @@ export function ViewportHost() {
   const viewMode2D = useEditorStore((s) => s.viewMode2D);
   const heightDisplay = useEditorStore((s) => s.heightDisplay);
   const heightContourStepMm = useEditorStore((s) => s.heightContourStepMm);
+  const showLampGizmos = useEditorStore((s) => s.showLampGizmos);
   const pane2D = useEditorStore((s) => s.pane2D);
   const tool = useEditorStore((s) => s.tool);
   const brushSizeValue = useEditorStore((s) => s.brush.sizeValue);
@@ -61,6 +62,7 @@ export function ViewportHost() {
   const setViewMode2D = useEditorStore((s) => s.setViewMode2D);
   const setHeightDisplay = useEditorStore((s) => s.setHeightDisplay);
   const setHeightContourStepMm = useEditorStore((s) => s.setHeightContourStepMm);
+  const setShowLampGizmos = useEditorStore((s) => s.setShowLampGizmos);
 
   const {
     containerRef,
@@ -170,7 +172,7 @@ export function ViewportHost() {
     };
   }, [containerRef]);
 
-  // Keyboard shortcuts: F1/F2 layout, Home reset 3D, Space pan, Ctrl+Z/Shift+Z/Y/Alt+Z history, Ctrl+0 fit, Ctrl+1 1:1, B/E/I/H, [/], 1/2/3
+  // Keyboard shortcuts: F1/F2 layout, Home reset 3D, Shift+1..4 modes, Space pan, Ctrl+Z/Shift+Z/Y/Alt+Z history, Ctrl+0/1, B/E/I/H, [/], 1/2/3
   useEffect(() => {
     const adjustBrushSize = (scale: number) => {
       const editor = useEditorStore.getState();
@@ -254,9 +256,26 @@ export function ViewportHost() {
 
       if (e.altKey) return;
 
-      const lower = e.key.toLowerCase();
       const editor = useEditorStore.getState();
 
+      if (e.shiftKey) {
+        if (e.code === 'Digit1') {
+          e.preventDefault();
+          editor.setViewMode2D('color');
+        } else if (e.code === 'Digit2') {
+          e.preventDefault();
+          editor.setViewMode2D('height');
+        } else if (e.code === 'Digit3') {
+          e.preventDefault();
+          editor.setViewMode2D('opacity');
+        } else if (e.code === 'Digit4') {
+          e.preventDefault();
+          editor.setViewMode2D('front');
+        }
+        return;
+      }
+
+      const lower = e.key.toLowerCase();
       if (lower === 'b') {
         editor.setTool('brush');
       } else if (lower === 'e') {
@@ -317,8 +336,10 @@ export function ViewportHost() {
     });
   };
 
-  const activeFlatMode: 'color' | 'height' | 'opacity' =
-    viewMode2D === 'height' || viewMode2D === 'opacity' ? viewMode2D : 'color';
+  const active2DMode: 'color' | 'height' | 'opacity' | 'front' =
+    viewMode2D === 'height' || viewMode2D === 'opacity' || viewMode2D === 'front'
+      ? viewMode2D
+      : 'color';
 
   const cursorClass =
     layout === '3d'
@@ -347,6 +368,24 @@ export function ViewportHost() {
             </div>
 
             <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={showLampGizmos ? 'secondary' : 'ghost'}
+                    size="xs"
+                    data-testid="btn-toggle-gizmos"
+                    aria-pressed={showLampGizmos}
+                    onClick={() => setShowLampGizmos(!showLampGizmos)}
+                    className="gap-1 text-xs"
+                  >
+                    <Lightbulb className="size-3.5" />
+                    {t('viewport.toggleGizmos')}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('viewport.toggleGizmosTooltip')}</TooltipContent>
+              </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -390,10 +429,15 @@ export function ViewportHost() {
                 type="single"
                 size="sm"
                 variant="outline"
-                value={activeFlatMode}
+                value={active2DMode}
                 onValueChange={(value) => {
-                  if (value === 'color' || value === 'height' || value === 'opacity') {
-                    setViewMode2D(value as ViewMode2D);
+                  if (
+                    value === 'color' ||
+                    value === 'height' ||
+                    value === 'opacity' ||
+                    value === 'front'
+                  ) {
+                    setViewMode2D(value);
                   }
                 }}
               >
@@ -418,9 +462,16 @@ export function ViewportHost() {
                 >
                   {t('viewport.modeOpacity')}
                 </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="front"
+                  data-testid="mode-front"
+                  className="h-7 px-2.5 text-xs"
+                >
+                  {t('viewport.modeFront')}
+                </ToggleGroupItem>
               </ToggleGroup>
 
-              {activeFlatMode === 'height' && (
+              {active2DMode === 'height' && (
                 <div className="flex items-center gap-1.5">
                   <Select
                     value={heightDisplay}
@@ -540,14 +591,14 @@ export function ViewportHost() {
 
         {layout !== '3d' && (
           <div className="pointer-events-none absolute right-3 bottom-3 flex flex-col gap-2">
-            {activeFlatMode === 'height' && (
+            {active2DMode === 'height' && (
               <HeightLegend
                 mode={heightDisplay}
                 minMm={canvas.minThicknessMm}
                 maxMm={canvas.maxThicknessMm}
               />
             )}
-            {activeFlatMode === 'opacity' && <OpacityLegend />}
+            {active2DMode === 'opacity' && <OpacityLegend />}
           </div>
         )}
       </div>

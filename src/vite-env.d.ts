@@ -26,6 +26,14 @@ export interface ShadowPaintDebugHandle {
     vertices: number;
     frameVisible: boolean;
   } | null;
+  getFrontLightStats: () => {
+    position: { x: number; y: number; z: number };
+    target: { x: number; y: number; z: number };
+    intensity: number;
+    castShadow: boolean;
+    shadowMapSize: 2048 | 4096 | 8192;
+    gizmoVisible: boolean;
+  } | null;
   readFlatCanvasRgba: (width?: number, height?: number) => Uint8Array;
   read3DViewportRgba: (width?: number, height?: number) => Uint8Array;
   getMapEffectiveRgba: () => Uint8ClampedArray;

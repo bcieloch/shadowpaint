@@ -58,6 +58,7 @@ export interface EditorState {
   view3DLighting: LightingMode;
   heightDisplay: HeightDisplayMode;
   heightContourStepMm: number;
+  showLampGizmos: boolean;
   pane2D: Pane2DState;
   splitRatio: number;
   rulerLine: LineSegment | null;
@@ -70,6 +71,7 @@ export interface EditorState {
   setView3DLighting: (mode: LightingMode) => void;
   setHeightDisplay: (mode: HeightDisplayMode) => void;
   setHeightContourStepMm: (stepMm: number) => void;
+  setShowLampGizmos: (show: boolean) => void;
   setPane2D: (pane: Partial<Pane2DState>) => void;
   setSplitRatio: (ratio: number) => void;
   setRulerLine: (line: LineSegment | null) => void;
@@ -96,6 +98,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   view3DLighting: 'combined',
   heightDisplay: 'gray',
   heightContourStepMm: 0.5,
+  showLampGizmos: true,
   pane2D: { zoom: 1, panX: 0, panY: 0 },
   splitRatio: 0.5,
   rulerLine: null,
@@ -108,6 +111,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setView3DLighting: (view3DLighting) => set({ view3DLighting }),
   setHeightDisplay: (heightDisplay) => set({ heightDisplay }),
   setHeightContourStepMm: (heightContourStepMm) => set({ heightContourStepMm }),
+  setShowLampGizmos: (showLampGizmos) => set({ showLampGizmos }),
   setPane2D: (pane) => set((s) => ({ pane2D: { ...s.pane2D, ...pane } })),
   setSplitRatio: (splitRatio) => set({ splitRatio }),
   setRulerLine: (rulerLine) => set({ rulerLine }),

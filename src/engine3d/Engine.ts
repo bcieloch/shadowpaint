@@ -1,7 +1,14 @@
 import * as THREE from 'three';
 import type { MapRegistry } from '@/core/maps/MapRegistry';
 import { unionRect } from '@/core/maps/rect';
-import type { CanvasSettings, MapId, MaterialSettings, Rect, View3DSettings } from '@/core/types';
+import type {
+  CanvasSettings,
+  LightingSettings,
+  MapId,
+  MaterialSettings,
+  Rect,
+  View3DSettings,
+} from '@/core/types';
 import { type ViewportSize, type ViewTransformState } from '@/editor2d/viewTransform';
 import { Orbit3D } from '@/engine3d/cameras/Orbit3D';
 import { Ortho2D } from '@/engine3d/cameras/Ortho2D';
@@ -10,6 +17,7 @@ import {
   getRendererMemoryInfo,
   type RendererMemoryInfo,
 } from '@/engine3d/dispose';
+import type { FrontLightStateSnapshot } from '@/engine3d/lights/FrontLight';
 import {
   createCanvasQuadGeometry,
   createFlatViewMaterial,
@@ -18,7 +26,7 @@ import {
 import type { CanvasMeshStats } from '@/engine3d/scene/CanvasMesh';
 import { PaintingScene } from '@/engine3d/scene/PaintingScene';
 import { MapTextures } from '@/engine3d/textures/MapTextures';
-import type { LayoutMode } from '@/state/editorStore';
+import type { LayoutMode, ViewMode2D } from '@/state/editorStore';
 
 export type FlatRenderMode = 'color' | 'height' | 'opacity';
 export type HeightRenderDisplay = 'gray' | 'heat' | 'topo';
@@ -27,10 +35,12 @@ export interface EngineRenderParams {
   layout: LayoutMode;
   canvas: CanvasSettings;
   material: MaterialSettings;
+  lighting: LightingSettings;
   view3d: View3DSettings;
-  viewMode2D: FlatRenderMode;
+  viewMode2D: ViewMode2D;
   heightDisplay: HeightRenderDisplay;
   contourStepMm: number;
+  showLampGizmos: boolean;
   pane2D: ViewTransformState;
 }
 
@@ -38,6 +48,29 @@ export interface EngineCallbacks {
   onContextLost?: () => void;
   onContextRestored?: () => void;
   onError?: (error: Error) => void;
+}
+
+function toFlatShaderKey(viewMode: ViewMode2D): FlatRenderMode {
+  if (viewMode === 'height') return 'height';
+  if (viewMode === 'opacity') return 'opacity';
+  return 'color';
+}
+
+function frontLightShadowRelevantChanged(
+  a: LightingSettings['front'],
+  b: LightingSettings['front'],
+): boolean {
+  return (
+    a.xCm !== b.xCm ||
+    a.heightAboveTopCm !== b.heightAboveTopCm ||
+    a.distanceCm !== b.distanceCm ||
+    a.targetXCm !== b.targetXCm ||
+    a.targetYCm !== b.targetYCm ||
+    a.coneAngleDeg !== b.coneAngleDeg ||
+    a.sourceSizeCm !== b.sourceSizeCm ||
+    a.castShadows !== b.castShadows ||
+    a.shadowMapSize !== b.shadowMapSize
+  );
 }
 
 export class Engine {
@@ -183,7 +216,8 @@ export class Engine {
       prev.canvas.maxThicknessMm !== params.canvas.maxThicknessMm ||
       prev.view3d.reliefMultiplier !== params.view3d.reliefMultiplier ||
       prev.view3d.meshDetail !== params.view3d.meshDetail ||
-      prev.view3d.showFrame !== params.view3d.showFrame
+      prev.view3d.showFrame !== params.view3d.showFrame ||
+      frontLightShadowRelevantChanged(prev.lighting.front, params.lighting.front)
     ) {
       this.shadowDirty = true;
     }
@@ -235,11 +269,32 @@ export class Engine {
         return;
       }
 
-      const { layout, canvas, material, view3d, viewMode2D, heightDisplay, contourStepMm, pane2D } =
-        this.params;
+      const {
+        layout,
+        canvas,
+        material,
+        lighting,
+        view3d,
+        viewMode2D,
+        heightDisplay,
+        contourStepMm,
+        showLampGizmos,
+        pane2D,
+      } = this.params;
 
       if (layout === '3d') {
-        this.paintingScene.update(this.mapTextures, canvas, material, view3d);
+        const { shadowConfigChanged } = this.paintingScene.update(
+          this.mapTextures,
+          canvas,
+          material,
+          lighting,
+          view3d,
+          this.getMaxTextureSize(),
+          showLampGizmos,
+        );
+        if (shadowConfigChanged) {
+          this.shadowDirty = true;
+        }
         this.orbit3D.update();
         this.mapTextures.setNearest(false, this.renderer);
         if (this.shadowDirty) {
@@ -247,16 +302,46 @@ export class Engine {
           this.shadowDirty = false;
         }
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1;
+        this.renderer.toneMappingExposure = lighting.exposure;
         this.renderer.setRenderTarget(null);
         this.renderer.render(this.paintingScene.scene, this.orbit3D.camera);
         this.mapTextures.markGpuInitialized();
         return;
       }
 
+      if (viewMode2D === 'front') {
+        const { shadowConfigChanged } = this.paintingScene.update(
+          this.mapTextures,
+          canvas,
+          material,
+          lighting,
+          view3d,
+          this.getMaxTextureSize(),
+          false,
+        );
+        if (shadowConfigChanged) {
+          this.shadowDirty = true;
+        }
+        this.mapTextures.setNearest(pane2D.zoom >= 4, this.renderer);
+        this.ortho2D.update(this.viewport, canvas, pane2D);
+        if (this.shadowDirty) {
+          this.renderer.shadowMap.needsUpdate = true;
+          this.shadowDirty = false;
+        }
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = lighting.exposure;
+        this.renderer.setRenderTarget(null);
+        this.renderer.render(this.paintingScene.scene, this.ortho2D.camera);
+        this.mapTextures.markGpuInitialized();
+        return;
+      }
+
       const uniforms = this.flatMaterial.uniforms;
       if (uniforms.uMode) {
-        uniforms.uMode.value = resolveFlatViewShaderMode(viewMode2D, heightDisplay);
+        uniforms.uMode.value = resolveFlatViewShaderMode(
+          toFlatShaderKey(viewMode2D),
+          heightDisplay,
+        );
       }
       if (uniforms.uMinMm) uniforms.uMinMm.value = canvas.minThicknessMm;
       if (uniforms.uMaxMm) uniforms.uMaxMm.value = canvas.maxThicknessMm;
@@ -281,13 +366,21 @@ export class Engine {
 
     this.disposeSceneResources();
 
-    const { canvas, material, view3d } = this.params;
+    const { canvas, material, lighting, view3d, layout, showLampGizmos } = this.params;
     const textures = new MapTextures(this.registry, this.renderer);
     const flatMat = createFlatViewMaterial(textures);
     const flatGeo = createCanvasQuadGeometry(canvas.widthCm, canvas.heightCm);
     const flatMesh = new THREE.Mesh(flatGeo, flatMat);
 
-    const paintingScene = new PaintingScene(textures, canvas, material, view3d);
+    const paintingScene = new PaintingScene(
+      textures,
+      canvas,
+      material,
+      lighting,
+      view3d,
+      this.getMaxTextureSize(),
+      layout === '3d' && showLampGizmos,
+    );
 
     this.mapTextures = textures;
     this.flatMaterial = flatMat;
@@ -320,44 +413,72 @@ export class Engine {
       return new Uint8Array(0);
     }
     this.flushPendingResources();
-    if (!this.mapTextures || !this.flatMaterial || !this.flatMesh) {
+    if (!this.mapTextures || !this.flatMaterial || !this.flatMesh || !this.paintingScene) {
       return new Uint8Array(0);
     }
 
     const w = Math.max(1, targetWidth ?? this.registry.width);
     const h = Math.max(1, targetHeight ?? this.registry.height);
-    const { canvas, viewMode2D, heightDisplay, contourStepMm } = this.params;
-
-    const uniforms = this.flatMaterial.uniforms;
-    if (uniforms.uMode) {
-      uniforms.uMode.value = resolveFlatViewShaderMode(viewMode2D, heightDisplay);
-    }
-    if (uniforms.uMinMm) uniforms.uMinMm.value = canvas.minThicknessMm;
-    if (uniforms.uMaxMm) uniforms.uMaxMm.value = canvas.maxThicknessMm;
-    if (uniforms.uContourStepMm) uniforms.uContourStepMm.value = contourStepMm;
+    const { canvas, material, lighting, view3d, viewMode2D, heightDisplay, contourStepMm } =
+      this.params;
 
     const halfW = canvas.widthCm / 2;
     const halfH = canvas.heightCm / 2;
-    const cam = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 0.1, 200);
-    cam.position.set(0, 0, 100);
+    const cam = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 0.1, 1000);
+    cam.position.set(0, 0, 500);
     cam.lookAt(0, 0, 0);
     cam.updateProjectionMatrix();
 
+    const isLit2D = viewMode2D === 'front';
     const rt = new THREE.WebGLRenderTarget(w, h, {
       colorSpace: THREE.SRGBColorSpace,
       type: THREE.UnsignedByteType,
-      minFilter: THREE.NearestFilter,
-      magFilter: THREE.NearestFilter,
-      depthBuffer: false,
+      minFilter: isLit2D ? THREE.LinearFilter : THREE.NearestFilter,
+      magFilter: isLit2D ? THREE.LinearFilter : THREE.NearestFilter,
+      depthBuffer: isLit2D,
       stencilBuffer: false,
     });
 
     const prevTarget = this.renderer.getRenderTarget();
     const prevToneMapping = this.renderer.toneMapping;
+    const prevExposure = this.renderer.toneMappingExposure;
+
     try {
-      this.renderer.toneMapping = THREE.NoToneMapping;
-      this.renderer.setRenderTarget(rt);
-      this.renderer.render(this.flatScene, cam);
+      if (isLit2D) {
+        const { shadowConfigChanged } = this.paintingScene.update(
+          this.mapTextures,
+          canvas,
+          material,
+          lighting,
+          view3d,
+          this.getMaxTextureSize(),
+          false,
+        );
+        if (shadowConfigChanged || this.shadowDirty) {
+          this.renderer.shadowMap.needsUpdate = true;
+          this.shadowDirty = false;
+        }
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = lighting.exposure;
+        this.renderer.setRenderTarget(rt);
+        this.renderer.render(this.paintingScene.scene, cam);
+      } else {
+        const uniforms = this.flatMaterial.uniforms;
+        if (uniforms.uMode) {
+          uniforms.uMode.value = resolveFlatViewShaderMode(
+            toFlatShaderKey(viewMode2D),
+            heightDisplay,
+          );
+        }
+        if (uniforms.uMinMm) uniforms.uMinMm.value = canvas.minThicknessMm;
+        if (uniforms.uMaxMm) uniforms.uMaxMm.value = canvas.maxThicknessMm;
+        if (uniforms.uContourStepMm) uniforms.uContourStepMm.value = contourStepMm;
+
+        this.renderer.toneMapping = THREE.NoToneMapping;
+        this.renderer.toneMappingExposure = 1;
+        this.renderer.setRenderTarget(rt);
+        this.renderer.render(this.flatScene, cam);
+      }
 
       const raw = new Uint8Array(w * h * 4);
       this.renderer.readRenderTargetPixels(rt, 0, 0, w, h, raw);
@@ -371,6 +492,7 @@ export class Engine {
       return flipped;
     } finally {
       this.renderer.toneMapping = prevToneMapping;
+      this.renderer.toneMappingExposure = prevExposure;
       this.renderer.setRenderTarget(prevTarget);
       rt.dispose();
     }
@@ -389,14 +511,26 @@ export class Engine {
       return new Uint8Array(0);
     }
 
-    const { canvas, material, view3d } = this.params;
-    this.paintingScene.update(this.mapTextures, canvas, material, view3d);
+    const { canvas, material, lighting, view3d, showLampGizmos } = this.params;
+    const { shadowConfigChanged } = this.paintingScene.update(
+      this.mapTextures,
+      canvas,
+      material,
+      lighting,
+      view3d,
+      this.getMaxTextureSize(),
+      showLampGizmos,
+    );
+    if (shadowConfigChanged) {
+      this.shadowDirty = true;
+    }
 
     const w = Math.max(1, Math.round(width));
     const h = Math.max(1, Math.round(height));
     const prevAspect = this.orbit3D.camera.aspect;
     const prevTarget = this.renderer.getRenderTarget();
     const prevToneMapping = this.renderer.toneMapping;
+    const prevExposure = this.renderer.toneMappingExposure;
 
     const rt = new THREE.WebGLRenderTarget(w, h, {
       colorSpace: THREE.SRGBColorSpace,
@@ -415,6 +549,7 @@ export class Engine {
         this.shadowDirty = false;
       }
       this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = lighting.exposure;
       this.renderer.setRenderTarget(rt);
       this.renderer.render(this.paintingScene.scene, this.orbit3D.camera);
 
@@ -432,6 +567,7 @@ export class Engine {
       this.orbit3D.camera.aspect = prevAspect;
       this.orbit3D.camera.updateProjectionMatrix();
       this.renderer.toneMapping = prevToneMapping;
+      this.renderer.toneMappingExposure = prevExposure;
       this.renderer.setRenderTarget(prevTarget);
       rt.dispose();
     }
@@ -443,9 +579,26 @@ export class Engine {
       this.mapTextures,
       this.params.canvas,
       this.params.material,
+      this.params.lighting,
       this.params.view3d,
+      this.getMaxTextureSize(),
+      this.params.layout === '3d' && this.params.showLampGizmos,
     );
     return this.paintingScene.getCanvasStats();
+  }
+
+  getFrontLightStats(): FrontLightStateSnapshot | null {
+    if (!this.paintingScene || !this.params || !this.mapTextures) return null;
+    this.paintingScene.update(
+      this.mapTextures,
+      this.params.canvas,
+      this.params.material,
+      this.params.lighting,
+      this.params.view3d,
+      this.getMaxTextureSize(),
+      this.params.layout === '3d' && this.params.showLampGizmos,
+    );
+    return this.paintingScene.getFrontLightStats();
   }
 
   getMemoryInfo(): RendererMemoryInfo {
@@ -472,7 +625,7 @@ export class Engine {
 
   private flushPendingResources(): void {
     if (!this.params || !this.registry.isAllocated) return;
-    const { canvas, material, view3d } = this.params;
+    const { canvas, material, lighting, view3d, layout, showLampGizmos } = this.params;
 
     const pixelDimsChanged =
       this.builtWidthPx !== this.registry.width || this.builtHeightPx !== this.registry.height;
@@ -497,7 +650,18 @@ export class Engine {
       this.shadowDirty = true;
     }
 
-    this.paintingScene.update(this.mapTextures, canvas, material, view3d);
+    const { shadowConfigChanged } = this.paintingScene.update(
+      this.mapTextures,
+      canvas,
+      material,
+      lighting,
+      view3d,
+      this.getMaxTextureSize(),
+      layout === '3d' && showLampGizmos,
+    );
+    if (shadowConfigChanged) {
+      this.shadowDirty = true;
+    }
 
     for (const mapId of ['color', 'height', 'opacity'] as const) {
       if (this.pendingFull[mapId]) {
