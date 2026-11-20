@@ -56,6 +56,24 @@ export function disposeObject3D(root: THREE.Object3D, options: DisposeOptions = 
   });
 }
 
+/**
+ * Three.js r187 attaches an externally constructed DepthTexture to shadow.map.depthTexture
+ * without setting depthTexture.renderTarget, so RenderTarget.dispose() skips freeing it.
+ * Dispose depthTexture explicitly before shadow.dispose().
+ */
+export function disposeLightShadow(shadow: THREE.LightShadow): void {
+  for (const target of [shadow.map, shadow.mapPass]) {
+    if (!target) continue;
+    if (target.depthTexture) {
+      target.depthTexture.dispose();
+      target.depthTexture = null;
+    }
+  }
+  shadow.dispose();
+  shadow.map = null;
+  shadow.mapPass = null;
+}
+
 export interface RendererMemoryInfo {
   geometries: number;
   textures: number;

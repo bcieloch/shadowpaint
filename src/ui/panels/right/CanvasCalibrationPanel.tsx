@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from '@/ui/components/ui/select';
 import { Separator } from '@/ui/components/ui/separator';
+import { Switch } from '@/ui/components/ui/switch';
 import { ResizeProjectDialog } from '@/ui/dialogs/ResizeProjectDialog';
 import { useI18n } from '@/ui/hooks/useI18n';
 import { LabeledSlider } from '@/ui/widgets/LabeledSlider';
@@ -609,6 +610,29 @@ export function CanvasCalibrationPanel() {
               vertices: meshStats.vertices.toLocaleString('en-US'),
             })}
           </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-1">
+          <Label htmlFor="canvas-show-frame" className="text-xs font-normal">
+            {t('canvas.showFrame')}
+          </Label>
+          <Switch
+            id="canvas-show-frame"
+            data-testid="canvas-show-frame"
+            size="sm"
+            checked={view3d.showFrame}
+            onCheckedChange={(checked) => {
+              const before = { ...useProjectStore.getState().project.view3d };
+              updateProject((d) => {
+                d.view3d.showFrame = checked;
+              });
+              recordSettingsPatchHistory('settingsChange', {
+                path: 'view3d',
+                before,
+                after: { ...useProjectStore.getState().project.view3d },
+              });
+            }}
+          />
         </div>
       </div>
 

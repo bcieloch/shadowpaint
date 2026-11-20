@@ -4,6 +4,7 @@ import {
   brushSizeToPx,
   cmToPx,
   cmToWorldXY,
+  computeDisplacementParams,
   computeHeightFromWidthPx,
   computeMeshSegments,
   getCalibrationMetrics,
@@ -60,9 +61,20 @@ describe('calibration', () => {
     expect(worldXYToCm(topLeftWorld.x, topLeftWorld.y, DEFAULT_CANVAS)).toEqual({ x: 0, y: 0 });
   });
 
-  it('computes world Z displacement in cm with relief multiplier', () => {
+  it('computes world Z displacement in cm and displacement scale/bias with relief multiplier', () => {
     expect(valueToWorldZCm(1, 0, 5, 1)).toBeCloseTo(0.5, 6);
     expect(valueToWorldZCm(1, 0, 5, 4)).toBeCloseTo(2.0, 6);
+
+    const d0 = computeDisplacementParams(0, 5, 1);
+    expect(d0.displacementScale).toBeCloseTo(0.5, 6);
+    expect(d0.displacementBias).toBeCloseTo(0, 6);
+    expect(d0.maxDisplacementCm).toBeCloseTo(0.5, 6);
+
+    const d1 = computeDisplacementParams(1, 5, 3);
+    expect(d1.displacementBias).toBeCloseTo(0.3, 6);
+    expect(d1.displacementScale).toBeCloseTo(1.2, 6);
+    expect(d1.minDisplacementCm).toBeCloseTo(0.3, 6);
+    expect(d1.maxDisplacementCm).toBeCloseTo(1.5, 6);
   });
 
   it('converts brush size between px and cm', () => {

@@ -1,5 +1,6 @@
-import { FilePlus2, Layers3, Redo2, Undo2 } from 'lucide-react';
+import { Box, FilePlus2, Layers3, Redo2, Square, Undo2 } from 'lucide-react';
 import { formatHistoryMeta, redoGlobal, undoGlobal } from '@/services/historyService';
+import { useEditorStore } from '@/state/editorStore';
 import {
   selectGlobalRedoEntry,
   selectGlobalUndoEntry,
@@ -16,6 +17,8 @@ export function TopBar() {
   const { locale, setLocale, t } = useI18n();
   const projectName = useProjectStore((s) => s.project.name);
   const setDialogOpen = useUiStore((s) => s.setDialogOpen);
+  const layout = useEditorStore((s) => s.layout);
+  const setLayout = useEditorStore((s) => s.setLayout);
   const undoEntry = useHistoryStore(selectGlobalUndoEntry);
   const redoEntry = useHistoryStore(selectGlobalRedoEntry);
 
@@ -104,6 +107,49 @@ export function TopBar() {
               </span>
             </TooltipTrigger>
             <TooltipContent>{redoTooltip}</TooltipContent>
+          </Tooltip>
+        </div>
+
+        <Separator orientation="vertical" className="h-4" />
+
+        <div
+          className="border-border bg-background flex items-center rounded-md border p-0.5"
+          role="group"
+          aria-label={t('topbar.layoutLabel')}
+        >
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="xs"
+                variant={layout === '2d' ? 'secondary' : 'ghost'}
+                className="h-6 gap-1 px-2 text-[11px] font-medium"
+                onClick={() => setLayout('2d')}
+                aria-pressed={layout === '2d'}
+                data-testid="layout-2d"
+              >
+                <Square className="size-3" />
+                <span>{t('topbar.layout2d')}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('topbar.layout2dTooltip')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="xs"
+                variant={layout === '3d' ? 'secondary' : 'ghost'}
+                className="h-6 gap-1 px-2 text-[11px] font-medium"
+                onClick={() => setLayout('3d')}
+                aria-pressed={layout === '3d'}
+                data-testid="layout-3d"
+              >
+                <Box className="size-3" />
+                <span>{t('topbar.layout3d')}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('topbar.layout3dTooltip')}</TooltipContent>
           </Tooltip>
         </div>
       </div>
