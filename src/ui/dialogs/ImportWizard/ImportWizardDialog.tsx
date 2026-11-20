@@ -101,8 +101,8 @@ export function ImportWizardDialog() {
         setDialogOpen('importWizardOpen', v);
       }}
     >
-      <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col bg-card text-foreground">
-        <DialogHeader>
+      <DialogContent className="bg-card text-foreground flex max-h-[90vh] max-w-4xl flex-col overflow-hidden sm:max-w-4xl">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{t('import.wizardTitle')}</DialogTitle>
           <DialogDescription>
             {t('import.wizardDescription')} ({targetCanvas.widthCm} × {targetCanvas.heightCm} cm ·{' '}
@@ -110,7 +110,7 @@ export function ImportWizardDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="min-h-0 flex-1 pr-2">
+        <ScrollArea className="min-h-0 flex-1 overflow-hidden pr-2">
           <div className="space-y-3 py-1">
             <MismatchAlert
               mismatches={mismatches}
@@ -150,7 +150,7 @@ export function ImportWizardDialog() {
           </div>
         </ScrollArea>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button
             type="button"
             variant="ghost"
