@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { DEFAULT_COLOR_HEX } from '@/core/constants';
 import type { LightingMode, MapId, SelectionCombineMode, Vec2 } from '@/core/types';
+import type { GradientKind } from '@/imaging/gradient';
 
 export type ToolId =
   | 'brush'
@@ -47,6 +48,22 @@ export interface BlurToolOptions {
   radiusUnit: 'px' | 'cm';
 }
 
+export interface GradientToolOptions {
+  kind: GradientKind;
+  startColorHex: string;
+  endColorHex: string;
+  startHeightMm: number;
+  endHeightMm: number;
+  startOpacityPct: number;
+  endOpacityPct: number;
+  onlyInSelection: boolean;
+}
+
+export interface FillToolOptions {
+  tolerancePct: number;
+  contiguous: boolean;
+}
+
 export interface SelectionToolOptions {
   combineMode: SelectionCombineMode;
   wandTolerancePct: number;
@@ -72,6 +89,8 @@ export interface EditorState {
   brush: BrushOptions;
   smoothTool: SmoothToolOptions;
   blurTool: BlurToolOptions;
+  gradientTool: GradientToolOptions;
+  fillTool: FillToolOptions;
   selectionTools: SelectionToolOptions;
   hasSelection: boolean;
   showMaskOverlay: boolean;
@@ -93,6 +112,11 @@ export interface EditorState {
     value: SmoothToolOptions[K],
   ) => void;
   setBlurToolOption: <K extends keyof BlurToolOptions>(key: K, value: BlurToolOptions[K]) => void;
+  setGradientToolOption: <K extends keyof GradientToolOptions>(
+    key: K,
+    value: GradientToolOptions[K],
+  ) => void;
+  setFillToolOption: <K extends keyof FillToolOptions>(key: K, value: FillToolOptions[K]) => void;
   setSelectionToolOption: <K extends keyof SelectionToolOptions>(
     key: K,
     value: SelectionToolOptions[K],
@@ -133,6 +157,20 @@ export const useEditorStore = create<EditorState>((set) => ({
     radiusValue: 6,
     radiusUnit: 'px',
   },
+  gradientTool: {
+    kind: 'linear',
+    startColorHex: '#18181b',
+    endColorHex: '#f4f1ea',
+    startHeightMm: 0,
+    endHeightMm: 5,
+    startOpacityPct: 0,
+    endOpacityPct: 100,
+    onlyInSelection: true,
+  },
+  fillTool: {
+    tolerancePct: 12,
+    contiguous: true,
+  },
   selectionTools: {
     combineMode: 'replace',
     wandTolerancePct: 12,
@@ -158,6 +196,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   setSmoothToolOption: (key, value) =>
     set((s) => ({ smoothTool: { ...s.smoothTool, [key]: value } })),
   setBlurToolOption: (key, value) => set((s) => ({ blurTool: { ...s.blurTool, [key]: value } })),
+  setGradientToolOption: (key, value) =>
+    set((s) => ({ gradientTool: { ...s.gradientTool, [key]: value } })),
+  setFillToolOption: (key, value) => set((s) => ({ fillTool: { ...s.fillTool, [key]: value } })),
   setSelectionToolOption: (key, value) =>
     set((s) => ({ selectionTools: { ...s.selectionTools, [key]: value } })),
   setHasSelection: (hasSelection) => set({ hasSelection }),

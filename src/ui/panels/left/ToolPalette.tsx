@@ -1,10 +1,12 @@
 import {
   Blend,
   CircleDashed,
+  Contrast,
   Droplet,
   Eraser,
   Hand,
   Lasso,
+  PaintBucket,
   Paintbrush,
   Pipette,
   Shield,
@@ -23,6 +25,8 @@ interface ToolItem {
     | 'tools.eraser'
     | 'tools.smooth'
     | 'tools.blur'
+    | 'tools.gradient'
+    | 'tools.fill'
     | 'tools.eyedropper'
     | 'tools.pan'
     | 'tools.selectRect'
@@ -35,6 +39,8 @@ interface ToolItem {
     | 'tools.eraserTooltip'
     | 'tools.smoothTooltip'
     | 'tools.blurTooltip'
+    | 'tools.gradientTooltip'
+    | 'tools.fillTooltip'
     | 'tools.eyedropperTooltip'
     | 'tools.panTooltip'
     | 'tools.selectRectTooltip'
@@ -50,6 +56,13 @@ const TOOL_ITEMS: readonly ToolItem[] = [
   { id: 'eraser', labelKey: 'tools.eraser', tooltipKey: 'tools.eraserTooltip', icon: Eraser },
   { id: 'smooth', labelKey: 'tools.smooth', tooltipKey: 'tools.smoothTooltip', icon: Blend },
   { id: 'blur', labelKey: 'tools.blur', tooltipKey: 'tools.blurTooltip', icon: Droplet },
+  {
+    id: 'gradient',
+    labelKey: 'tools.gradient',
+    tooltipKey: 'tools.gradientTooltip',
+    icon: Contrast,
+  },
+  { id: 'fill', labelKey: 'tools.fill', tooltipKey: 'tools.fillTooltip', icon: PaintBucket },
   {
     id: 'eyedropper',
     labelKey: 'tools.eyedropper',

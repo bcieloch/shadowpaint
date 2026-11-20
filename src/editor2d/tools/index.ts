@@ -2,6 +2,8 @@ import { BlurTool } from '@/editor2d/tools/BlurTool';
 import { BrushTool } from '@/editor2d/tools/BrushTool';
 import { EraserTool } from '@/editor2d/tools/EraserTool';
 import { EyedropperTool } from '@/editor2d/tools/EyedropperTool';
+import { FillTool } from '@/editor2d/tools/FillTool';
+import { GradientTool } from '@/editor2d/tools/GradientTool';
 import { MagicWandTool } from '@/editor2d/tools/MagicWandTool';
 import { MaskBrushTool } from '@/editor2d/tools/MaskBrushTool';
 import { PanTool } from '@/editor2d/tools/PanTool';
@@ -20,6 +22,8 @@ export function createToolRegistry(): Partial<Record<ToolId, Tool>> {
     eraser: new EraserTool(),
     smooth: new SmoothTool(),
     blur: new BlurTool(),
+    gradient: new GradientTool(),
+    fill: new FillTool(),
     eyedropper: new EyedropperTool(),
     pan: new PanTool(),
     selectRect: new SelectRectTool(),

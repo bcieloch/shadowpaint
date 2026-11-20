@@ -13,6 +13,9 @@ import type {
   ImportTransform,
   MapId,
   OpacityAdjustments,
+  Rect,
+  SelectionMode,
+  Vec2,
 } from '@/core/types';
 import {
   gaussianBlurFloat32,
@@ -25,6 +28,13 @@ import {
   validateDecodedDimensions,
 } from '@/imaging/decodeTiff';
 import { detectImageFormat } from '@/imaging/detectFormat';
+import {
+  applyFloodFillFloat32,
+  applyFloodFillRgba8,
+  applySelectionFillFloat32,
+  applySelectionFillRgba8,
+} from '@/imaging/floodFill';
+import { applyGradientFloat32, applyGradientRgba8, type GradientKind } from '@/imaging/gradient';
 import { rgbaToGrayscaleFloat32 } from '@/imaging/grayscale';
 import {
   resampleFloatWithTransform,
@@ -305,6 +315,135 @@ const imageWorkerApi = {
       return transfer({ scalar: out }, [out.buffer]);
     }
     return {};
+  },
+
+  gradientFill(
+    params: {
+      mapId: MapId;
+      width: number;
+      height: number;
+      kind: GradientKind;
+      p0: Vec2;
+      p1: Vec2;
+      onlyInSelection: boolean;
+      selectionMode: SelectionMode;
+      startValue?: number;
+      endValue?: number;
+      startRgb?: readonly [number, number, number];
+      endRgb?: readonly [number, number, number];
+      rgba8?: Uint8ClampedArray;
+      scalar?: Float32Array;
+      mask?: Uint8Array;
+    },
+    onProgress?: ProgressCallback,
+  ): { rgba8?: Uint8ClampedArray; scalar?: Float32Array; dirtyRect: Rect | null } {
+    if (params.mapId === 'color' && params.rgba8) {
+      const res = applyGradientRgba8({
+        working: params.rgba8,
+        width: params.width,
+        height: params.height,
+        kind: params.kind,
+        p0: params.p0,
+        p1: params.p1,
+        startRgb: params.startRgb ?? [0, 0, 0],
+        endRgb: params.endRgb ?? [255, 255, 255],
+        mask: params.mask,
+        selectionMode: params.selectionMode,
+        onlyInSelection: params.onlyInSelection,
+        onProgress,
+      });
+      return transfer({ rgba8: res.out, dirtyRect: res.dirtyRect }, [res.out.buffer]);
+    }
+    if (params.scalar) {
+      const res = applyGradientFloat32({
+        working: params.scalar,
+        width: params.width,
+        height: params.height,
+        kind: params.kind,
+        p0: params.p0,
+        p1: params.p1,
+        startValue: params.startValue ?? 0,
+        endValue: params.endValue ?? 1,
+        mask: params.mask,
+        selectionMode: params.selectionMode,
+        onlyInSelection: params.onlyInSelection,
+        onProgress,
+      });
+      return transfer({ scalar: res.out, dirtyRect: res.dirtyRect }, [res.out.buffer]);
+    }
+    return { dirtyRect: null };
+  },
+
+  floodFill(
+    params: {
+      mapId: MapId;
+      width: number;
+      height: number;
+      seedX: number;
+      seedY: number;
+      tolerancePct: number;
+      contiguous: boolean;
+      fillSelectionOnly?: boolean;
+      selectionMode: SelectionMode;
+      targetValue?: number;
+      targetRgb?: readonly [number, number, number];
+      rgba8?: Uint8ClampedArray;
+      scalar?: Float32Array;
+      mask?: Uint8Array;
+    },
+    onProgress?: ProgressCallback,
+  ): { rgba8?: Uint8ClampedArray; scalar?: Float32Array; dirtyRect: Rect | null } {
+    if (params.mapId === 'color' && params.rgba8) {
+      const res = params.fillSelectionOnly
+        ? applySelectionFillRgba8({
+            working: params.rgba8,
+            width: params.width,
+            height: params.height,
+            targetRgb: params.targetRgb ?? [255, 255, 255],
+            mask: params.mask,
+            onProgress,
+          })
+        : applyFloodFillRgba8({
+            working: params.rgba8,
+            width: params.width,
+            height: params.height,
+            seedX: params.seedX,
+            seedY: params.seedY,
+            tolerancePct: params.tolerancePct,
+            contiguous: params.contiguous,
+            targetRgb: params.targetRgb ?? [255, 255, 255],
+            mask: params.mask,
+            selectionMode: params.selectionMode,
+            onProgress,
+          });
+      return transfer({ rgba8: res.out, dirtyRect: res.dirtyRect }, [res.out.buffer]);
+    }
+    if (params.scalar) {
+      const res = params.fillSelectionOnly
+        ? applySelectionFillFloat32({
+            working: params.scalar,
+            width: params.width,
+            height: params.height,
+            targetValue: params.targetValue ?? 0,
+            mask: params.mask,
+            onProgress,
+          })
+        : applyFloodFillFloat32({
+            working: params.scalar,
+            width: params.width,
+            height: params.height,
+            seedX: params.seedX,
+            seedY: params.seedY,
+            tolerancePct: params.tolerancePct,
+            contiguous: params.contiguous,
+            targetValue: params.targetValue ?? 0,
+            mask: params.mask,
+            selectionMode: params.selectionMode,
+            onProgress,
+          });
+      return transfer({ scalar: res.out, dirtyRect: res.dirtyRect }, [res.out.buffer]);
+    }
+    return { dirtyRect: null };
   },
 
   smoothFloatMap(

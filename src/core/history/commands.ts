@@ -24,6 +24,8 @@ export type HistoryActionKind =
   | 'eraserStroke'
   | 'smoothStroke'
   | 'blurStroke'
+  | 'gradientFill'
+  | 'floodFill'
   | 'smoothMap'
   | 'importMap'
   | 'adjustment'

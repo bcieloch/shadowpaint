@@ -1,16 +1,27 @@
 import { proxy, transfer } from 'comlink';
+import type { HistoryActionKind } from '@/core/history/commands';
 import { TileHistoryTransaction } from '@/core/history/TileHistory';
 import { recomputeEffectiveRect } from '@/core/maps/adjustments';
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import { clamp01 } from '@/core/maps/quantize';
 import { clampRect, isEmptyRect } from '@/core/maps/rect';
-import type { MapId, Rect } from '@/core/types';
+import type { MapId, Rect, Vec2 } from '@/core/types';
+import { mmToValue } from '@/core/units/calibration';
+import { hexToRgb01 } from '@/core/units/colorTemperature';
 import {
   gaussianBlurPatchInnerFloat32,
   gaussianBlurPatchInnerRgba8,
   getGaussianKernelPad,
 } from '@/imaging/blur';
+import {
+  applyFloodFillFloat32,
+  applyFloodFillRgba8,
+  applySelectionFillFloat32,
+  applySelectionFillRgba8,
+} from '@/imaging/floodFill';
+import { applyGradientFloat32, applyGradientRgba8, type GradientKind } from '@/imaging/gradient';
 import { recordTileHistory } from '@/services/historyService';
+import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
 import { getImageWorker } from '@/workers/client';
 import { runTask } from '@/workers/tasks';
@@ -20,6 +31,49 @@ export interface ApplyRegionBlurStrokeParams {
   rect: Rect;
   kernelRadiusPx: number;
   weightMask: Float32Array;
+}
+
+function hexToRgb255(hex: string): readonly [number, number, number] {
+  const rgb01 = hexToRgb01(hex);
+  return [Math.round(rgb01.r * 255), Math.round(rgb01.g * 255), Math.round(rgb01.b * 255)];
+}
+
+function commitWorkerBufferWithTileHistory(params: {
+  mapId: MapId;
+  action: HistoryActionKind;
+  dirtyRect: Rect;
+  rgba8?: Uint8ClampedArray;
+  scalar?: Float32Array;
+}): void {
+  const project = useProjectStore.getState().project;
+  const tx = new TileHistoryTransaction(mapRegistry, params.mapId, params.action, 'working');
+  tx.ensureTilesForRect(params.dirtyRect);
+
+  const width = mapRegistry.width;
+  const rect = params.dirtyRect;
+
+  if (params.mapId === 'color' && params.rgba8) {
+    const working = mapRegistry.color.working;
+    for (let y = rect.y; y < rect.y + rect.h; y++) {
+      const start = (y * width + rect.x) * 4;
+      const end = start + rect.w * 4;
+      working.set(params.rgba8.subarray(start, end), start);
+    }
+  } else if (params.scalar) {
+    const working = mapRegistry.getMap(params.mapId).working as Float32Array;
+    for (let y = rect.y; y < rect.y + rect.h; y++) {
+      const start = y * width + rect.x;
+      const end = start + rect.w;
+      working.set(params.scalar.subarray(start, end), start);
+    }
+  }
+
+  const entry = tx.commit();
+  if (entry) {
+    recordTileHistory(entry);
+  }
+  recomputeEffectiveRect(mapRegistry, params.mapId, project.adjustments, rect);
+  mapRegistry.emitDirty(params.mapId, rect);
 }
 
 export async function applyRegionBlurStroke(params: ApplyRegionBlurStrokeParams): Promise<void> {
@@ -202,4 +256,344 @@ export async function applyRegionBlurStroke(params: ApplyRegionBlurStrokeParams)
   }
   recomputeEffectiveRect(mapRegistry, params.mapId, project.adjustments, rect);
   mapRegistry.emitDirty(params.mapId, rect);
+}
+
+export async function applyGradientToActiveMap(params: {
+  mapId: MapId;
+  kind: GradientKind;
+  p0: Vec2;
+  p1: Vec2;
+}): Promise<void> {
+  if (!mapRegistry.isAllocated) return;
+  const project = useProjectStore.getState().project;
+  if (project.maps[params.mapId].locked) return;
+
+  const editor = useEditorStore.getState();
+  const { width, height } = mapRegistry;
+  const projectIdAtStart = project.id;
+  const gradOpts = editor.gradientTool;
+  const selectionMode = project.selection.mode;
+
+  const startRgb = hexToRgb255(gradOpts.startColorHex);
+  const endRgb = hexToRgb255(gradOpts.endColorHex);
+  const startValue =
+    params.mapId === 'height'
+      ? mmToValue(
+          gradOpts.startHeightMm,
+          project.canvas.minThicknessMm,
+          project.canvas.maxThicknessMm,
+        )
+      : clamp01(gradOpts.startOpacityPct / 100);
+  const endValue =
+    params.mapId === 'height'
+      ? mmToValue(
+          gradOpts.endHeightMm,
+          project.canvas.minThicknessMm,
+          project.canvas.maxThicknessMm,
+        )
+      : clamp01(gradOpts.endOpacityPct / 100);
+
+  let outRgba: Uint8ClampedArray | undefined;
+  let outScalar: Float32Array | undefined;
+  let dirtyRect: Rect | null;
+
+  if (typeof Worker !== 'undefined') {
+    const worker = getImageWorker();
+    const maskCopy = mapRegistry.hasSelection ? new Uint8Array(mapRegistry.selection) : undefined;
+    if (params.mapId === 'color') {
+      const workCopy = new Uint8ClampedArray(mapRegistry.color.working);
+      const transferables: Transferable[] = [workCopy.buffer];
+      if (maskCopy) transferables.push(maskCopy.buffer);
+      const res = await runTask(
+        { labelKey: 'toolOptions.taskGradient', cancellable: false },
+        async (ctx) =>
+          worker.gradientFill(
+            transfer(
+              {
+                mapId: 'color',
+                width,
+                height,
+                kind: params.kind,
+                p0: params.p0,
+                p1: params.p1,
+                onlyInSelection: gradOpts.onlyInSelection,
+                selectionMode,
+                startRgb,
+                endRgb,
+                rgba8: workCopy,
+                mask: maskCopy,
+              },
+              transferables,
+            ),
+            proxy((p: number) => ctx.setProgress(p)),
+          ),
+      );
+      outRgba = res.rgba8;
+      dirtyRect = res.dirtyRect;
+    } else {
+      const workCopy = new Float32Array(mapRegistry.getMap(params.mapId).working as Float32Array);
+      const transferables: Transferable[] = [workCopy.buffer];
+      if (maskCopy) transferables.push(maskCopy.buffer);
+      const res = await runTask(
+        { labelKey: 'toolOptions.taskGradient', cancellable: false },
+        async (ctx) =>
+          worker.gradientFill(
+            transfer(
+              {
+                mapId: params.mapId,
+                width,
+                height,
+                kind: params.kind,
+                p0: params.p0,
+                p1: params.p1,
+                onlyInSelection: gradOpts.onlyInSelection,
+                selectionMode,
+                startValue,
+                endValue,
+                scalar: workCopy,
+                mask: maskCopy,
+              },
+              transferables,
+            ),
+            proxy((p: number) => ctx.setProgress(p)),
+          ),
+      );
+      outScalar = res.scalar;
+      dirtyRect = res.dirtyRect;
+    }
+  } else {
+    const mask = mapRegistry.hasSelection ? mapRegistry.selection : undefined;
+    if (params.mapId === 'color') {
+      const res = applyGradientRgba8({
+        working: mapRegistry.color.working,
+        width,
+        height,
+        kind: params.kind,
+        p0: params.p0,
+        p1: params.p1,
+        startRgb,
+        endRgb,
+        mask,
+        selectionMode,
+        onlyInSelection: gradOpts.onlyInSelection,
+      });
+      outRgba = res.out;
+      dirtyRect = res.dirtyRect;
+    } else {
+      const res = applyGradientFloat32({
+        working: mapRegistry.getMap(params.mapId).working as Float32Array,
+        width,
+        height,
+        kind: params.kind,
+        p0: params.p0,
+        p1: params.p1,
+        startValue,
+        endValue,
+        mask,
+        selectionMode,
+        onlyInSelection: gradOpts.onlyInSelection,
+      });
+      outScalar = res.out;
+      dirtyRect = res.dirtyRect;
+    }
+  }
+
+  const latestProject = useProjectStore.getState().project;
+  if (
+    !mapRegistry.isAllocated ||
+    mapRegistry.width !== width ||
+    mapRegistry.height !== height ||
+    latestProject.id !== projectIdAtStart ||
+    latestProject.maps[params.mapId].locked ||
+    !dirtyRect ||
+    isEmptyRect(dirtyRect)
+  ) {
+    return;
+  }
+
+  commitWorkerBufferWithTileHistory({
+    mapId: params.mapId,
+    action: 'gradientFill',
+    dirtyRect,
+    rgba8: outRgba,
+    scalar: outScalar,
+  });
+}
+
+export async function applyFloodFillToActiveMap(params: {
+  mapId: MapId;
+  seedX: number;
+  seedY: number;
+  fillSelectionOnly?: boolean;
+}): Promise<void> {
+  if (!mapRegistry.isAllocated) return;
+  const project = useProjectStore.getState().project;
+  if (project.maps[params.mapId].locked) return;
+
+  const editor = useEditorStore.getState();
+  const { width, height } = mapRegistry;
+  const projectIdAtStart = project.id;
+  const fillOpts = editor.fillTool;
+  const selectionMode = project.selection.mode;
+
+  const targetRgb = hexToRgb255(editor.brush.colorHex);
+  const targetValue =
+    params.mapId === 'height'
+      ? mmToValue(
+          editor.brush.heightMm,
+          project.canvas.minThicknessMm,
+          project.canvas.maxThicknessMm,
+        )
+      : clamp01(editor.brush.opacityPct / 100);
+
+  let outRgba: Uint8ClampedArray | undefined;
+  let outScalar: Float32Array | undefined;
+  let dirtyRect: Rect | null;
+
+  if (typeof Worker !== 'undefined') {
+    const worker = getImageWorker();
+    const maskCopy = mapRegistry.hasSelection ? new Uint8Array(mapRegistry.selection) : undefined;
+    if (params.mapId === 'color') {
+      const workCopy = new Uint8ClampedArray(mapRegistry.color.working);
+      const transferables: Transferable[] = [workCopy.buffer];
+      if (maskCopy) transferables.push(maskCopy.buffer);
+      const res = await runTask(
+        { labelKey: 'toolOptions.taskFloodFill', cancellable: false },
+        async (ctx) =>
+          worker.floodFill(
+            transfer(
+              {
+                mapId: 'color',
+                width,
+                height,
+                seedX: params.seedX,
+                seedY: params.seedY,
+                tolerancePct: fillOpts.tolerancePct,
+                contiguous: fillOpts.contiguous,
+                fillSelectionOnly: params.fillSelectionOnly,
+                selectionMode,
+                targetRgb,
+                rgba8: workCopy,
+                mask: maskCopy,
+              },
+              transferables,
+            ),
+            proxy((p: number) => ctx.setProgress(p)),
+          ),
+      );
+      outRgba = res.rgba8;
+      dirtyRect = res.dirtyRect;
+    } else {
+      const workCopy = new Float32Array(mapRegistry.getMap(params.mapId).working as Float32Array);
+      const transferables: Transferable[] = [workCopy.buffer];
+      if (maskCopy) transferables.push(maskCopy.buffer);
+      const res = await runTask(
+        { labelKey: 'toolOptions.taskFloodFill', cancellable: false },
+        async (ctx) =>
+          worker.floodFill(
+            transfer(
+              {
+                mapId: params.mapId,
+                width,
+                height,
+                seedX: params.seedX,
+                seedY: params.seedY,
+                tolerancePct: fillOpts.tolerancePct,
+                contiguous: fillOpts.contiguous,
+                fillSelectionOnly: params.fillSelectionOnly,
+                selectionMode,
+                targetValue,
+                scalar: workCopy,
+                mask: maskCopy,
+              },
+              transferables,
+            ),
+            proxy((p: number) => ctx.setProgress(p)),
+          ),
+      );
+      outScalar = res.scalar;
+      dirtyRect = res.dirtyRect;
+    }
+  } else {
+    const mask = mapRegistry.hasSelection ? mapRegistry.selection : undefined;
+    if (params.mapId === 'color') {
+      const res = params.fillSelectionOnly
+        ? applySelectionFillRgba8({
+            working: mapRegistry.color.working,
+            width,
+            height,
+            targetRgb,
+            mask,
+          })
+        : applyFloodFillRgba8({
+            working: mapRegistry.color.working,
+            width,
+            height,
+            seedX: params.seedX,
+            seedY: params.seedY,
+            tolerancePct: fillOpts.tolerancePct,
+            contiguous: fillOpts.contiguous,
+            targetRgb,
+            mask,
+            selectionMode,
+          });
+      outRgba = res.out;
+      dirtyRect = res.dirtyRect;
+    } else {
+      const working = mapRegistry.getMap(params.mapId).working as Float32Array;
+      const res = params.fillSelectionOnly
+        ? applySelectionFillFloat32({
+            working,
+            width,
+            height,
+            targetValue,
+            mask,
+          })
+        : applyFloodFillFloat32({
+            working,
+            width,
+            height,
+            seedX: params.seedX,
+            seedY: params.seedY,
+            tolerancePct: fillOpts.tolerancePct,
+            contiguous: fillOpts.contiguous,
+            targetValue,
+            mask,
+            selectionMode,
+          });
+      outScalar = res.out;
+      dirtyRect = res.dirtyRect;
+    }
+  }
+
+  const latestProject = useProjectStore.getState().project;
+  if (
+    !mapRegistry.isAllocated ||
+    mapRegistry.width !== width ||
+    mapRegistry.height !== height ||
+    latestProject.id !== projectIdAtStart ||
+    latestProject.maps[params.mapId].locked ||
+    !dirtyRect ||
+    isEmptyRect(dirtyRect)
+  ) {
+    return;
+  }
+
+  commitWorkerBufferWithTileHistory({
+    mapId: params.mapId,
+    action: 'floodFill',
+    dirtyRect,
+    rgba8: outRgba,
+    scalar: outScalar,
+  });
+}
+
+export async function applyFillSelectionToActiveMap(): Promise<void> {
+  const { activeMap } = useEditorStore.getState();
+  await applyFloodFillToActiveMap({
+    mapId: activeMap,
+    seedX: 0,
+    seedY: 0,
+    fillSelectionOnly: true,
+  });
 }
