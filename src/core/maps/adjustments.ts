@@ -1,8 +1,11 @@
+import type { MapRegistry } from '@/core/maps/MapRegistry';
 import { clamp01 } from '@/core/maps/quantize';
 import type {
   ColorAdjustments,
   HeightAdjustments,
+  MapId,
   OpacityAdjustments,
+  ProjectSettings,
   Rect,
 } from '@/core/types';
 
@@ -116,4 +119,44 @@ export function applyOpacityAdjustments(
       idx++;
     }
   }
+}
+
+export function recomputeEffectiveRect(
+  registry: MapRegistry,
+  mapId: MapId,
+  adjustments: ProjectSettings['adjustments'],
+  rect: Rect,
+): void {
+  if (!registry.isAllocated) return;
+  const { width, height } = registry;
+  if (mapId === 'color') {
+    applyColorAdjustments(
+      registry.color.working,
+      registry.color.effective,
+      width,
+      height,
+      adjustments.color,
+      rect,
+    );
+    return;
+  }
+  if (mapId === 'height') {
+    applyHeightAdjustments(
+      registry.heightMap.working,
+      registry.heightMap.effective,
+      width,
+      height,
+      adjustments.height,
+      rect,
+    );
+    return;
+  }
+  applyOpacityAdjustments(
+    registry.opacity.working,
+    registry.opacity.effective,
+    width,
+    height,
+    adjustments.opacity,
+    rect,
+  );
 }

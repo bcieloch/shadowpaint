@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useId } from 'react';
 import { Input } from '@/ui/components/ui/input';
 import { Label } from '@/ui/components/ui/label';
@@ -5,6 +6,7 @@ import { Slider } from '@/ui/components/ui/slider';
 
 interface LabeledSliderProps {
   label: string;
+  headerExtra?: ReactNode;
   value: number;
   min: number;
   max: number;
@@ -17,6 +19,7 @@ interface LabeledSliderProps {
 
 export function LabeledSlider({
   label,
+  headerExtra,
   value,
   min,
   max,
@@ -32,9 +35,12 @@ export function LabeledSlider({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">
-          {label}
-        </Label>
+        <div className="flex items-center gap-2">
+          <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">
+            {label}
+          </Label>
+          {headerExtra}
+        </div>
         <div className="flex items-center gap-1">
           <Input
             id={id}

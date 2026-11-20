@@ -2,6 +2,8 @@ import { ScrollArea } from '@/ui/components/ui/scroll-area';
 import { useI18n } from '@/ui/hooks/useI18n';
 import { ImportSection } from '@/ui/panels/left/ImportSection';
 import { MapLayers } from '@/ui/panels/left/MapLayers';
+import { ToolOptions } from '@/ui/panels/left/ToolOptions';
+import { ToolPalette } from '@/ui/panels/left/ToolPalette';
 
 export function LeftPanel() {
   const { t } = useI18n();
@@ -17,6 +19,8 @@ export function LeftPanel() {
       <ScrollArea className="min-h-0 flex-1">
         <ImportSection />
         <MapLayers />
+        <ToolPalette />
+        <ToolOptions />
       </ScrollArea>
     </aside>
   );
