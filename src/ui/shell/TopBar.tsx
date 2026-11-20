@@ -54,6 +54,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/components/ui/tool
 import { useI18n } from '@/ui/hooks/useI18n';
 import { useViewportBreakpoint } from '@/ui/hooks/useViewportBreakpoint';
 import { AutosaveIndicator } from '@/ui/widgets/AutosaveIndicator';
+import { PerformanceDiagnosticsPopover } from '@/ui/widgets/PerformanceDiagnosticsPopover';
 
 function GithubIcon({ className }: { className?: string }) {
   return (
@@ -389,6 +390,7 @@ export function TopBar() {
 
       <div className="flex shrink-0 items-center gap-1 xl:gap-1.5">
         <AutosaveIndicator />
+        <PerformanceDiagnosticsPopover />
         <Separator orientation="vertical" className="h-4" />
 
         {isDrawerMode ? (

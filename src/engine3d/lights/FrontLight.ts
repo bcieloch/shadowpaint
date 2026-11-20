@@ -201,6 +201,7 @@ export class FrontLight {
     if (this.disposed) return;
     this.disposed = true;
     disposeLightShadow(this.spotLight.shadow);
+    this.spotLight.dispose();
     disposeObject3D(this.gizmoGroup);
   }
 }

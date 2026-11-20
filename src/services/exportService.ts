@@ -10,6 +10,7 @@ import { buildPdfLabels } from '@/export/pdf/pdfLabels';
 import { createTranslator } from '@/i18n';
 import { useLocaleStore } from '@/i18n/localeStore';
 import { buildExportZipFilename, triggerDownload } from '@/lib/download';
+import { flushDirtyEffectiveTiles } from '@/services/adjustService';
 import { useProjectStore } from '@/state/projectStore';
 import { getIoWorker } from '@/workers/client';
 import { runTask, TaskCancelledError } from '@/workers/tasks';
@@ -74,6 +75,7 @@ export async function exportPackage(): Promise<void> {
     return;
   }
 
+  flushDirtyEffectiveTiles(undefined, true);
   const project = structuredClone(useProjectStore.getState().project);
   const exportedAt = new Date().toISOString();
   const filename = buildExportZipFilename(project.name, new Date(exportedAt));
@@ -145,6 +147,8 @@ export async function exportSingleFile(kind: SingleExportKind): Promise<void> {
     toast.error(t('export.errorNoProject'));
     return;
   }
+
+  flushDirtyEffectiveTiles(undefined, true);
 
   const fileLabelMap: Record<SingleExportKind, string> = {
     colorPng: 'color_map.png',

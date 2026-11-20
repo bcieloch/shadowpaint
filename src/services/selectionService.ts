@@ -10,6 +10,7 @@ import {
   invertSelectionMask,
   selectAllMask,
 } from '@/imaging/selectionOps';
+import { flushDirtyEffectiveTiles } from '@/services/adjustService';
 import { useEditorStore } from '@/state/editorStore';
 import { useHistoryStore } from '@/state/historyStore';
 import { useProjectStore } from '@/state/projectStore';
@@ -129,6 +130,8 @@ export async function runMagicWandAt(
   const { combineMode, wandTolerancePct, wandContiguous, wandSampleMap } = editor.selectionTools;
   const effectiveCombine = combineOverride ?? combineMode;
   const sourceKind: MapId = wandSampleMap === 'active' ? editor.activeMap : wandSampleMap;
+
+  flushDirtyEffectiveTiles(sourceKind, true);
 
   const totalPixels = width * height;
   let wandMask: Uint8Array;

@@ -1,4 +1,3 @@
-import { proxy } from 'comlink';
 import { create } from 'zustand';
 import {
   ASPECT_RATIO_TOLERANCE,
@@ -6,20 +5,22 @@ import {
   DEFAULT_HEIGHT_VALUE,
   DEFAULT_OPACITY_VALUE,
 } from '@/core/constants';
-import {
-  applyColorAdjustments,
-  applyHeightAdjustments,
-  applyOpacityAdjustments,
-} from '@/core/maps/adjustments';
 import { MapMemoryError, mapRegistry } from '@/core/maps/MapRegistry';
 import type { CanvasSettings, FitMode, ImportTransform, MapId } from '@/core/types';
 import { computeHeightFromWidthPx } from '@/core/units/calibration';
 import { hexToRgb01 } from '@/core/units/colorTemperature';
 import { ImageDecodeError } from '@/imaging/decodeTiff';
 import { createDefaultTransform } from '@/imaging/transform';
+import { cancelLazyEffectiveFlush } from '@/services/adjustService';
 import { clearHistory, recordFullMapHistory } from '@/services/historyService';
 import { useProjectStore } from '@/state/projectStore';
 import { getImageWorker, type DecodedAssetResult } from '@/workers/client';
+import {
+  computeEffectiveColorParallel,
+  computeEffectiveHeightParallel,
+  computeEffectiveOpacityParallel,
+  fitAndResampleMapParallel,
+} from '@/workers/pool';
 import { runTask } from '@/workers/tasks';
 
 export interface ImportSlotDraft {
@@ -174,6 +175,7 @@ export async function applyImportToProject(
     targetCanvas.widthPx !== mapRegistry.width || targetCanvas.heightPx !== mapRegistry.height;
 
   if (dimensionsChanged) {
+    cancelLazyEffectiveFlush();
     try {
       mapRegistry.allocate(dstW, dstH, {
         color: String(project.maps.color.defaultValue),
@@ -193,7 +195,6 @@ export async function applyImportToProject(
     }
   }
 
-  const worker = getImageWorker();
   const defaultRgb = hexToRgb01(DEFAULT_COLOR_HEX);
   const padRgba: [number, number, number, number] = [
     Math.round(defaultRgb.r * 255),
@@ -208,17 +209,16 @@ export async function applyImportToProject(
     const slot = slots[mapId];
     if (!slot) continue;
 
-    const rgbaCopy = new Uint8ClampedArray(slot.decoded.rgba8);
-    const grayCopy = slot.decoded.gray16 ? new Float32Array(slot.decoded.gray16) : undefined;
+    cancelLazyEffectiveFlush(mapId);
 
     const res = await runTask(
       { labelKey: 'import.taskImporting', labelParams: { map: mapId }, cancellable: false },
-      async (ctx) => {
-        return worker.fitAndResampleMap(
+      async (ctx) =>
+        fitAndResampleMapParallel(
           {
             mapId,
-            rgba8: rgbaCopy,
-            gray16: grayCopy,
+            rgba8: slot.decoded.rgba8,
+            gray16: slot.decoded.gray16,
             srcWidth: slot.decoded.width,
             srcHeight: slot.decoded.height,
             dstWidth: dstW,
@@ -228,9 +228,8 @@ export async function applyImportToProject(
             padRgba,
             padValue: mapId === 'height' ? DEFAULT_HEIGHT_VALUE : DEFAULT_OPACITY_VALUE,
           },
-          proxy((p: number) => ctx.setProgress(p)),
-        );
-      },
+          (p: number) => ctx.setProgress(p),
+        ),
     );
 
     const prevSource = structuredClone(useProjectStore.getState().project.maps[mapId].source);
@@ -252,7 +251,14 @@ export async function applyImportToProject(
       const workingBefore = !dimensionsChanged ? new Uint8ClampedArray(buf.working) : null;
       const baseBefore = !dimensionsChanged ? new Uint8ClampedArray(buf.base) : null;
       buf.replaceBase(res.rgba8);
-      applyColorAdjustments(buf.working, buf.effective, dstW, dstH, currentAdjustments.color);
+      mapRegistry.dirtyTiles.clearMap('color');
+      await computeEffectiveColorParallel(
+        buf.working,
+        dstW,
+        dstH,
+        currentAdjustments.color,
+        buf.effective,
+      );
       mapRegistry.emitReplaced('color');
 
       if (workingBefore && baseBefore) {
@@ -272,7 +278,14 @@ export async function applyImportToProject(
       const workingBefore = !dimensionsChanged ? new Float32Array(buf.working) : null;
       const baseBefore = !dimensionsChanged ? new Float32Array(buf.base) : null;
       buf.replaceBase(res.float32);
-      applyHeightAdjustments(buf.working, buf.effective, dstW, dstH, currentAdjustments.height);
+      mapRegistry.dirtyTiles.clearMap('height');
+      await computeEffectiveHeightParallel(
+        buf.working,
+        dstW,
+        dstH,
+        currentAdjustments.height,
+        buf.effective,
+      );
       mapRegistry.emitReplaced('height');
 
       if (workingBefore && baseBefore) {
@@ -292,7 +305,14 @@ export async function applyImportToProject(
       const workingBefore = !dimensionsChanged ? new Float32Array(buf.working) : null;
       const baseBefore = !dimensionsChanged ? new Float32Array(buf.base) : null;
       buf.replaceBase(res.float32);
-      applyOpacityAdjustments(buf.working, buf.effective, dstW, dstH, currentAdjustments.opacity);
+      mapRegistry.dirtyTiles.clearMap('opacity');
+      await computeEffectiveOpacityParallel(
+        buf.working,
+        dstW,
+        dstH,
+        currentAdjustments.opacity,
+        buf.effective,
+      );
       mapRegistry.emitReplaced('opacity');
 
       if (workingBefore && baseBefore) {

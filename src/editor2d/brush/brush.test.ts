@@ -54,6 +54,65 @@ describe('brush dab, stroke, and tools', () => {
     expect(midSoft).toBeCloseTo(0.5, 4);
   });
 
+  it('produces smooth monotonic falloff and gap-free coverage for a 200 px brush stroke', () => {
+    const size = 512;
+    const registry = new MapRegistry();
+    registry.allocate(size, size, { height: 0 });
+    const project = createDefaultProject({
+      canvas: { widthPx: size, heightPx: size, widthCm: 20, heightCm: 20 },
+    });
+
+    // Single soft 200px diameter dab (radius = 100px) -> check monotonic radial falloff
+    stampDab(registry, {
+      kind: 'brush',
+      mapId: 'height',
+      cx: 256.5,
+      cy: 256.5,
+      radiusPx: 100,
+      hardness: 0.3,
+      flow: 1,
+      mode: 'set',
+      targetValue: 1,
+    });
+
+    const centerVal = registry.heightMap.working[256 * size + 256] ?? 0;
+    expect(centerVal).toBeCloseTo(1, 5);
+    expect(registry.heightMap.working[256 * size + 150]).toBe(0);
+
+    let prev = centerVal;
+    for (let dx = 1; dx <= 105; dx++) {
+      const curr = registry.heightMap.working[256 * size + (256 + dx)] ?? 0;
+      expect(curr).toBeLessThanOrEqual(prev + 1e-6);
+      prev = curr;
+    }
+
+    // Interpolated 200px stroke across 200px horizontal span -> continuous plateau with no gaps
+    registry.heightMap.working.fill(0);
+    registry.heightMap.effective.fill(0);
+    const session = new StrokeSession(registry);
+    const opts = {
+      kind: 'brush' as const,
+      mapId: 'height' as const,
+      radiusPx: 100,
+      hardness: 1,
+      flow: 1,
+      spacing: 0.15,
+      usePressure: false,
+      mode: 'set' as const,
+      targetValue: 0.8,
+      adjustments: project.adjustments,
+    };
+    session.begin({ x: 150, y: 256 }, 1, opts);
+    session.move({ x: 350, y: 256 }, 1, opts);
+    session.end();
+
+    for (let x = 150; x <= 350; x += 5) {
+      expect(registry.heightMap.working[256 * size + x]).toBeCloseTo(0.8, 4);
+      expect(registry.heightMap.effective[256 * size + x]).toBeCloseTo(0.8, 4);
+    }
+    expect(registry.heightMap.working[50 * size + 256]).toBe(0);
+  });
+
   it('painting on height map does not modify color or opacity maps', () => {
     const registry = new MapRegistry();
     registry.allocate(64, 64);

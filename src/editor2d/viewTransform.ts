@@ -1,4 +1,5 @@
-import type { Vec2 } from '@/core/types';
+import { clampRect, isEmptyRect } from '@/core/maps/rect';
+import type { Rect, Vec2 } from '@/core/types';
 
 export const MIN_ZOOM_2D = 0.03;
 export const MAX_ZOOM_2D = 32;
@@ -47,6 +48,33 @@ export function imagePxToScreen(
     x: viewport.width / 2 + state.panX + (imgX - imageWidth / 2) * zoom,
     y: viewport.height / 2 + state.panY + (imgY - imageHeight / 2) * zoom,
   };
+}
+
+export function getVisibleImageRect(
+  state: ViewTransformState,
+  viewport: ViewportSize,
+  imageWidth: number,
+  imageHeight: number,
+  marginPx = 0,
+): Rect | null {
+  if (viewport.width <= 0 || viewport.height <= 0 || imageWidth <= 0 || imageHeight <= 0) {
+    return null;
+  }
+  const topLeft = screenToImagePx(state, viewport, imageWidth, imageHeight, 0, 0);
+  const bottomRight = screenToImagePx(
+    state,
+    viewport,
+    imageWidth,
+    imageHeight,
+    viewport.width,
+    viewport.height,
+  );
+  const x0 = Math.floor(Math.min(topLeft.x, bottomRight.x) - marginPx);
+  const y0 = Math.floor(Math.min(topLeft.y, bottomRight.y) - marginPx);
+  const x1 = Math.ceil(Math.max(topLeft.x, bottomRight.x) + marginPx);
+  const y1 = Math.ceil(Math.max(topLeft.y, bottomRight.y) + marginPx);
+  const clamped = clampRect({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, imageWidth, imageHeight);
+  return isEmptyRect(clamped) ? null : clamped;
 }
 
 export function zoomAtPoint(

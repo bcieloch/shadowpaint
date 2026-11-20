@@ -19,6 +19,7 @@ import {
   unpackReliefProject,
   type UnpackedReliefProject,
 } from '@/persistence/projectArchive';
+import { cancelLazyEffectiveFlush, flushDirtyEffectiveTiles } from '@/services/adjustService';
 import { useEditorStore } from '@/state/editorStore';
 import { useHistoryStore } from '@/state/historyStore';
 import { useProjectStore } from '@/state/projectStore';
@@ -42,6 +43,7 @@ export function triggerOpenProjectDialog(): void {
 export async function buildActiveReliefBytes(
   onProgress?: (progress01: number) => void,
 ): Promise<{ filename: string; bytes: Uint8Array }> {
+  flushDirtyEffectiveTiles(undefined, true);
   const project = structuredClone(useProjectStore.getState().project);
   const filename = `${sanitizeExportSlug(project.name)}.relief`;
 
@@ -203,6 +205,8 @@ export async function performOpenReliefFile(
         return unpackReliefProject(rawBytes, (p) => ctx.setProgress(p));
       },
     );
+
+    cancelLazyEffectiveFlush();
 
     autosaveController.runSuppressed(() => {
       mapRegistry.replaceAll({

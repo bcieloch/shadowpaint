@@ -8,6 +8,7 @@ import {
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import { clamp01 } from '@/core/maps/quantize';
 import { sanitizeExportSlug, triggerDownload } from '@/lib/download';
+import { flushDirtyEffectiveTiles } from '@/services/adjustService';
 import { useEditorStore } from '@/state/editorStore';
 import { useMapsVersionStore } from '@/state/mapsVersion';
 import { useProjectStore } from '@/state/projectStore';
@@ -45,6 +46,8 @@ export function CrossSectionPanel() {
   const profile = useMemo(() => {
     void mapsVersion;
     if (!crossSectionLine || !mapRegistry.isAllocated) return null;
+    flushDirtyEffectiveTiles('height');
+    flushDirtyEffectiveTiles('opacity');
     return sampleCrossSection(
       crossSectionLine,
       mapRegistry.heightMap.effective,

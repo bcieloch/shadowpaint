@@ -15,7 +15,7 @@ import { mapRegistry } from '@/core/maps/MapRegistry';
 import type { MapId, MapSourceMeta } from '@/core/types';
 import { createTranslator, type TranslationKey, type TranslationParams } from '@/i18n';
 import { useLocaleStore } from '@/i18n/localeStore';
-import { recomputeEffectiveMap } from '@/services/adjustService';
+import { cancelLazyEffectiveFlush, recomputeEffectiveMap } from '@/services/adjustService';
 import { useEditorStore } from '@/state/editorStore';
 import { useHistoryStore } from '@/state/historyStore';
 import { useProjectStore } from '@/state/projectStore';
@@ -187,6 +187,8 @@ function applySettingsPatch(patch: SettingsPatch, direction: 'undo' | 'redo'): v
   if (typeof Worker !== 'undefined') {
     void recomputeEffectiveMap(patch.affectedMapId);
   } else {
+    cancelLazyEffectiveFlush(patch.affectedMapId);
+    mapRegistry.dirtyTiles.clearMap(patch.affectedMapId);
     recomputeEffectiveRect(
       mapRegistry,
       patch.affectedMapId,
@@ -210,6 +212,8 @@ function applyHistoryEntry(entry: HistoryEntry, direction: 'undo' | 'redo'): voi
 
   if (entry.kind === 'full') {
     if (!mapRegistry.isAllocated) return;
+    cancelLazyEffectiveFlush(entry.mapId);
+    mapRegistry.dirtyTiles.clearMap(entry.mapId);
     applyFullMapHistoryEntry(mapRegistry, entry, direction);
     if (entry.sourceBefore !== undefined || entry.sourceAfter !== undefined) {
       const nextSource =

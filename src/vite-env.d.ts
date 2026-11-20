@@ -1,4 +1,8 @@
 /// <reference types="vite/client" />
+import type { ColorAdjustments, MapId } from '@/core/types';
+import type { EnginePerformanceSnapshot } from '@/engine3d/Engine';
+import type { GpuCapabilities } from '@/lib/webgl';
+import type { WorkerPoolStats } from '@/workers/pool';
 
 declare module '*.glsl?raw' {
   const source: string;
@@ -12,6 +16,16 @@ declare module '*.ttf?inline' {
 
 export interface ShadowPaintDebugHandle {
   getMemoryInfo: () => { geometries: number; textures: number; programs: number };
+  getPerformanceSnapshot: () => EnginePerformanceSnapshot | null;
+  getWorkerPoolStats: () => WorkerPoolStats;
+  getGpuCapabilities: () => GpuCapabilities;
+  flushDirtyEffectiveTiles: (mapId?: MapId, emitDirty?: boolean) => void;
+  benchmarkComputeEffectiveColor: (adjustments?: ColorAdjustments) => Promise<{
+    durationMs: number;
+    width: number;
+    height: number;
+    activeWorkers: number;
+  }>;
   getBuiltDimensions: () => {
     widthPx: number;
     heightPx: number;

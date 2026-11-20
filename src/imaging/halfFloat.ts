@@ -85,6 +85,23 @@ export function float32ToHalfFloatArray(src: Float32Array, dst?: Uint16Array): U
   return out;
 }
 
+export function updateHalfFloatRectInPlace(
+  src: Float32Array,
+  srcWidth: number,
+  rect: Rect,
+  dstFull: Uint16Array,
+): void {
+  const xEnd = rect.x + rect.w;
+  const yEnd = rect.y + rect.h;
+  for (let y = rect.y; y < yEnd; y++) {
+    const rowStart = y * srcWidth;
+    for (let x = rect.x; x < xEnd; x++) {
+      const idx = rowStart + x;
+      dstFull[idx] = floatToHalf(src[idx] ?? 0);
+    }
+  }
+}
+
 export function extractRectToHalfFloat(
   src: Float32Array,
   srcWidth: number,

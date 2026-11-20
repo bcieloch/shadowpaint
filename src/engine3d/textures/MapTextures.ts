@@ -2,11 +2,7 @@ import * as THREE from 'three';
 import type { MapRegistry } from '@/core/maps/MapRegistry';
 import { clampRect, isEmptyRect } from '@/core/maps/rect';
 import type { MapId, Rect } from '@/core/types';
-import {
-  extractRectRgba8,
-  extractRectToHalfFloat,
-  float32ToHalfFloatArray,
-} from '@/imaging/halfFloat';
+import { float32ToHalfFloatArray, updateHalfFloatRectInPlace } from '@/imaging/halfFloat';
 
 function alignRectTo4(rect: Rect, width: number, height: number): Rect {
   const x0 = Math.floor(rect.x / 4) * 4;
@@ -28,7 +24,16 @@ export class MapTextures {
   private readonly heightHalfData: Uint16Array;
   private readonly opacityHalfData: Uint16Array;
   private readonly maskData: Uint8Array;
+
+  // Persistent CPU staging textures wrapping our full-size mirrors (never set needsUpdate=true)
+  // so copyTextureToTexture sub-rect uploads perform zero heap allocations per dab.
+  private readonly colorStagingTex: THREE.DataTexture;
+  private readonly heightStagingTex: THREE.DataTexture;
+  private readonly opacityStagingTex: THREE.DataTexture;
+  private readonly maskStagingTex: THREE.DataTexture;
+  private readonly srcRegion = new THREE.Box2();
   private readonly dstPosition = new THREE.Vector2();
+
   private readonly gpuInitialized: Record<MapId, boolean> = {
     color: false,
     height: false,
@@ -81,6 +86,17 @@ export class MapTextures {
     this.colorTex.unpackAlignment = 4;
     this.colorTex.needsUpdate = true;
 
+    this.colorStagingTex = new THREE.DataTexture(
+      this.colorData,
+      width,
+      height,
+      THREE.RGBAFormat,
+      THREE.UnsignedByteType,
+    );
+    this.colorStagingTex.colorSpace = THREE.SRGBColorSpace;
+    this.colorStagingTex.flipY = false;
+    this.colorStagingTex.unpackAlignment = 4;
+
     this.heightTex = new THREE.DataTexture(
       this.heightHalfData,
       width,
@@ -97,6 +113,17 @@ export class MapTextures {
     this.heightTex.magFilter = THREE.LinearFilter;
     this.heightTex.unpackAlignment = 2;
     this.heightTex.needsUpdate = true;
+
+    this.heightStagingTex = new THREE.DataTexture(
+      this.heightHalfData,
+      width,
+      height,
+      THREE.RedFormat,
+      THREE.HalfFloatType,
+    );
+    this.heightStagingTex.colorSpace = THREE.NoColorSpace;
+    this.heightStagingTex.flipY = false;
+    this.heightStagingTex.unpackAlignment = 2;
 
     this.opacityTex = new THREE.DataTexture(
       this.opacityHalfData,
@@ -115,6 +142,17 @@ export class MapTextures {
     this.opacityTex.unpackAlignment = 2;
     this.opacityTex.needsUpdate = true;
 
+    this.opacityStagingTex = new THREE.DataTexture(
+      this.opacityHalfData,
+      width,
+      height,
+      THREE.RedFormat,
+      THREE.HalfFloatType,
+    );
+    this.opacityStagingTex.colorSpace = THREE.NoColorSpace;
+    this.opacityStagingTex.flipY = false;
+    this.opacityStagingTex.unpackAlignment = 2;
+
     this.maskTex = new THREE.DataTexture(
       this.maskData,
       width,
@@ -131,6 +169,17 @@ export class MapTextures {
     this.maskTex.magFilter = THREE.LinearFilter;
     this.maskTex.unpackAlignment = 1;
     this.maskTex.needsUpdate = true;
+
+    this.maskStagingTex = new THREE.DataTexture(
+      this.maskData,
+      width,
+      height,
+      THREE.RedFormat,
+      THREE.UnsignedByteType,
+    );
+    this.maskStagingTex.colorSpace = THREE.NoColorSpace;
+    this.maskStagingTex.flipY = false;
+    this.maskStagingTex.unpackAlignment = 1;
   }
 
   getTexture(mapId: MapId): THREE.DataTexture {
@@ -181,28 +230,22 @@ export class MapTextures {
       return;
     }
 
-    const sub = new Uint8Array(aligned.w * aligned.h);
     const src = registry.selection;
-    for (let y = 0; y < aligned.h; y++) {
-      const srcStart = (aligned.y + y) * this.width + aligned.x;
-      const dstStart = y * aligned.w;
-      const rowSlice = src.subarray(srcStart, srcStart + aligned.w);
-      sub.set(rowSlice, dstStart);
-      this.maskData.set(rowSlice, srcStart);
+    const yEnd = aligned.y + aligned.h;
+    for (let y = aligned.y; y < yEnd; y++) {
+      const rowStart = y * this.width + aligned.x;
+      this.maskData.set(src.subarray(rowStart, rowStart + aligned.w), rowStart);
     }
 
+    this.srcRegion.min.set(aligned.x, aligned.y);
+    this.srcRegion.max.set(aligned.x + aligned.w, aligned.y + aligned.h);
     this.dstPosition.set(aligned.x, aligned.y);
-    const srcTex = new THREE.DataTexture(
-      sub,
-      aligned.w,
-      aligned.h,
-      THREE.RedFormat,
-      THREE.UnsignedByteType,
+    renderer.copyTextureToTexture(
+      this.maskStagingTex,
+      this.maskTex,
+      this.srcRegion,
+      this.dstPosition,
     );
-    srcTex.colorSpace = THREE.NoColorSpace;
-    srcTex.flipY = false;
-    srcTex.unpackAlignment = 1;
-    renderer.copyTextureToTexture(srcTex, this.maskTex, null, this.dstPosition);
   }
 
   uploadAll(registry: MapRegistry): void {
@@ -231,52 +274,55 @@ export class MapTextures {
       return;
     }
 
+    this.srcRegion.min.set(aligned.x, aligned.y);
+    this.srcRegion.max.set(aligned.x + aligned.w, aligned.y + aligned.h);
     this.dstPosition.set(aligned.x, aligned.y);
 
     if (mapId === 'color') {
-      const subData = extractRectRgba8(registry.color.effective, this.width, aligned);
-      // Keep CPU mirror in sync
+      const src = registry.color.effective;
       const rowBytes = aligned.w * 4;
-      for (let y = 0; y < aligned.h; y++) {
-        const dstStart = ((aligned.y + y) * this.width + aligned.x) * 4;
-        const srcStart = y * rowBytes;
-        this.colorData.set(subData.subarray(srcStart, srcStart + rowBytes), dstStart);
+      const yEnd = aligned.y + aligned.h;
+      for (let y = aligned.y; y < yEnd; y++) {
+        const start = (y * this.width + aligned.x) * 4;
+        this.colorData.set(src.subarray(start, start + rowBytes), start);
       }
-      const srcTex = new THREE.DataTexture(
-        subData,
-        aligned.w,
-        aligned.h,
-        THREE.RGBAFormat,
-        THREE.UnsignedByteType,
+      renderer.copyTextureToTexture(
+        this.colorStagingTex,
+        this.colorTex,
+        this.srcRegion,
+        this.dstPosition,
       );
-      srcTex.colorSpace = THREE.SRGBColorSpace;
-      srcTex.flipY = false;
-      srcTex.unpackAlignment = 4;
-      renderer.copyTextureToTexture(srcTex, this.colorTex, null, this.dstPosition);
       return;
     }
 
-    const srcFloat = mapId === 'height' ? registry.heightMap.effective : registry.opacity.effective;
-    const cpuHalf = mapId === 'height' ? this.heightHalfData : this.opacityHalfData;
-    const dstTex = mapId === 'height' ? this.heightTex : this.opacityTex;
-
-    const subHalf = extractRectToHalfFloat(srcFloat, this.width, aligned);
-    for (let y = 0; y < aligned.h; y++) {
-      const dstStart = (aligned.y + y) * this.width + aligned.x;
-      const srcStart = y * aligned.w;
-      cpuHalf.set(subHalf.subarray(srcStart, srcStart + aligned.w), dstStart);
+    if (mapId === 'height') {
+      updateHalfFloatRectInPlace(
+        registry.heightMap.effective,
+        this.width,
+        aligned,
+        this.heightHalfData,
+      );
+      renderer.copyTextureToTexture(
+        this.heightStagingTex,
+        this.heightTex,
+        this.srcRegion,
+        this.dstPosition,
+      );
+      return;
     }
-    const srcTex = new THREE.DataTexture(
-      subHalf,
-      aligned.w,
-      aligned.h,
-      THREE.RedFormat,
-      THREE.HalfFloatType,
+
+    updateHalfFloatRectInPlace(
+      registry.opacity.effective,
+      this.width,
+      aligned,
+      this.opacityHalfData,
     );
-    srcTex.colorSpace = THREE.NoColorSpace;
-    srcTex.flipY = false;
-    srcTex.unpackAlignment = 2;
-    renderer.copyTextureToTexture(srcTex, dstTex, null, this.dstPosition);
+    renderer.copyTextureToTexture(
+      this.opacityStagingTex,
+      this.opacityTex,
+      this.srcRegion,
+      this.dstPosition,
+    );
   }
 
   setNearest(nearest: boolean, renderer: THREE.WebGLRenderer): void {
@@ -314,5 +360,9 @@ export class MapTextures {
     this.heightTex.dispose();
     this.opacityTex.dispose();
     this.maskTex.dispose();
+    this.colorStagingTex.dispose();
+    this.heightStagingTex.dispose();
+    this.opacityStagingTex.dispose();
+    this.maskStagingTex.dispose();
   }
 }

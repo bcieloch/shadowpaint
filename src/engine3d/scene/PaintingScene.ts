@@ -12,6 +12,7 @@ import type {
 import { computeLightingMix } from '@/core/units/lighting';
 import { BackLight, type BackLightStateSnapshot } from '@/engine3d/lights/BackLight';
 import { FrontLight, type FrontLightStateSnapshot } from '@/engine3d/lights/FrontLight';
+import type { PaintPcssOptions } from '@/engine3d/materials/paintMaterial';
 import { CanvasMesh, type CanvasMeshStats } from '@/engine3d/scene/CanvasMesh';
 import {
   CrossSection3DOverlay,
@@ -43,6 +44,16 @@ export interface Cursor3DOverlayInput {
   heightEffective: Float32Array | null;
 }
 
+function computePcssOptions(
+  lighting: LightingSettings,
+  pcssEnabled: boolean,
+): PaintPcssOptions {
+  return {
+    enabled: pcssEnabled,
+    radiusScale: Math.max(0.75, Math.min(8, lighting.front.sourceSizeCm * 0.45)),
+  };
+}
+
 export class PaintingScene {
   readonly scene: THREE.Scene;
   readonly canvasMesh: CanvasMesh;
@@ -66,6 +77,7 @@ export class PaintingScene {
     grid?: GridSettings,
     crossSection?: CrossSectionOverlayInput,
     cursor3D?: Cursor3DOverlayInput,
+    pcssEnabled = false,
   ) {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x121214);
@@ -82,7 +94,15 @@ export class PaintingScene {
     this.backLight = new BackLight(lighting.back, canvas, mix.backScale, showGizmo);
     const backParams = this.backLight.getShaderParams();
 
-    this.canvasMesh = new CanvasMesh(textures, canvas, materialSettings, view3d, backParams, grid);
+    this.canvasMesh = new CanvasMesh(
+      textures,
+      canvas,
+      materialSettings,
+      view3d,
+      backParams,
+      grid,
+      computePcssOptions(lighting, pcssEnabled),
+    );
     this.crossSectionOverlay = new CrossSection3DOverlay();
     if (crossSection) {
       this.crossSectionOverlay.update({
@@ -124,6 +144,7 @@ export class PaintingScene {
     grid?: GridSettings,
     crossSection?: CrossSectionOverlayInput,
     cursor3D?: Cursor3DOverlayInput,
+    pcssEnabled = false,
   ): { shadowConfigChanged: boolean; frontScale: number } {
     if (this.disposed) return { shadowConfigChanged: false, frontScale: 0 };
 
@@ -131,7 +152,15 @@ export class PaintingScene {
     this.ambientLight.intensity = mix.ambient;
 
     const backParams = this.backLight.update(lighting.back, canvas, mix.backScale, showGizmo);
-    this.canvasMesh.update(textures, canvas, materialSettings, view3d, backParams, grid);
+    this.canvasMesh.update(
+      textures,
+      canvas,
+      materialSettings,
+      view3d,
+      backParams,
+      grid,
+      computePcssOptions(lighting, pcssEnabled),
+    );
 
     if (crossSection) {
       this.crossSectionOverlay.update({

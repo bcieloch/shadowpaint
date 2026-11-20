@@ -4,25 +4,56 @@ import type { IoWorkerApi } from '@/workers/io.worker';
 
 export type { DecodedAssetResult };
 
-let imageProxy: Remote<ImageWorkerApi> | null = null;
-let ioProxy: Remote<IoWorkerApi> | null = null;
+interface WorkerSlot<T> {
+  worker: Worker;
+  proxy: Remote<T>;
+}
+
+const imagePool: WorkerSlot<ImageWorkerApi>[] = [];
+let ioSlot: WorkerSlot<IoWorkerApi> | null = null;
+
+function createImageSlot(): WorkerSlot<ImageWorkerApi> {
+  const worker = new Worker(new URL('./image.worker.ts', import.meta.url), {
+    type: 'module',
+  });
+  return {
+    worker,
+    proxy: wrap<ImageWorkerApi>(worker),
+  };
+}
 
 export function getImageWorker(): Remote<ImageWorkerApi> {
-  if (!imageProxy) {
-    const worker = new Worker(new URL('./image.worker.ts', import.meta.url), {
-      type: 'module',
-    });
-    imageProxy = wrap<ImageWorkerApi>(worker);
+  return getImageWorkerPoolSlot(0);
+}
+
+export function getImageWorkerPoolSlot(index: number): Remote<ImageWorkerApi> {
+  const idx = Math.max(0, Math.floor(index));
+  while (imagePool.length <= idx) {
+    imagePool.push(createImageSlot());
   }
-  return imageProxy;
+  return (imagePool[idx] as WorkerSlot<ImageWorkerApi>).proxy;
+}
+
+export function getActiveImageWorkerCount(): number {
+  return imagePool.length;
+}
+
+export function terminateImageWorkerPool(): void {
+  for (const slot of imagePool) {
+    slot.worker.terminate();
+  }
+  imagePool.length = 0;
 }
 
 export function getIoWorker(): Remote<IoWorkerApi> {
-  if (!ioProxy) {
+  if (!ioSlot) {
     const worker = new Worker(new URL('./io.worker.ts', import.meta.url), {
       type: 'module',
     });
-    ioProxy = wrap<IoWorkerApi>(worker);
+    ioSlot = {
+      worker,
+      proxy: wrap<IoWorkerApi>(worker),
+    };
   }
-  return ioProxy;
+  return ioSlot.proxy;
 }

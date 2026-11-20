@@ -4,6 +4,7 @@ import {
   applyHeightAdjustments,
   applyOpacityAdjustments,
 } from '@/core/maps/adjustments';
+import { flushEffectiveMap } from '@/core/maps/dirtyTiles';
 import { mapRegistry, type MapRegistry } from '@/core/maps/MapRegistry';
 import type { MapId, ProjectSettings } from '@/core/types';
 import { asUint8Array, float32ToLittleEndianBytes, littleEndianBytesToFloat32, uint8ToClampedRgba } from '@/lib/bytes';
@@ -350,6 +351,9 @@ export class AutosaveController {
 
       let thumbnailBlob: StoredBinaryPayload;
       if (shouldUpdateThumb) {
+        if (this.registry.dirtyTiles.hasDirty('color')) {
+          flushEffectiveMap(this.registry, 'color', project.adjustments);
+        }
         const colorEffCopy = new Uint8Array(asUint8Array(this.registry.color.effective));
         let thumbBytes: Uint8Array;
         if (typeof Worker !== 'undefined') {

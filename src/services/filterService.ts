@@ -9,11 +9,6 @@ import type { MapId, Rect, Vec2 } from '@/core/types';
 import { mmToValue } from '@/core/units/calibration';
 import { hexToRgb01 } from '@/core/units/colorTemperature';
 import {
-  gaussianBlurPatchInnerFloat32,
-  gaussianBlurPatchInnerRgba8,
-  getGaussianKernelPad,
-} from '@/imaging/blur';
-import {
   applyFloodFillFloat32,
   applyFloodFillRgba8,
   applySelectionFillFloat32,
@@ -24,6 +19,7 @@ import { recordTileHistory } from '@/services/historyService';
 import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
 import { getImageWorker } from '@/workers/client';
+import { blurRegionParallel } from '@/workers/pool';
 import { runTask } from '@/workers/tasks';
 
 export interface ApplyRegionBlurStrokeParams {
@@ -97,106 +93,29 @@ export async function applyRegionBlurStroke(params: ApplyRegionBlurStrokeParams)
   if (!hasNonZeroWeight) return;
 
   const projectIdAtStart = useProjectStore.getState().project.id;
-  const pad = getGaussianKernelPad(params.kernelRadiusPx);
-  const px0 = Math.max(0, rect.x - pad);
-  const py0 = Math.max(0, rect.y - pad);
-  const px1 = Math.min(width, rect.x + rect.w + pad);
-  const py1 = Math.min(height, rect.y + rect.h + pad);
-  const pw = px1 - px0;
-  const ph = py1 - py0;
-  if (pw <= 0 || ph <= 0) return;
 
-  const innerX = rect.x - px0;
-  const innerY = rect.y - py0;
-  const innerW = rect.w;
-  const innerH = rect.h;
+  const blurred = await runTask(
+    { labelKey: 'toolOptions.taskBlurStroke', cancellable: false },
+    async (ctx) =>
+      blurRegionParallel(
+        {
+          mapId: params.mapId,
+          rgba8: params.mapId === 'color' ? mapRegistry.color.working : undefined,
+          scalar:
+            params.mapId === 'color'
+              ? undefined
+              : (mapRegistry.getMap(params.mapId).working as Float32Array),
+          width,
+          height,
+          rect,
+          radiusPx: params.kernelRadiusPx,
+        },
+        (p: number) => ctx.setProgress(p),
+      ),
+  );
 
-  let blurredRgba: Uint8ClampedArray | undefined;
-  let blurredScalar: Float32Array | undefined;
-
-  if (params.mapId === 'color') {
-    const src = mapRegistry.color.working;
-    const patch = new Uint8ClampedArray(pw * ph * 4);
-    for (let y = 0; y < ph; y++) {
-      const sOff = ((py0 + y) * width + px0) * 4;
-      patch.set(src.subarray(sOff, sOff + pw * 4), y * pw * 4);
-    }
-
-    if (typeof Worker !== 'undefined') {
-      const worker = getImageWorker();
-      const res = await runTask(
-        { labelKey: 'toolOptions.taskBlurStroke', cancellable: false },
-        async (ctx) =>
-          worker.blurRegion(
-            transfer(
-              {
-                mapId: 'color',
-                patchW: pw,
-                patchH: ph,
-                innerX,
-                innerY,
-                innerW,
-                innerH,
-                radiusPx: params.kernelRadiusPx,
-                rgba8: patch,
-              },
-              [patch.buffer],
-            ),
-            proxy((p: number) => ctx.setProgress(p)),
-          ),
-      );
-      blurredRgba = res.rgba8;
-    } else {
-      blurredRgba = gaussianBlurPatchInnerRgba8(
-        patch,
-        pw,
-        ph,
-        { x: innerX, y: innerY, w: innerW, h: innerH },
-        params.kernelRadiusPx,
-      );
-    }
-  } else {
-    const src = mapRegistry.getMap(params.mapId).working as Float32Array;
-    const patch = new Float32Array(pw * ph);
-    for (let y = 0; y < ph; y++) {
-      const sOff = (py0 + y) * width + px0;
-      patch.set(src.subarray(sOff, sOff + pw), y * pw);
-    }
-
-    if (typeof Worker !== 'undefined') {
-      const worker = getImageWorker();
-      const res = await runTask(
-        { labelKey: 'toolOptions.taskBlurStroke', cancellable: false },
-        async (ctx) =>
-          worker.blurRegion(
-            transfer(
-              {
-                mapId: params.mapId,
-                patchW: pw,
-                patchH: ph,
-                innerX,
-                innerY,
-                innerW,
-                innerH,
-                radiusPx: params.kernelRadiusPx,
-                scalar: patch,
-              },
-              [patch.buffer],
-            ),
-            proxy((p: number) => ctx.setProgress(p)),
-          ),
-      );
-      blurredScalar = res.scalar;
-    } else {
-      blurredScalar = gaussianBlurPatchInnerFloat32(
-        patch,
-        pw,
-        ph,
-        { x: innerX, y: innerY, w: innerW, h: innerH },
-        params.kernelRadiusPx,
-      );
-    }
-  }
+  const blurredRgba = blurred.rgba8;
+  const blurredScalar = blurred.scalar;
 
   const project = useProjectStore.getState().project;
   if (

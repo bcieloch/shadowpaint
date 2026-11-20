@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { flushAllEffective } from '@/core/maps/dirtyTiles';
 import type { MapRegistry } from '@/core/maps/MapRegistry';
 import { unionRect } from '@/core/maps/rect';
 import type {
+  AdjustmentsSettings,
   CanvasSettings,
   GridSettings,
   LightingMode,
@@ -55,12 +57,14 @@ export interface EngineRenderParams {
   lighting: LightingSettings;
   view3d: View3DSettings;
   grid: GridSettings;
+  adjustments?: AdjustmentsSettings;
   viewMode2D: ViewMode2D;
   view3DLighting?: LightingMode;
   splitRatio?: number;
   heightDisplay: HeightRenderDisplay;
   contourStepMm: number;
   showLampGizmos: boolean;
+  pcssEnabled?: boolean;
   showMaskOverlay?: boolean;
   pane2D: ViewTransformState;
   crossSectionLine?: LineSegment | null;
@@ -75,6 +79,20 @@ export interface EngineCallbacks {
 
 export interface ReadFlatCanvasOptions {
   toneMapping?: 'aces' | 'none';
+}
+
+export interface EnginePerformanceSnapshot {
+  lastFrameMs: number;
+  avgFrameMs: number;
+  lastTextureUploadMs: number;
+  renderCount: number;
+  memory: RendererMemoryInfo;
+  render: {
+    calls: number;
+    triangles: number;
+    points: number;
+    lines: number;
+  };
 }
 
 function toFlatShaderKey(viewMode: ViewMode2D): FlatRenderMode {
@@ -128,6 +146,11 @@ export class Engine {
   private orbitInitializedForProject = false;
   private shadowDirty = true;
   private heightVersion = 0;
+
+  private lastFrameMs = 0;
+  private avgFrameMs = 0;
+  private lastTextureUploadMs = 0;
+  private renderCount = 0;
 
   private viewport: ViewportSize = { width: 1, height: 1 };
   private params: EngineRenderParams | null = null;
@@ -317,6 +340,30 @@ export class Engine {
     return params.lighting.mode;
   }
 
+  private flushAllDirtyEffectiveTilesIfNeeded(): void {
+    if (!this.params?.adjustments || !this.registry.isAllocated || !this.registry.dirtyTiles.hasDirty()) {
+      return;
+    }
+    const dirtyColor = this.registry.dirtyTiles.hasDirty('color');
+    const dirtyHeight = this.registry.dirtyTiles.hasDirty('height');
+    const dirtyOpacity = this.registry.dirtyTiles.hasDirty('opacity');
+    flushAllEffective(this.registry, this.params.adjustments);
+    if (dirtyColor) {
+      this.pendingFull.color = true;
+      this.pendingDirty.color = null;
+    }
+    if (dirtyHeight) {
+      this.pendingFull.height = true;
+      this.pendingDirty.height = null;
+      this.shadowDirty = true;
+      this.heightVersion++;
+    }
+    if (dirtyOpacity) {
+      this.pendingFull.opacity = true;
+      this.pendingDirty.opacity = null;
+    }
+  }
+
   private buildCrossSectionInput(visible: boolean): CrossSectionOverlayInput {
     return {
       visible,
@@ -437,6 +484,7 @@ export class Engine {
       viewMode2D,
       heightDisplay,
       contourStepMm,
+      pcssEnabled = false,
       showMaskOverlay = true,
       pane2D,
     } = this.params;
@@ -454,6 +502,7 @@ export class Engine {
         undefined,
         undefined,
         undefined,
+        pcssEnabled,
       );
       if (shadowConfigChanged) {
         this.shadowDirty = true;
@@ -498,7 +547,15 @@ export class Engine {
 
   private render3DPane(mode: LightingMode, showSplitCursor: boolean): void {
     if (!this.params || !this.mapTextures || !this.paintingScene) return;
-    const { canvas, material, lighting, view3d, grid, showLampGizmos } = this.params;
+    const {
+      canvas,
+      material,
+      lighting,
+      view3d,
+      grid,
+      showLampGizmos,
+      pcssEnabled = false,
+    } = this.params;
     const { shadowConfigChanged, frontScale } = this.paintingScene.update(
       this.mapTextures,
       canvas,
@@ -511,6 +568,7 @@ export class Engine {
       grid,
       this.buildCrossSectionInput(true),
       this.buildCursor3DInput(showSplitCursor),
+      pcssEnabled,
     );
     if (shadowConfigChanged) {
       this.shadowDirty = true;
@@ -537,13 +595,16 @@ export class Engine {
       return;
     }
 
+    const frameStart = performance.now();
     try {
+      const { layout, viewMode2D } = this.params;
+      if (layout === '3d' || layout === 'split' || isLit2DMode(viewMode2D)) {
+        this.flushAllDirtyEffectiveTilesIfNeeded();
+      }
       this.flushPendingResources();
       if (!this.mapTextures || !this.flatMaterial || !this.flatMesh || !this.paintingScene) {
         return;
       }
-
-      const { layout } = this.params;
 
       if (layout === 'split') {
         const { leftPane, rightPane } = this.getSplitPanes();
@@ -559,19 +620,25 @@ export class Engine {
         this.renderer.setViewport(rightPane.x, 0, rightPane.width, rightPane.height);
         this.renderer.setScissor(rightPane.x, 0, rightPane.width, rightPane.height);
         this.render3DPane(this.resolve3DLightingMode(this.params), true);
-        return;
+      } else {
+        this.renderer.setScissorTest(false);
+        this.renderer.setViewport(0, 0, this.viewport.width, this.viewport.height);
+
+        if (layout === '3d') {
+          this.orbit3D.setAspect(this.viewport.width, this.viewport.height);
+          this.render3DPane(this.params.lighting.mode, false);
+        } else {
+          this.render2DPane(this.viewport);
+        }
       }
 
-      this.renderer.setScissorTest(false);
-      this.renderer.setViewport(0, 0, this.viewport.width, this.viewport.height);
-
-      if (layout === '3d') {
-        this.orbit3D.setAspect(this.viewport.width, this.viewport.height);
-        this.render3DPane(this.params.lighting.mode, false);
-        return;
-      }
-
-      this.render2DPane(this.viewport);
+      const frameMs = performance.now() - frameStart;
+      this.lastFrameMs = Math.round(frameMs * 100) / 100;
+      this.avgFrameMs =
+        this.renderCount === 0
+          ? this.lastFrameMs
+          : Math.round((this.avgFrameMs * 0.85 + frameMs * 0.15) * 100) / 100;
+      this.renderCount++;
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       this.callbacks.onError?.(error);
@@ -581,10 +648,20 @@ export class Engine {
   rebuildProject(): void {
     if (this.disposed || !this.registry.isAllocated || !this.params) return;
 
+    this.flushAllDirtyEffectiveTilesIfNeeded();
     this.disposeSceneResources();
 
-    const { canvas, material, lighting, view3d, grid, layout, viewMode2D, showLampGizmos } =
-      this.params;
+    const {
+      canvas,
+      material,
+      lighting,
+      view3d,
+      grid,
+      layout,
+      viewMode2D,
+      showLampGizmos,
+      pcssEnabled = false,
+    } = this.params;
     const textures = new MapTextures(this.registry, this.renderer);
     const flatMat = createFlatViewMaterial(textures);
     const flatGeo = createCanvasQuadGeometry(canvas.widthCm, canvas.heightCm);
@@ -609,6 +686,7 @@ export class Engine {
       is3DVisible ? grid : undefined,
       is3DVisible ? this.buildCrossSectionInput(true) : undefined,
       layout === 'split' ? this.buildCursor3DInput(true) : undefined,
+      pcssEnabled,
     );
 
     this.mapTextures = textures;
@@ -649,6 +727,7 @@ export class Engine {
     if (this.disposed || !this.registry.isAllocated || !this.params) {
       return new Uint8Array(0);
     }
+    this.flushAllDirtyEffectiveTilesIfNeeded();
     this.flushPendingResources();
     if (!this.mapTextures || !this.flatMaterial || !this.flatMesh || !this.paintingScene) {
       return new Uint8Array(0);
@@ -664,6 +743,7 @@ export class Engine {
       viewMode2D,
       heightDisplay,
       contourStepMm,
+      pcssEnabled = false,
       showMaskOverlay = true,
     } = this.params;
 
@@ -702,6 +782,7 @@ export class Engine {
           undefined,
           undefined,
           undefined,
+          pcssEnabled,
         );
         if (shadowConfigChanged) {
           this.shadowDirty = true;
@@ -766,12 +847,22 @@ export class Engine {
     if (this.disposed || !this.registry.isAllocated || !this.params) {
       return new Uint8Array(0);
     }
+    this.flushAllDirtyEffectiveTilesIfNeeded();
     this.flushPendingResources();
     if (!this.mapTextures || !this.paintingScene) {
       return new Uint8Array(0);
     }
 
-    const { canvas, material, lighting, view3d, grid, showLampGizmos, layout } = this.params;
+    const {
+      canvas,
+      material,
+      lighting,
+      view3d,
+      grid,
+      showLampGizmos,
+      layout,
+      pcssEnabled = false,
+    } = this.params;
     const mode3D = this.resolve3DLightingMode(this.params);
     const { shadowConfigChanged, frontScale } = this.paintingScene.update(
       this.mapTextures,
@@ -785,6 +876,7 @@ export class Engine {
       grid,
       this.buildCrossSectionInput(true),
       this.buildCursor3DInput(layout === 'split'),
+      pcssEnabled,
     );
     if (shadowConfigChanged) {
       this.shadowDirty = true;
@@ -866,6 +958,7 @@ export class Engine {
     if (this.disposed || this.contextLost || !this.registry.isAllocated || !this.params) {
       return null;
     }
+    this.flushAllDirtyEffectiveTilesIfNeeded();
     this.flushPendingResources();
     if (!this.mapTextures || !this.paintingScene) {
       return null;
@@ -893,6 +986,7 @@ export class Engine {
 
   private syncSceneForStats(): boolean {
     if (!this.paintingScene || !this.params || !this.mapTextures) return false;
+    this.flushAllDirtyEffectiveTilesIfNeeded();
     const is3DVisible = this.params.layout === '3d' || this.params.layout === 'split';
     const effectiveMode = is3DVisible
       ? this.resolve3DLightingMode(this.params)
@@ -911,6 +1005,7 @@ export class Engine {
       is3DVisible ? this.params.grid : undefined,
       is3DVisible ? this.buildCrossSectionInput(true) : undefined,
       this.params.layout === 'split' ? this.buildCursor3DInput(true) : undefined,
+      Boolean(this.params.pcssEnabled),
     );
     return true;
   }
@@ -942,6 +1037,22 @@ export class Engine {
 
   getMemoryInfo(): RendererMemoryInfo {
     return getRendererMemoryInfo(this.renderer);
+  }
+
+  getPerformanceSnapshot(): EnginePerformanceSnapshot {
+    return {
+      lastFrameMs: this.lastFrameMs,
+      avgFrameMs: this.avgFrameMs,
+      lastTextureUploadMs: this.lastTextureUploadMs,
+      renderCount: this.renderCount,
+      memory: this.getMemoryInfo(),
+      render: {
+        calls: this.renderer.info.render.calls,
+        triangles: this.renderer.info.render.triangles,
+        points: this.renderer.info.render.points,
+        lines: this.renderer.info.render.lines,
+      },
+    };
   }
 
   getBuiltDimensions(): {
@@ -1018,8 +1129,17 @@ export class Engine {
 
   private flushPendingResources(): void {
     if (!this.params || !this.registry.isAllocated) return;
-    const { canvas, material, lighting, view3d, grid, layout, viewMode2D, showLampGizmos } =
-      this.params;
+    const {
+      canvas,
+      material,
+      lighting,
+      view3d,
+      grid,
+      layout,
+      viewMode2D,
+      showLampGizmos,
+      pcssEnabled = false,
+    } = this.params;
 
     const pixelDimsChanged =
       this.builtWidthPx !== this.registry.width || this.builtHeightPx !== this.registry.height;
@@ -1063,10 +1183,23 @@ export class Engine {
       is3DVisible ? grid : undefined,
       is3DVisible ? this.buildCrossSectionInput(true) : undefined,
       layout === 'split' ? this.buildCursor3DInput(true) : undefined,
+      pcssEnabled,
     );
     if (shadowConfigChanged) {
       this.shadowDirty = true;
     }
+
+    const hasTextureWork =
+      this.pendingFull.color ||
+      this.pendingFull.height ||
+      this.pendingFull.opacity ||
+      Boolean(this.pendingDirty.color) ||
+      Boolean(this.pendingDirty.height) ||
+      Boolean(this.pendingDirty.opacity) ||
+      this.pendingMaskFull ||
+      Boolean(this.pendingMaskDirty);
+
+    const uploadStart = hasTextureWork ? performance.now() : 0;
 
     for (const mapId of ['color', 'height', 'opacity'] as const) {
       if (this.pendingFull[mapId]) {
@@ -1095,6 +1228,10 @@ export class Engine {
     } else if (this.pendingMaskDirty) {
       this.mapTextures.uploadMaskDirtyRect(this.renderer, this.registry, this.pendingMaskDirty);
       this.pendingMaskDirty = null;
+    }
+
+    if (hasTextureWork) {
+      this.lastTextureUploadMs = Math.round((performance.now() - uploadStart) * 100) / 100;
     }
   }
 

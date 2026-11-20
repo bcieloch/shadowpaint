@@ -5,14 +5,20 @@ function clampInt(v: number, min: number, max: number): number {
   return v < min ? min : v > max ? max : v;
 }
 
+export function getLaplaceKernelPad(iterations: number): number {
+  return clampInt(Math.round(iterations), 1, 10);
+}
+
 export function laplaceSmoothFloat32Region(
   src: Float32Array,
   width: number,
   height: number,
   rect: Rect,
   iterations: number,
+  halo = getLaplaceKernelPad(iterations),
 ): Float32Array {
-  const iter = clampInt(Math.round(iterations), 1, 10);
+  const iter = getLaplaceKernelPad(iterations);
+  const pad = Math.max(iter, Math.floor(halo));
   const rx0 = clampInt(rect.x, 0, width);
   const ry0 = clampInt(rect.y, 0, height);
   const rx1 = clampInt(rect.x + rect.w, 0, width);
@@ -24,10 +30,10 @@ export function laplaceSmoothFloat32Region(
     return new Float32Array(0);
   }
 
-  const px0 = Math.max(0, rx0 - iter);
-  const py0 = Math.max(0, ry0 - iter);
-  const px1 = Math.min(width, rx1 + iter);
-  const py1 = Math.min(height, ry1 + iter);
+  const px0 = Math.max(0, rx0 - pad);
+  const py0 = Math.max(0, ry0 - pad);
+  const px1 = Math.min(width, rx1 + pad);
+  const py1 = Math.min(height, ry1 + pad);
   const pw = px1 - px0;
   const ph = py1 - py0;
 
@@ -86,8 +92,10 @@ export function laplaceSmoothRgba8Region(
   height: number,
   rect: Rect,
   iterations: number,
+  halo = getLaplaceKernelPad(iterations),
 ): Uint8ClampedArray {
-  const iter = clampInt(Math.round(iterations), 1, 10);
+  const iter = getLaplaceKernelPad(iterations);
+  const pad = Math.max(iter, Math.floor(halo));
   const rx0 = clampInt(rect.x, 0, width);
   const ry0 = clampInt(rect.y, 0, height);
   const rx1 = clampInt(rect.x + rect.w, 0, width);
@@ -99,10 +107,10 @@ export function laplaceSmoothRgba8Region(
     return new Uint8ClampedArray(0);
   }
 
-  const px0 = Math.max(0, rx0 - iter);
-  const py0 = Math.max(0, ry0 - iter);
-  const px1 = Math.min(width, rx1 + iter);
-  const py1 = Math.min(height, ry1 + iter);
+  const px0 = Math.max(0, rx0 - pad);
+  const py0 = Math.max(0, ry0 - pad);
+  const px1 = Math.min(width, rx1 + pad);
+  const py1 = Math.min(height, ry1 + pad);
   const pw = px1 - px0;
   const ph = py1 - py0;
 
