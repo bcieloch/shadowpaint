@@ -3,6 +3,12 @@ import type { MapId } from '@/core/types';
 
 export type MapDataArray<M extends MapId> = M extends 'color' ? Uint8ClampedArray : Float32Array;
 
+export interface MapLayerBuffers<M extends MapId> {
+  base: MapDataArray<M>;
+  working: MapDataArray<M>;
+  effective: MapDataArray<M>;
+}
+
 export class MapBuffer<M extends MapId = MapId> {
   readonly mapId: M;
   readonly width: number;
@@ -11,12 +17,36 @@ export class MapBuffer<M extends MapId = MapId> {
   readonly working: MapDataArray<M>;
   readonly effective: MapDataArray<M>;
 
-  constructor(mapId: M, width: number, height: number, defaultValue: number | string) {
+  constructor(
+    mapId: M,
+    width: number,
+    height: number,
+    defaultValue: number | string,
+    existing?: MapLayerBuffers<M>,
+  ) {
     this.mapId = mapId;
     this.width = width;
     this.height = height;
 
     const pixelCount = width * height;
+    const expectedLength = mapId === 'color' ? pixelCount * 4 : pixelCount;
+
+    if (existing) {
+      if (
+        existing.base.length !== expectedLength ||
+        existing.working.length !== expectedLength ||
+        existing.effective.length !== expectedLength
+      ) {
+        throw new Error(
+          `Buffer length mismatch for ${mapId} (${width}x${height}): expected ${expectedLength}`,
+        );
+      }
+      this.base = existing.base;
+      this.working = existing.working;
+      this.effective = existing.effective;
+      return;
+    }
+
     if (mapId === 'color') {
       const byteCount = pixelCount * 4;
       this.base = new Uint8ClampedArray(byteCount) as MapDataArray<M>;
@@ -29,6 +59,15 @@ export class MapBuffer<M extends MapId = MapId> {
     }
 
     this.fillAll(defaultValue);
+  }
+
+  static fromBuffers<M extends MapId>(
+    mapId: M,
+    width: number,
+    height: number,
+    buffers: MapLayerBuffers<M>,
+  ): MapBuffer<M> {
+    return new MapBuffer(mapId, width, height, mapId === 'color' ? '#f4f1ea' : 0, buffers);
   }
 
   fillAll(defaultValue: number | string): void {

@@ -183,6 +183,43 @@ export const pl: TranslationDictionary = {
   },
   rightTabs: {
     map: 'Mapa',
+    canvas: 'Płótno',
+  },
+  canvas: {
+    dimensionsTitle: 'Wymiary fizyczne i pikselowe',
+    widthCm: 'Szerokość',
+    heightCm: 'Wysokość',
+    lockAspect: 'Zablokuj proporcje',
+    widthPx: 'Szerokość (px)',
+    heightPx: 'Wysokość (px)',
+    pxPerCm: 'Skala (px/cm)',
+    dpi: 'Gęstość (DPI)',
+    noResampleHint:
+      'Zmiana cm przy stałych pikselach aktualizuje px/cm i rozmiar 3D bez resamplingu.',
+    resampleHint: 'Zmiana rozdzielczości w pikselach przeskaluje wszystkie trzy mapy.',
+    applyResizeButton: 'Zastosuj zmianę rozmiaru…',
+    applyDimensionsButton: 'Zastosuj wymiary',
+    dimensionsUpdatedToast:
+      'Zaktualizowano płótno do {wCm} × {hCm} cm ({pxPerCm} px/cm) bez resamplingu.',
+    thicknessTitle: 'Zakres grubości farby',
+    minThicknessMm: 'Min. grubość',
+    maxThicknessMm: 'Maks. grubość',
+    view3dTitle: 'Kalibracja geometrii 3D',
+    reliefMultiplier: 'Mnożnik reliefu',
+    meshDetail: 'Szczegółowość siatki',
+    meshDetailHighDisabled: 'Wymaga GPU MAX_TEXTURE_SIZE ≥ 8192',
+    meshStats: 'Siatka: {segX} × {segY} segmentów · {vertices} wierzchołków',
+    taskResizing: 'Przeskalowywanie map projektu…',
+    resizeDialogTitle: 'Zmiana rozdzielczości projektu',
+    resizeDialogDescription:
+      'Przeskaluj atomowo wszystkie warstwy malarskie (bazową, roboczą i maskę zaznaczenia) do nowej rozdzielczości.',
+    resizeSummaryCurrent: 'Bieżąca: {wPx} × {hPx} px ({wCm} × {hCm} cm)',
+    resizeSummaryTarget: 'Nowa: {wPx} × {hPx} px ({wCm} × {hCm} cm · {mp} MP · ~{mb} MB)',
+    resizeHistoryWarning:
+      'Przeskalowanie buforów pikseli modyfikuje wszystkie mapy jednocześnie i trwale czyści historię Cofnij/Ponów.',
+    resizeConfirmCheckbox: 'Rozumiem, że historia Cofnij/Ponów zostanie wyczyszczona.',
+    resizeConfirmButton: 'Zmień rozmiar i przeskaluj',
+    resizeSuccessToast: 'Zmieniono rozmiar projektu na {wPx} × {hPx} px ({wCm} × {hCm} cm).',
   },
   mapParams: {
     brightness: 'Jasność',

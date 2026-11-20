@@ -113,11 +113,12 @@ export function recordSettingsPatchHistory(
   if (JSON.stringify(patch.before) === JSON.stringify(patch.after)) {
     return;
   }
+  const mapId = 'affectedMapId' in patch ? patch.affectedMapId : undefined;
   useHistoryStore.getState().pushSettingsEntry({
     kind: 'settings',
     meta: {
       action,
-      mapId: patch.affectedMapId,
+      mapId,
     },
     patch,
     byteSize: estimateSettingsEntryBytes(),
@@ -133,13 +134,19 @@ function applySettingsPatch(patch: SettingsPatch, direction: 'undo' | 'redo'): v
     } else if (patch.path === 'adjustments.height') {
       const value = direction === 'undo' ? patch.before : patch.after;
       draft.adjustments.height = { ...value };
-    } else {
+    } else if (patch.path === 'adjustments.opacity') {
       const value = direction === 'undo' ? patch.before : patch.after;
       draft.adjustments.opacity = { ...value };
+    } else if (patch.path === 'canvas') {
+      const value = direction === 'undo' ? patch.before : patch.after;
+      draft.canvas = { ...value };
+    } else {
+      const value = direction === 'undo' ? patch.before : patch.after;
+      draft.view3d = { ...value };
     }
   }, true);
 
-  if (!mapRegistry.isAllocated) return;
+  if (!mapRegistry.isAllocated || !('affectedMapId' in patch)) return;
   if (typeof Worker !== 'undefined') {
     void recomputeEffectiveMap(patch.affectedMapId);
   } else {

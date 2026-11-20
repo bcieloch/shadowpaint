@@ -5,6 +5,7 @@ import {
   cmToPx,
   cmToWorldXY,
   computeHeightFromWidthPx,
+  computeMeshSegments,
   getCalibrationMetrics,
   level8ToMm,
   mmToLevel8,
@@ -67,6 +68,18 @@ describe('calibration', () => {
   it('converts brush size between px and cm', () => {
     expect(brushSizeToPx(2, 'cm', 60)).toBe(120);
     expect(brushSizeToPx(45, 'px', 60)).toBe(45);
+  });
+
+  it('computes proportional mesh segments and vertex count for 3D LOD', () => {
+    const portrait = computeMeshSegments(50, 70, 1024);
+    expect(portrait.segY).toBe(1024);
+    expect(portrait.segX).toBe(Math.round(1024 * (50 / 70)));
+    expect(portrait.vertices).toBe((portrait.segX + 1) * (portrait.segY + 1));
+
+    const landscape = computeMeshSegments(80, 40, 512);
+    expect(landscape.segX).toBe(512);
+    expect(landscape.segY).toBe(256);
+    expect(landscape.vertices).toBe(513 * 257);
   });
 
   it('validates canvas settings and aspect ratio consistency', () => {

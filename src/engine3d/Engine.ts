@@ -4,7 +4,11 @@ import { unionRect } from '@/core/maps/rect';
 import type { CanvasSettings, MapId, Rect } from '@/core/types';
 import { type ViewportSize, type ViewTransformState } from '@/editor2d/viewTransform';
 import { Ortho2D } from '@/engine3d/cameras/Ortho2D';
-import { disposeObject3D, getRendererMemoryInfo, type RendererMemoryInfo } from '@/engine3d/dispose';
+import {
+  disposeObject3D,
+  getRendererMemoryInfo,
+  type RendererMemoryInfo,
+} from '@/engine3d/dispose';
 import {
   createCanvasQuadGeometry,
   createFlatViewMaterial,
@@ -290,6 +294,20 @@ export class Engine {
 
   getMemoryInfo(): RendererMemoryInfo {
     return getRendererMemoryInfo(this.renderer);
+  }
+
+  getBuiltDimensions(): {
+    widthPx: number;
+    heightPx: number;
+    widthCm: number;
+    heightCm: number;
+  } {
+    return {
+      widthPx: this.builtWidthPx,
+      heightPx: this.builtHeightPx,
+      widthCm: this.builtWidthCm,
+      heightCm: this.builtHeightCm,
+    };
   }
 
   getMaxTextureSize(): number {

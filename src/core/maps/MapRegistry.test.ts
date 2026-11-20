@@ -51,6 +51,49 @@ describe('MapRegistry', () => {
     });
   });
 
+  it('atomically replaces all three maps and selection on replaceAll', () => {
+    const registry = new MapRegistry();
+    registry.allocate(8, 8);
+
+    const onReplaced = vi.fn();
+    registry.events.on('replaced', onReplaced);
+
+    const n = 12 * 16;
+    const colorBase = new Uint8ClampedArray(n * 4).fill(10);
+    const colorWorking = new Uint8ClampedArray(n * 4).fill(20);
+    const colorEffective = new Uint8ClampedArray(n * 4).fill(30);
+    const heightBase = new Float32Array(n).fill(0.2);
+    const heightWorking = new Float32Array(n).fill(0.4);
+    const heightEffective = new Float32Array(n).fill(0.6);
+    const opacityBase = new Float32Array(n).fill(0.5);
+    const opacityWorking = new Float32Array(n).fill(0.7);
+    const opacityEffective = new Float32Array(n).fill(0.9);
+    const selection = new Uint8Array(n).fill(128);
+
+    registry.replaceAll({
+      width: 12,
+      height: 16,
+      colorBase,
+      colorWorking,
+      colorEffective,
+      heightBase,
+      heightWorking,
+      heightEffective,
+      opacityBase,
+      opacityWorking,
+      opacityEffective,
+      selection,
+    });
+
+    expect(registry.width).toBe(12);
+    expect(registry.height).toBe(16);
+    expect(registry.color.effective[0]).toBe(30);
+    expect(registry.heightMap.working[0]).toBeCloseTo(0.4, 5);
+    expect(registry.opacity.base[0]).toBeCloseTo(0.5, 5);
+    expect(registry.selection[0]).toBe(128);
+    expect(onReplaced).toHaveBeenCalledWith({ mapId: 'all', width: 12, height: 16 });
+  });
+
   it('throws MapMemoryError and preserves previous buffers on allocation failure', () => {
     const registry = new MapRegistry();
     registry.allocate(4, 4);

@@ -7,13 +7,15 @@ declare module '*.glsl?raw' {
 
 export interface ShadowPaintDebugHandle {
   getMemoryInfo: () => { geometries: number; textures: number; programs: number };
+  getBuiltDimensions: () => {
+    widthPx: number;
+    heightPx: number;
+    widthCm: number;
+    heightCm: number;
+  };
   readFlatCanvasRgba: (width?: number, height?: number) => Uint8Array;
   getMapEffectiveRgba: () => Uint8ClampedArray;
-  emitColorDirtyPixel: (
-    x: number,
-    y: number,
-    rgba: [number, number, number, number],
-  ) => void;
+  emitColorDirtyPixel: (x: number, y: number, rgba: [number, number, number, number]) => void;
 }
 
 declare global {
