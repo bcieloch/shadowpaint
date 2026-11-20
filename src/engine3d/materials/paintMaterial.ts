@@ -72,7 +72,7 @@ export function createPaintMaterial(
     uBackIntensity: { value: backParams?.intensity ?? 1 },
     uBackType: { value: backParams?.type === 'panel' ? 1 : 0 },
     uBackScale: { value: backParams?.backScale ?? 0 },
-    uScatterRadiusTex: { value: (materialSettings.scatterRadiusMm / 10) * pxPerCm },
+    uScatterRadiusTex: { value: Math.max(0, materialSettings.scatterRadiusMm / 10) * pxPerCm },
     uGridEnabled: { value: grid?.show3D ? 1 : 0 },
     uGridSpacingCm: { value: Math.max(0.05, grid?.spacingCm ?? 5) },
     uGridSubdivisions: { value: Math.max(1, grid?.subdivisions ?? 5) },
@@ -91,7 +91,7 @@ export function createPaintMaterial(
   });
 
   material.userData[PAINT_UNIFORMS_KEY] = paintUniforms;
-  material.customProgramCacheKey = () => 'shadowpaint-paint-v3';
+  material.customProgramCacheKey = () => 'shadowpaint-paint-v4';
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uHeight = paintUniforms.uHeight;
@@ -208,7 +208,8 @@ export function updatePaintMaterial(
     paintUniforms.uMuS.value = materialSettings.muS;
     paintUniforms.uKTint.value = materialSettings.kTint;
     paintUniforms.uTauCanvas.value = materialSettings.canvasTransmittance;
-    paintUniforms.uScatterRadiusTex.value = (materialSettings.scatterRadiusMm / 10) * pxPerCm;
+    paintUniforms.uScatterRadiusTex.value =
+      Math.max(0, materialSettings.scatterRadiusMm / 10) * pxPerCm;
     paintUniforms.uGridCanvasCm.value.set(canvas.widthCm, canvas.heightCm);
 
     if (backParams) {

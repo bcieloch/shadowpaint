@@ -32,6 +32,7 @@ test.describe('Cursor Readout (2D & 3D)', () => {
     await page.getByTestId('right-tab-canvas').click();
     await page.getByTestId('canvas-mesh-detail').click();
     await page.getByRole('option', { name: /^256 / }).click();
+    await expect(page.locator('[data-slot="select-content"]')).toBeHidden();
 
     // Paint deterministic block in center (60..140, 60..140): #A3B1C2, h=0.5 (2.500mm, L=128 -> 2.510mm), tau=0.642 (64.2%)
     await page.evaluate(() => {
