@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Maximize2, Scan } from 'lucide-react';
+import { Frame, Maximize2, RotateCcw, Scan } from 'lucide-react';
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import type { MapId } from '@/core/types';
 import { getCalibrationMetrics } from '@/core/units/calibration';
 import { PointerRouter } from '@/editor2d/input/PointerRouter';
 import { zoomAtPoint, type ViewportSize } from '@/editor2d/viewTransform';
 import {
+  recordSettingsPatchHistory,
   recordTileHistory,
   redoGlobal,
   undoActiveMap,
@@ -46,6 +47,9 @@ function getLockedWarningKey(mapId: MapId) {
 export function ViewportHost() {
   const { t } = useI18n();
   const canvas = useProjectStore((s) => s.project.canvas);
+  const view3d = useProjectStore((s) => s.project.view3d);
+  const updateProject = useProjectStore((s) => s.updateProject);
+  const layout = useEditorStore((s) => s.layout);
   const viewMode2D = useEditorStore((s) => s.viewMode2D);
   const heightDisplay = useEditorStore((s) => s.heightDisplay);
   const heightContourStepMm = useEditorStore((s) => s.heightContourStepMm);
@@ -53,6 +57,7 @@ export function ViewportHost() {
   const tool = useEditorStore((s) => s.tool);
   const brushSizeValue = useEditorStore((s) => s.brush.sizeValue);
   const brushSizeUnit = useEditorStore((s) => s.brush.sizeUnit);
+  const setLayout = useEditorStore((s) => s.setLayout);
   const setViewMode2D = useEditorStore((s) => s.setViewMode2D);
   const setHeightDisplay = useEditorStore((s) => s.setHeightDisplay);
   const setHeightContourStepMm = useEditorStore((s) => s.setHeightContourStepMm);
@@ -64,6 +69,7 @@ export function ViewportHost() {
     viewportSize,
     fitView,
     setZoom100,
+    resetView3D,
     setCursor,
   } = useEngine();
 
@@ -110,6 +116,7 @@ export function ViewportHost() {
         recordMapTileEntry: recordTileHistory,
       },
     });
+    router.setEnabled(useEditorStore.getState().layout !== '3d');
     pointerRouterRef.current = router;
 
     return () => {
@@ -122,22 +129,27 @@ export function ViewportHost() {
     };
   }, [containerRef, setCursor]);
 
+  useEffect(() => {
+    pointerRouterRef.current?.setEnabled(layout !== '3d');
+  }, [layout]);
+
   // Refresh overlay cursor ring when tool or brush size changes
   useEffect(() => {
     pointerRouterRef.current?.refreshCursor();
   }, [tool, brushSizeValue, brushSizeUnit]);
 
-  // Non-passive wheel zoom anchored to cursor
+  // Non-passive wheel zoom anchored to cursor in 2D mode
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const handleWheel = (e: WheelEvent) => {
+      const state = useEditorStore.getState();
+      if (state.layout === '3d') return;
       e.preventDefault();
       const rect = el.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
-      const state = useEditorStore.getState();
       const projCanvas = useProjectStore.getState().project.canvas;
       const factor = Math.pow(2, -e.deltaY / 500);
       const next = zoomAtPoint(
@@ -158,7 +170,7 @@ export function ViewportHost() {
     };
   }, [containerRef]);
 
-  // Keyboard shortcuts: Space pan, Ctrl+Z/Shift+Z/Y/Alt+Z history, Ctrl+0 fit, Ctrl+1 1:1, B/E/I/H, [/], 1/2/3
+  // Keyboard shortcuts: F1/F2 layout, Home reset 3D, Space pan, Ctrl+Z/Shift+Z/Y/Alt+Z history, Ctrl+0 fit, Ctrl+1 1:1, B/E/I/H, [/], 1/2/3
   useEffect(() => {
     const adjustBrushSize = (scale: number) => {
       const editor = useEditorStore.getState();
@@ -189,7 +201,26 @@ export function ViewportHost() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isEditableTarget(e.target)) return;
 
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setLayout('2d');
+        return;
+      }
+      if (e.key === 'F2') {
+        e.preventDefault();
+        setLayout('3d');
+        return;
+      }
+      if (e.key === 'Home') {
+        if (useEditorStore.getState().layout === '3d') {
+          e.preventDefault();
+          resetView3D();
+        }
+        return;
+      }
+
       if (e.code === 'Space' && !e.repeat) {
+        if (useEditorStore.getState().layout === '3d') return;
         e.preventDefault();
         setSpacePressed(true);
         pointerRouterRef.current?.setSpacePressed(true);
@@ -272,16 +303,31 @@ export function ViewportHost() {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [fitView, setZoom100]);
+  }, [fitView, resetView3D, setLayout, setZoom100]);
+
+  const handleToggleFrame = () => {
+    const before = { ...useProjectStore.getState().project.view3d };
+    updateProject((d) => {
+      d.view3d.showFrame = !d.view3d.showFrame;
+    });
+    recordSettingsPatchHistory('settingsChange', {
+      path: 'view3d',
+      before,
+      after: { ...useProjectStore.getState().project.view3d },
+    });
+  };
 
   const activeFlatMode: 'color' | 'height' | 'opacity' =
     viewMode2D === 'height' || viewMode2D === 'opacity' ? viewMode2D : 'color';
 
-  const cursorClass = isPanning
-    ? 'cursor-grabbing'
-    : spacePressed || tool === 'pan'
-      ? 'cursor-grab'
-      : 'cursor-crosshair';
+  const cursorClass =
+    layout === '3d'
+      ? 'cursor-grab active:cursor-grabbing'
+      : isPanning
+        ? 'cursor-grabbing'
+        : spacePressed || tool === 'pan'
+          ? 'cursor-grab'
+          : 'cursor-crosshair';
 
   return (
     <section
@@ -289,124 +335,180 @@ export function ViewportHost() {
       className="relative flex h-full w-full flex-col overflow-hidden bg-[#121214]"
     >
       <div className="border-border bg-card/70 flex h-9 shrink-0 items-center justify-between gap-2 border-b px-2.5">
-        <div className="flex items-center gap-2">
-          <ToggleGroup
-            type="single"
-            size="sm"
-            variant="outline"
-            value={activeFlatMode}
-            onValueChange={(value) => {
-              if (value === 'color' || value === 'height' || value === 'opacity') {
-                setViewMode2D(value as ViewMode2D);
-              }
-            }}
-          >
-            <ToggleGroupItem value="color" data-testid="mode-color" className="h-7 px-2.5 text-xs">
-              {t('viewport.modeColor')}
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="height"
-              data-testid="mode-height"
-              className="h-7 px-2.5 text-xs"
-            >
-              {t('viewport.modeHeight')}
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="opacity"
-              data-testid="mode-opacity"
-              className="h-7 px-2.5 text-xs"
-            >
-              {t('viewport.modeOpacity')}
-            </ToggleGroupItem>
-          </ToggleGroup>
+        {layout === '3d' ? (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="text-foreground text-xs font-medium">
+                {t('viewport.view3dHeading')}
+              </span>
+              <span className="text-muted-foreground hidden text-[11px] md:inline">
+                {t('viewport.orbitHint')}
+              </span>
+            </div>
 
-          {activeFlatMode === 'height' && (
-            <div className="flex items-center gap-1.5">
-              <Select
-                value={heightDisplay}
-                onValueChange={(v) => setHeightDisplay(v as HeightDisplayMode)}
-              >
-                <SelectTrigger
-                  size="sm"
-                  data-testid="height-display-select"
-                  aria-label={t('viewport.heightDisplayLabel')}
-                  className="h-7 w-40 text-xs"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gray">{t('viewport.heightDisplayGray')}</SelectItem>
-                  <SelectItem value="heat">{t('viewport.heightDisplayHeat')}</SelectItem>
-                  <SelectItem value="topo">{t('viewport.heightDisplayTopo')}</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {heightDisplay === 'topo' && (
-                <Select
-                  value={String(heightContourStepMm)}
-                  onValueChange={(v) => setHeightContourStepMm(Number(v))}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    data-testid="contour-step-select"
-                    aria-label={t('viewport.contourStep')}
-                    className="h-7 w-24 font-mono text-xs"
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={view3d.showFrame ? 'secondary' : 'ghost'}
+                    size="xs"
+                    data-testid="btn-toggle-frame"
+                    aria-pressed={view3d.showFrame}
+                    onClick={handleToggleFrame}
+                    className="gap-1 text-xs"
                   >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONTOUR_STEPS.map((step) => (
-                      <SelectItem key={step} value={String(step)}>
-                        {step} mm
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <Frame className="size-3.5" />
+                    {t('viewport.toggleFrame')}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('viewport.toggleFrameTooltip')}</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    data-testid="btn-reset-view-3d"
+                    onClick={resetView3D}
+                    className="gap-1 text-xs"
+                  >
+                    <RotateCcw className="size-3.5" />
+                    {t('viewport.resetView3d')}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('viewport.resetView3dTooltip')}</TooltipContent>
+              </Tooltip>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <ToggleGroup
+                type="single"
+                size="sm"
+                variant="outline"
+                value={activeFlatMode}
+                onValueChange={(value) => {
+                  if (value === 'color' || value === 'height' || value === 'opacity') {
+                    setViewMode2D(value as ViewMode2D);
+                  }
+                }}
+              >
+                <ToggleGroupItem
+                  value="color"
+                  data-testid="mode-color"
+                  className="h-7 px-2.5 text-xs"
+                >
+                  {t('viewport.modeColor')}
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="height"
+                  data-testid="mode-height"
+                  className="h-7 px-2.5 text-xs"
+                >
+                  {t('viewport.modeHeight')}
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  value="opacity"
+                  data-testid="mode-opacity"
+                  className="h-7 px-2.5 text-xs"
+                >
+                  {t('viewport.modeOpacity')}
+                </ToggleGroupItem>
+              </ToggleGroup>
+
+              {activeFlatMode === 'height' && (
+                <div className="flex items-center gap-1.5">
+                  <Select
+                    value={heightDisplay}
+                    onValueChange={(v) => setHeightDisplay(v as HeightDisplayMode)}
+                  >
+                    <SelectTrigger
+                      size="sm"
+                      data-testid="height-display-select"
+                      aria-label={t('viewport.heightDisplayLabel')}
+                      className="h-7 w-40 text-xs"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gray">{t('viewport.heightDisplayGray')}</SelectItem>
+                      <SelectItem value="heat">{t('viewport.heightDisplayHeat')}</SelectItem>
+                      <SelectItem value="topo">{t('viewport.heightDisplayTopo')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {heightDisplay === 'topo' && (
+                    <Select
+                      value={String(heightContourStepMm)}
+                      onValueChange={(v) => setHeightContourStepMm(Number(v))}
+                    >
+                      <SelectTrigger
+                        size="sm"
+                        data-testid="contour-step-select"
+                        aria-label={t('viewport.contourStep')}
+                        className="h-7 w-24 font-mono text-xs"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CONTOUR_STEPS.map((step) => (
+                          <SelectItem key={step} value={String(step)}>
+                            {step} mm
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
 
-        <div className="flex items-center gap-1">
-          <span
-            data-testid="viewport-zoom-pct"
-            className="text-muted-foreground mr-1 min-w-12 text-right font-mono text-xs"
-          >
-            {Math.round(pane2D.zoom * 100)}%
-          </span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                data-testid="btn-zoom-fit"
-                onClick={fitView}
-                className="gap-1 text-xs"
+            <div className="flex items-center gap-1">
+              <span
+                data-testid="viewport-zoom-pct"
+                className="text-muted-foreground mr-1 min-w-12 text-right font-mono text-xs"
               >
-                <Maximize2 className="size-3.5" />
-                {t('viewport.zoomFit')}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('viewport.zoomFitTooltip')}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                data-testid="btn-zoom-100"
-                onClick={setZoom100}
-                className="gap-1 font-mono text-xs"
-              >
-                <Scan className="size-3.5" />
-                {t('viewport.zoom100')}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('viewport.zoom100Tooltip')}</TooltipContent>
-          </Tooltip>
-        </div>
+                {Math.round(pane2D.zoom * 100)}%
+              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    data-testid="btn-zoom-fit"
+                    onClick={fitView}
+                    className="gap-1 text-xs"
+                  >
+                    <Maximize2 className="size-3.5" />
+                    {t('viewport.zoomFit')}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('viewport.zoomFitTooltip')}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    data-testid="btn-zoom-100"
+                    onClick={setZoom100}
+                    className="gap-1 font-mono text-xs"
+                  >
+                    <Scan className="size-3.5" />
+                    {t('viewport.zoom100')}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('viewport.zoom100Tooltip')}</TooltipContent>
+              </Tooltip>
+            </div>
+          </>
+        )}
       </div>
 
       <div
@@ -422,19 +524,32 @@ export function ViewportHost() {
         <canvas
           ref={overlayCanvasRef}
           data-testid="viewport-overlay-canvas"
-          className="pointer-events-none absolute inset-0 block h-full w-full"
+          className={`pointer-events-none absolute inset-0 block h-full w-full ${
+            layout === '3d' ? 'hidden' : ''
+          }`}
         />
 
-        <div className="pointer-events-none absolute right-3 bottom-3 flex flex-col gap-2">
-          {activeFlatMode === 'height' && (
-            <HeightLegend
-              mode={heightDisplay}
-              minMm={canvas.minThicknessMm}
-              maxMm={canvas.maxThicknessMm}
-            />
-          )}
-          {activeFlatMode === 'opacity' && <OpacityLegend />}
-        </div>
+        {layout === '3d' && (
+          <div
+            data-testid="badge-relief-multiplier"
+            className="border-primary/40 bg-card/85 text-primary pointer-events-none absolute top-3 left-3 rounded-md border px-2 py-1 font-mono text-xs font-medium backdrop-blur-sm"
+          >
+            {t('viewport.reliefBadge', { mult: view3d.reliefMultiplier })}
+          </div>
+        )}
+
+        {layout !== '3d' && (
+          <div className="pointer-events-none absolute right-3 bottom-3 flex flex-col gap-2">
+            {activeFlatMode === 'height' && (
+              <HeightLegend
+                mode={heightDisplay}
+                minMm={canvas.minThicknessMm}
+                maxMm={canvas.maxThicknessMm}
+              />
+            )}
+            {activeFlatMode === 'opacity' && <OpacityLegend />}
+          </div>
+        )}
       </div>
     </section>
   );

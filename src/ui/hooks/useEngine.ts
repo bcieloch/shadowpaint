@@ -23,6 +23,7 @@ export interface UseEngineResult {
   viewportSize: ViewportSize;
   fitView: () => void;
   setZoom100: () => void;
+  resetView3D: () => void;
   setCursor: (cursor: OverlayCursorState | null) => void;
 }
 
@@ -45,7 +46,11 @@ export function useEngine(): UseEngineResult {
     const overlay = overlayRef.current;
     if (!overlay) return;
     const { canvas } = useProjectStore.getState().project;
-    const { pane2D } = useEditorStore.getState();
+    const { layout, pane2D } = useEditorStore.getState();
+    if (layout === '3d') {
+      overlay.clear();
+      return;
+    }
     overlay.render({
       viewport: viewportSizeRef.current,
       imageWidth: canvas.widthPx,
@@ -61,7 +66,10 @@ export function useEngine(): UseEngineResult {
     const project = useProjectStore.getState().project;
     const editor = useEditorStore.getState();
     engine.setRenderParams({
+      layout: editor.layout,
       canvas: project.canvas,
+      material: project.material,
+      view3d: project.view3d,
       viewMode2D: toFlatRenderMode(editor.viewMode2D),
       heightDisplay: editor.heightDisplay,
       contourStepMm: editor.heightContourStepMm,
@@ -79,6 +87,10 @@ export function useEngine(): UseEngineResult {
 
   const setZoom100 = useCallback(() => {
     useEditorStore.getState().setPane2D(zoom100(viewportSizeRef.current));
+  }, []);
+
+  const resetView3D = useCallback(() => {
+    engineRef.current?.resetView3D();
   }, []);
 
   const setCursor = useCallback(
@@ -119,7 +131,9 @@ export function useEngine(): UseEngineResult {
         getMemoryInfo: () => engine?.getMemoryInfo() ?? { geometries: 0, textures: 0, programs: 0 },
         getBuiltDimensions: () =>
           engine?.getBuiltDimensions() ?? { widthPx: 0, heightPx: 0, widthCm: 0, heightCm: 0 },
+        get3DStats: () => engine?.get3DStats() ?? null,
         readFlatCanvasRgba: (w, h) => engine?.readFlatCanvasRgba(w, h) ?? new Uint8Array(0),
+        read3DViewportRgba: (w, h) => engine?.read3DViewportRgba(w, h) ?? new Uint8Array(0),
         getMapEffectiveRgba: () =>
           mapRegistry.isAllocated ? mapRegistry.color.effective : new Uint8ClampedArray(0),
         emitColorDirtyPixel: (x, y, rgba) => {
@@ -134,6 +148,22 @@ export function useEngine(): UseEngineResult {
           mapRegistry.color.effective[idx + 2] = rgba[2];
           mapRegistry.color.effective[idx + 3] = rgba[3];
           mapRegistry.emitDirty('color', { x, y, w: 1, h: 1 });
+        },
+        emitHeightDirtyBlock: (x, y, w, h, value) => {
+          if (!mapRegistry.isAllocated) return;
+          const x0 = Math.max(0, Math.floor(x));
+          const y0 = Math.max(0, Math.floor(y));
+          const x1 = Math.min(mapRegistry.width, Math.ceil(x + w));
+          const y1 = Math.min(mapRegistry.height, Math.ceil(y + h));
+          for (let py = y0; py < y1; py++) {
+            const row = py * mapRegistry.width;
+            for (let px = x0; px < x1; px++) {
+              const idx = row + px;
+              mapRegistry.heightMap.working[idx] = value;
+              mapRegistry.heightMap.effective[idx] = value;
+            }
+          }
+          mapRegistry.emitDirty('height', { x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
         },
       };
     }
@@ -213,6 +243,7 @@ export function useEngine(): UseEngineResult {
     viewportSize,
     fitView,
     setZoom100,
+    resetView3D,
     setCursor,
   };
 }

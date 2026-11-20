@@ -1,7 +1,12 @@
 import type { Vec2 } from '@/core/types';
 import { brushSizeToPx, getCalibrationMetrics } from '@/core/units/calibration';
 import type { OverlayCursorState } from '@/editor2d/overlay/OverlayRenderer';
-import { createToolRegistry, type Tool, type ToolContext, type ToolPointerEvent } from '@/editor2d/tools';
+import {
+  createToolRegistry,
+  type Tool,
+  type ToolContext,
+  type ToolPointerEvent,
+} from '@/editor2d/tools';
 import { screenToImagePx, type ViewportSize } from '@/editor2d/viewTransform';
 import type { EditorState, Pane2DState, ToolId } from '@/state/editorStore';
 
@@ -28,6 +33,7 @@ export class PointerRouter {
   private readonly deps: PointerRouterDeps;
   private readonly tools: Partial<Record<ToolId, Tool>>;
 
+  private enabled = true;
   private spacePressed = false;
   private panDrag: PanDragState | null = null;
   private activeTool: Tool | null = null;
@@ -48,12 +54,22 @@ export class PointerRouter {
     this.element.addEventListener('auxclick', this.handleAuxClick);
   }
 
+  setEnabled(enabled: boolean): void {
+    if (this.enabled === enabled) return;
+    this.enabled = enabled;
+    if (!enabled) {
+      this.cancelActive();
+      this.lastScreenPos = null;
+      this.deps.setCursor(null);
+    }
+  }
+
   setSpacePressed(pressed: boolean): void {
     this.spacePressed = pressed;
   }
 
   refreshCursor(): void {
-    if (!this.lastScreenPos) return;
+    if (!this.enabled || !this.lastScreenPos) return;
     this.emitCursor(this.lastScreenPos);
   }
 
@@ -98,7 +114,7 @@ export class PointerRouter {
   }
 
   private readonly handlePointerDown = (e: PointerEvent): void => {
-    if (this.disposed) return;
+    if (this.disposed || !this.enabled) return;
     this.blurActiveEditable();
     const editor = this.deps.getEditor();
 
@@ -137,7 +153,7 @@ export class PointerRouter {
   };
 
   private readonly handlePointerMove = (e: PointerEvent): void => {
-    if (this.disposed) return;
+    if (this.disposed || !this.enabled) return;
 
     const screenPos = this.toScreenPos(e);
     this.lastScreenPos = screenPos;
@@ -154,8 +170,7 @@ export class PointerRouter {
     }
 
     if (this.activeTool && this.activePointerId === e.pointerId) {
-      const coalesced =
-        typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+      const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
       const events = coalesced.length > 0 ? coalesced : [e];
       for (const ce of events) {
         const ceScreen = this.toScreenPos(ce);
@@ -170,7 +185,7 @@ export class PointerRouter {
   };
 
   private readonly handlePointerUp = (e: PointerEvent): void => {
-    if (this.disposed) return;
+    if (this.disposed || !this.enabled) return;
 
     if (this.panDrag && this.panDrag.pointerId === e.pointerId) {
       this.releaseCaptureSafe(e.pointerId);
@@ -189,7 +204,7 @@ export class PointerRouter {
   };
 
   private readonly handlePointerCancel = (e: PointerEvent): void => {
-    if (this.disposed) return;
+    if (this.disposed || !this.enabled) return;
 
     if (this.panDrag && this.panDrag.pointerId === e.pointerId) {
       this.releaseCaptureSafe(e.pointerId);
@@ -207,12 +222,13 @@ export class PointerRouter {
   };
 
   private readonly handlePointerLeave = (): void => {
-    if (this.activePointerId !== null || this.panDrag !== null) return;
+    if (!this.enabled || this.activePointerId !== null || this.panDrag !== null) return;
     this.lastScreenPos = null;
     this.deps.setCursor(null);
   };
 
   private readonly handleAuxClick = (e: MouseEvent): void => {
+    if (!this.enabled) return;
     if (e.button === 1) {
       e.preventDefault();
     }

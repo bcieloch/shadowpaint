@@ -27,6 +27,13 @@ export interface MeshSegmentMetrics {
   vertices: number;
 }
 
+export interface DisplacementParams {
+  displacementScale: number;
+  displacementBias: number;
+  minDisplacementCm: number;
+  maxDisplacementCm: number;
+}
+
 export function getCalibrationMetrics(canvas: CanvasSettings): CalibrationMetrics {
   const pxPerCmX = canvas.widthPx / canvas.widthCm;
   const pxPerCmY = canvas.heightPx / canvas.heightCm;
@@ -54,6 +61,21 @@ export function computeMeshSegments(
     segX,
     segY,
     vertices: (segX + 1) * (segY + 1),
+  };
+}
+
+export function computeDisplacementParams(
+  minThicknessMm: number,
+  maxThicknessMm: number,
+  reliefMultiplier: number,
+): DisplacementParams {
+  const displacementScale = ((maxThicknessMm - minThicknessMm) / MM_PER_CM) * reliefMultiplier;
+  const displacementBias = (minThicknessMm / MM_PER_CM) * reliefMultiplier;
+  return {
+    displacementScale,
+    displacementBias,
+    minDisplacementCm: displacementBias,
+    maxDisplacementCm: displacementBias + displacementScale,
   };
 }
 
