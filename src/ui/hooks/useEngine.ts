@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { mapRegistry } from '@/core/maps/MapRegistry';
+import type { Vec2 } from '@/core/types';
 import { OverlayRenderer, type OverlayCursorState } from '@/editor2d/overlay/OverlayRenderer';
 import { fitToViewport, zoom100, type ViewportSize } from '@/editor2d/viewTransform';
 import { Engine } from '@/engine3d/Engine';
@@ -8,6 +9,7 @@ import { detectWebGL2Support } from '@/lib/webgl';
 import { ensureInitialProjectAllocated } from '@/services/projectService';
 import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
+import { clearCursorReadout, refreshCursorReadout } from '@/state/readoutStore';
 import { useI18n } from '@/ui/hooks/useI18n';
 
 export interface UseEngineResult {
@@ -19,6 +21,7 @@ export interface UseEngineResult {
   setZoom100: () => void;
   resetView3D: () => void;
   setCursor: (cursor: OverlayCursorState | null) => void;
+  raycast3DCanvasPx: (clientX: number, clientY: number) => Vec2 | null;
 }
 
 export function useEngine(): UseEngineResult {
@@ -96,6 +99,13 @@ export function useEngine(): UseEngineResult {
     },
     [renderOverlay],
   );
+
+  const raycast3DCanvasPx = useCallback((clientX: number, clientY: number): Vec2 | null => {
+    const engine = engineRef.current;
+    const container = containerRef.current;
+    if (!engine || !container) return null;
+    return engine.raycast3DCanvasPx(clientX, clientY, container.getBoundingClientRect());
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -247,22 +257,30 @@ export function useEngine(): UseEngineResult {
         }
       }
       syncEngineParams();
+      refreshCursorReadout();
     });
 
     const unsubEditor = useEditorStore.subscribe(() => {
       syncEngineParams();
     });
 
+    const unsubMapDirty = mapRegistry.events.on('dirty', () => {
+      refreshCursorReadout();
+    });
+
     const unsubMapReplaced = mapRegistry.events.on('replaced', ({ mapId }) => {
       if (mapId === 'all') {
         syncEngineParams();
       }
+      refreshCursorReadout();
     });
 
     return () => {
+      clearCursorReadout();
       observer.disconnect();
       unsubProject();
       unsubEditor();
+      unsubMapDirty();
       unsubMapReplaced();
       if (window.__shadowpaintDebug) {
         delete window.__shadowpaintDebug;
@@ -282,5 +300,6 @@ export function useEngine(): UseEngineResult {
     setZoom100,
     resetView3D,
     setCursor,
+    raycast3DCanvasPx,
   };
 }

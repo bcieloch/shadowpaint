@@ -8,8 +8,10 @@ import type {
   MapId,
   MaterialSettings,
   Rect,
+  Vec2,
   View3DSettings,
 } from '@/core/types';
+import { worldXYToPx } from '@/core/units/calibration';
 import { type ViewportSize, type ViewTransformState } from '@/editor2d/viewTransform';
 import { Orbit3D } from '@/engine3d/cameras/Orbit3D';
 import { Ortho2D } from '@/engine3d/cameras/Ortho2D';
@@ -91,6 +93,10 @@ export class Engine {
   private readonly ortho2D: Ortho2D;
   private readonly orbit3D: Orbit3D;
   private readonly callbacks: EngineCallbacks;
+  private readonly raycaster = new THREE.Raycaster();
+  private readonly rayNdc = new THREE.Vector2();
+  private readonly canvasPlaneZ0 = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  private readonly rayHit = new THREE.Vector3();
 
   private mapTextures: MapTextures | null = null;
   private flatMaterial: THREE.ShaderMaterial | null = null;
@@ -686,6 +692,42 @@ export class Engine {
 
   getMaxTextureSize(): number {
     return this.renderer.capabilities.maxTextureSize;
+  }
+
+  raycast3DCanvasPx(
+    clientX: number,
+    clientY: number,
+    rect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
+  ): Vec2 | null {
+    if (
+      this.disposed ||
+      !this.params ||
+      !this.registry.isAllocated ||
+      this.params.layout !== '3d' ||
+      rect.width <= 0 ||
+      rect.height <= 0
+    ) {
+      return null;
+    }
+
+    this.rayNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.rayNdc.y = -(((clientY - rect.top) / rect.height) * 2 - 1);
+    this.raycaster.setFromCamera(this.rayNdc, this.orbit3D.camera);
+    const hit = this.raycaster.ray.intersectPlane(this.canvasPlaneZ0, this.rayHit);
+    if (!hit) return null;
+
+    const { canvas } = this.params;
+    const halfW = canvas.widthCm / 2;
+    const halfH = canvas.heightCm / 2;
+    if (hit.x < -halfW || hit.x > halfW || hit.y < -halfH || hit.y > halfH) {
+      return null;
+    }
+
+    const px = worldXYToPx(hit.x, hit.y, canvas);
+    return {
+      x: Math.min(canvas.widthPx - 1e-4, Math.max(0, px.x)),
+      y: Math.min(canvas.heightPx - 1e-4, Math.max(0, px.y)),
+    };
   }
 
   private flushPendingResources(): void {

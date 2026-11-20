@@ -18,6 +18,11 @@ export const pl: TranslationDictionary = {
     rightPanelTitle: 'Inspektor',
     viewportTitle: 'Obszar podglądu',
     statusBarReady: 'Gotowy',
+    readoutCoords: 'x {xPx} px / {xCm} cm · y {yPx} px / {yCm} cm',
+    readoutRgb: 'RGB {hex}',
+    readoutHeight: 'H {mm} mm (L={level} → {mmL} mm)',
+    readoutOpacity: 'T {pct} %',
+    readoutBackT: 'tył T {pct} %',
     webgl2RequiredTitle: 'Wymagany WebGL2',
     webgl2RequiredDescription:
       'ShadowPaint wymaga przeglądarki i sterownika GPU ze wsparciem WebGL2 do renderowania reliefu oraz symulacji światła. Włącz akcelerację sprzętową lub użyj wspieranej przeglądarki.',

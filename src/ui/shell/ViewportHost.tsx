@@ -14,6 +14,7 @@ import {
 } from '@/services/historyService';
 import { useEditorStore, type HeightDisplayMode } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
+import { clearCursorReadout, scheduleCursorReadout } from '@/state/readoutStore';
 import { useUiStore } from '@/state/uiStore';
 import { Button } from '@/ui/components/ui/button';
 import {
@@ -89,6 +90,7 @@ export function ViewportHost() {
     setZoom100,
     resetView3D,
     setCursor,
+    raycast3DCanvasPx,
   } = useEngine();
 
   const [spacePressed, setSpacePressed] = useState(false);
@@ -113,6 +115,7 @@ export function ViewportHost() {
       getEditor: () => useEditorStore.getState(),
       setPane2D: (pane) => useEditorStore.getState().setPane2D(pane),
       setCursor,
+      onCursorImageMove: scheduleCursorReadout,
       onPanningChange: setIsPanning,
       toolContext: {
         registry: mapRegistry,
@@ -149,7 +152,25 @@ export function ViewportHost() {
 
   useEffect(() => {
     pointerRouterRef.current?.setEnabled(layout !== '3d');
-  }, [layout]);
+    clearCursorReadout();
+    if (layout !== '3d') return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleMove3D = (e: PointerEvent) => {
+      scheduleCursorReadout(raycast3DCanvasPx(e.clientX, e.clientY));
+    };
+    const handleLeave3D = () => {
+      scheduleCursorReadout(null);
+    };
+
+    el.addEventListener('pointermove', handleMove3D);
+    el.addEventListener('pointerleave', handleLeave3D);
+    return () => {
+      el.removeEventListener('pointermove', handleMove3D);
+      el.removeEventListener('pointerleave', handleLeave3D);
+    };
+  }, [containerRef, layout, raycast3DCanvasPx]);
 
   // Refresh overlay cursor ring when tool or brush size changes
   useEffect(() => {
