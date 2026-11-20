@@ -9,7 +9,8 @@ import {
 export type SelectionDraftPreview =
   | { kind: 'rect'; rect: Rect }
   | { kind: 'ellipse'; rect: Rect }
-  | { kind: 'lasso'; points: readonly Vec2[] };
+  | { kind: 'lasso'; points: readonly Vec2[] }
+  | { kind: 'stroke'; points: readonly Vec2[] };
 
 export interface OverlayCursorState {
   screenPos: Vec2;
@@ -236,7 +237,9 @@ export class OverlayRenderer {
           );
           ctx.lineTo(sp.x, sp.y);
         }
-        ctx.closePath();
+        if (draft.kind === 'lasso') {
+          ctx.closePath();
+        }
       });
     }
 

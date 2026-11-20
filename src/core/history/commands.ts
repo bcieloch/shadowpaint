@@ -22,6 +22,8 @@ export const DEFAULT_HISTORY_MAX_STEPS = 200;
 export type HistoryActionKind =
   | 'brushStroke'
   | 'eraserStroke'
+  | 'smoothStroke'
+  | 'blurStroke'
   | 'smoothMap'
   | 'importMap'
   | 'adjustment'

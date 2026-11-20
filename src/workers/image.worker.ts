@@ -14,7 +14,11 @@ import type {
   MapId,
   OpacityAdjustments,
 } from '@/core/types';
-import { gaussianBlurFloat32 } from '@/imaging/blur';
+import {
+  gaussianBlurFloat32,
+  gaussianBlurPatchInnerFloat32,
+  gaussianBlurPatchInnerRgba8,
+} from '@/imaging/blur';
 import {
   decodeTiffBuffer,
   ImageDecodeError,
@@ -255,6 +259,52 @@ const imageWorkerApi = {
     const out = new Float32Array(working.length);
     applyOpacityAdjustments(working, out, width, height, params);
     return transfer(out, [out.buffer]);
+  },
+
+  blurRegion(
+    params: {
+      mapId: MapId;
+      patchW: number;
+      patchH: number;
+      innerX: number;
+      innerY: number;
+      innerW: number;
+      innerH: number;
+      radiusPx: number;
+      rgba8?: Uint8ClampedArray;
+      scalar?: Float32Array;
+    },
+    onProgress?: ProgressCallback,
+  ): { rgba8?: Uint8ClampedArray; scalar?: Float32Array } {
+    const inner = {
+      x: params.innerX,
+      y: params.innerY,
+      w: params.innerW,
+      h: params.innerH,
+    };
+    if (params.mapId === 'color' && params.rgba8) {
+      const out = gaussianBlurPatchInnerRgba8(
+        params.rgba8,
+        params.patchW,
+        params.patchH,
+        inner,
+        params.radiusPx,
+        onProgress,
+      );
+      return transfer({ rgba8: out }, [out.buffer]);
+    }
+    if (params.scalar) {
+      const out = gaussianBlurPatchInnerFloat32(
+        params.scalar,
+        params.patchW,
+        params.patchH,
+        inner,
+        params.radiusPx,
+        onProgress,
+      );
+      return transfer({ scalar: out }, [out.buffer]);
+    }
+    return {};
   },
 
   smoothFloatMap(

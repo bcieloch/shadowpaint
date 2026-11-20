@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { getCalibrationMetrics } from '@/core/units/calibration';
+import { brushSizeToPx, getCalibrationMetrics } from '@/core/units/calibration';
+import { BLUR_REALTIME_MAX_RADIUS_PX } from '@/editor2d/tools/BlurTool';
 import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
 import { Input } from '@/ui/components/ui/input';
@@ -66,13 +67,20 @@ export function ToolOptions() {
   const tool = useEditorStore((s) => s.tool);
   const activeMap = useEditorStore((s) => s.activeMap);
   const brush = useEditorStore((s) => s.brush);
+  const smoothTool = useEditorStore((s) => s.smoothTool);
+  const blurTool = useEditorStore((s) => s.blurTool);
   const setBrushOption = useEditorStore((s) => s.setBrushOption);
+  const setSmoothToolOption = useEditorStore((s) => s.setSmoothToolOption);
+  const setBlurToolOption = useEditorStore((s) => s.setBlurToolOption);
   const canvas = useProjectStore((s) => s.project.canvas);
 
   const metrics = getCalibrationMetrics(canvas);
   const pxPerCm = Math.max(0.001, metrics.pxPerCm);
   const maxCm = Math.max(0.5, Number((2000 / pxPerCm).toFixed(2)));
   const minCm = Math.max(0.05, Number((1 / pxPerCm).toFixed(2)));
+
+  const maxBlurCm = Math.max(0.2, Number((100 / pxPerCm).toFixed(2)));
+  const minBlurCm = Math.max(0.02, Number((1 / pxPerCm).toFixed(2)));
 
   const handleSizeUnitChange = (nextUnit: string) => {
     if (nextUnit !== 'px' && nextUnit !== 'cm') return;
@@ -91,7 +99,31 @@ export function ToolOptions() {
     }
   };
 
-  const showBrushSliders = tool === 'brush' || tool === 'eraser' || tool === 'maskBrush';
+  const handleBlurUnitChange = (nextUnit: string) => {
+    if (nextUnit !== 'px' && nextUnit !== 'cm') return;
+    if (nextUnit === blurTool.radiusUnit) return;
+    if (nextUnit === 'cm') {
+      const nextCm = Math.max(
+        minBlurCm,
+        Math.min(maxBlurCm, Number((blurTool.radiusValue / pxPerCm).toFixed(2))),
+      );
+      setBlurToolOption('radiusUnit', 'cm');
+      setBlurToolOption('radiusValue', nextCm);
+    } else {
+      const nextPx = Math.max(1, Math.min(100, Math.round(blurTool.radiusValue * pxPerCm)));
+      setBlurToolOption('radiusUnit', 'px');
+      setBlurToolOption('radiusValue', nextPx);
+    }
+  };
+
+  const showBrushSliders =
+    tool === 'brush' ||
+    tool === 'eraser' ||
+    tool === 'smooth' ||
+    tool === 'blur' ||
+    tool === 'maskBrush';
+
+  const blurKernelRadiusPx = brushSizeToPx(blurTool.radiusValue, blurTool.radiusUnit, pxPerCm);
 
   return (
     <section className="space-y-3 p-3">
@@ -133,6 +165,7 @@ export function ToolOptions() {
             step={brush.sizeUnit === 'px' ? 1 : 0.1}
             decimals={brush.sizeUnit === 'px' ? 0 : 2}
             suffix={brush.sizeUnit}
+            testId="brush-size-input"
             onValueChange={(v) => setBrushOption('sizeValue', v)}
           />
 
@@ -256,6 +289,75 @@ export function ToolOptions() {
             <p className="text-muted-foreground text-[11px] leading-relaxed">
               {t('toolOptions.eraserHint')}
             </p>
+          )}
+
+          {tool === 'smooth' && (
+            <div className="border-border space-y-2.5 border-t pt-2.5">
+              <LabeledSlider
+                label={t('toolOptions.smoothIterations')}
+                value={smoothTool.iterations}
+                min={1}
+                max={10}
+                step={1}
+                decimals={0}
+                testId="smooth-iterations-input"
+                onValueChange={(v) => setSmoothToolOption('iterations', Math.round(v))}
+              />
+              <p className="text-muted-foreground text-[11px] leading-relaxed">
+                {t('toolOptions.smoothHint')}
+              </p>
+            </div>
+          )}
+
+          {tool === 'blur' && (
+            <div className="border-border space-y-2.5 border-t pt-2.5">
+              <LabeledSlider
+                label={t('toolOptions.blurRadius')}
+                headerExtra={
+                  <ToggleGroup
+                    type="single"
+                    size="sm"
+                    variant="outline"
+                    value={blurTool.radiusUnit}
+                    onValueChange={handleBlurUnitChange}
+                  >
+                    <ToggleGroupItem
+                      value="px"
+                      data-testid="blur-unit-px"
+                      className="h-5 px-1.5 font-mono text-[10px]"
+                    >
+                      {t('toolOptions.unitPx')}
+                    </ToggleGroupItem>
+                    <ToggleGroupItem
+                      value="cm"
+                      data-testid="blur-unit-cm"
+                      className="h-5 px-1.5 font-mono text-[10px]"
+                    >
+                      {t('toolOptions.unitCm')}
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                }
+                value={blurTool.radiusValue}
+                min={blurTool.radiusUnit === 'px' ? 1 : minBlurCm}
+                max={blurTool.radiusUnit === 'px' ? 100 : maxBlurCm}
+                step={blurTool.radiusUnit === 'px' ? 1 : 0.05}
+                decimals={blurTool.radiusUnit === 'px' ? 0 : 2}
+                suffix={blurTool.radiusUnit}
+                testId="blur-radius-input"
+                onValueChange={(v) => setBlurToolOption('radiusValue', v)}
+              />
+              <p className="text-muted-foreground text-[11px] leading-relaxed">
+                {t('toolOptions.blurHint')}
+              </p>
+              {blurKernelRadiusPx > BLUR_REALTIME_MAX_RADIUS_PX && (
+                <p
+                  data-testid="blur-worker-hint"
+                  className="text-[11px] leading-relaxed text-amber-400/90"
+                >
+                  {t('toolOptions.blurWorkerHint')}
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}

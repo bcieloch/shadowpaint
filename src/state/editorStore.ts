@@ -38,6 +38,15 @@ export interface BrushOptions {
   opacityPct: number;
 }
 
+export interface SmoothToolOptions {
+  iterations: number;
+}
+
+export interface BlurToolOptions {
+  radiusValue: number;
+  radiusUnit: 'px' | 'cm';
+}
+
 export interface SelectionToolOptions {
   combineMode: SelectionCombineMode;
   wandTolerancePct: number;
@@ -61,6 +70,8 @@ export interface EditorState {
   activeMap: MapId;
   tool: ToolId;
   brush: BrushOptions;
+  smoothTool: SmoothToolOptions;
+  blurTool: BlurToolOptions;
   selectionTools: SelectionToolOptions;
   hasSelection: boolean;
   showMaskOverlay: boolean;
@@ -77,6 +88,11 @@ export interface EditorState {
   setActiveMap: (mapId: MapId) => void;
   setTool: (tool: ToolId) => void;
   setBrushOption: <K extends keyof BrushOptions>(key: K, value: BrushOptions[K]) => void;
+  setSmoothToolOption: <K extends keyof SmoothToolOptions>(
+    key: K,
+    value: SmoothToolOptions[K],
+  ) => void;
+  setBlurToolOption: <K extends keyof BlurToolOptions>(key: K, value: BlurToolOptions[K]) => void;
   setSelectionToolOption: <K extends keyof SelectionToolOptions>(
     key: K,
     value: SelectionToolOptions[K],
@@ -110,6 +126,13 @@ export const useEditorStore = create<EditorState>((set) => ({
     heightMm: 2.5,
     opacityPct: 50,
   },
+  smoothTool: {
+    iterations: 2,
+  },
+  blurTool: {
+    radiusValue: 6,
+    radiusUnit: 'px',
+  },
   selectionTools: {
     combineMode: 'replace',
     wandTolerancePct: 12,
@@ -132,6 +155,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   setActiveMap: (activeMap) => set({ activeMap }),
   setTool: (tool) => set({ tool }),
   setBrushOption: (key, value) => set((s) => ({ brush: { ...s.brush, [key]: value } })),
+  setSmoothToolOption: (key, value) =>
+    set((s) => ({ smoothTool: { ...s.smoothTool, [key]: value } })),
+  setBlurToolOption: (key, value) => set((s) => ({ blurTool: { ...s.blurTool, [key]: value } })),
   setSelectionToolOption: (key, value) =>
     set((s) => ({ selectionTools: { ...s.selectionTools, [key]: value } })),
   setHasSelection: (hasSelection) => set({ hasSelection }),
