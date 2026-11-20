@@ -6,7 +6,12 @@ import {
   type SingleExportInput,
 } from '@/export/package';
 import { deflateBytesSync, inflateBytesSync } from '@/persistence/codec';
-import { packReliefProject, type PackReliefProjectInput } from '@/persistence/projectArchive';
+import {
+  packReliefProject,
+  unpackReliefProject,
+  type PackReliefProjectInput,
+  type UnpackedReliefProject,
+} from '@/persistence/projectArchive';
 import { encodeThumbnailPngSync } from '@/persistence/thumbnail';
 
 const ioWorkerApi = {
@@ -60,6 +65,25 @@ const ioWorkerApi = {
   ): Uint8Array {
     const zipBytes = packReliefProject({ ...input, onProgress });
     return transfer(zipBytes, [zipBytes.buffer]);
+  },
+
+  unpackReliefProject(
+    zipBytes: Uint8Array,
+    onProgress?: (progress01: number) => void,
+  ): UnpackedReliefProject {
+    const unpacked = unpackReliefProject(zipBytes, onProgress);
+    return transfer(unpacked, [
+      unpacked.colorBase.buffer,
+      unpacked.colorWorking.buffer,
+      unpacked.colorEffective.buffer,
+      unpacked.heightBase.buffer,
+      unpacked.heightWorking.buffer,
+      unpacked.heightEffective.buffer,
+      unpacked.opacityBase.buffer,
+      unpacked.opacityWorking.buffer,
+      unpacked.opacityEffective.buffer,
+      unpacked.selection.buffer,
+    ]);
   },
 };
 

@@ -6,6 +6,7 @@ import { getCalibrationMetrics } from '@/core/units/calibration';
 import { PointerRouter } from '@/editor2d/input/PointerRouter';
 import { zoomAtPoint, type ViewportSize } from '@/editor2d/viewTransform';
 import { exportPackage } from '@/services/exportService';
+import { saveProjectRelief, triggerOpenProjectDialog } from '@/services/fileService';
 import {
   recordSettingsPatchHistory,
   recordTileHistory,
@@ -315,6 +316,15 @@ export function ViewportHost() {
         } else if (e.key === '1') {
           e.preventDefault();
           setZoom100();
+        } else if (!e.altKey && !e.shiftKey && lower === 'o') {
+          e.preventDefault();
+          triggerOpenProjectDialog();
+        } else if (!e.altKey && e.shiftKey && lower === 's') {
+          e.preventDefault();
+          void saveProjectRelief({ saveAs: true });
+        } else if (!e.altKey && !e.shiftKey && lower === 's') {
+          e.preventDefault();
+          void saveProjectRelief();
         } else if (!e.altKey && !e.shiftKey && lower === 'e') {
           e.preventDefault();
           void exportPackage();

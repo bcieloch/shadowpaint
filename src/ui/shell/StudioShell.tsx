@@ -3,6 +3,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '@/ui/components/ui/resizable';
+import { ConfirmUnsavedDialog } from '@/ui/dialogs/ConfirmUnsavedDialog';
 import { ImportWizardDialog } from '@/ui/dialogs/ImportWizard/ImportWizardDialog';
 import { NewProjectDialog } from '@/ui/dialogs/NewProjectDialog';
 import { RecentProjectsDialog } from '@/ui/dialogs/RecentProjectsDialog';
@@ -38,6 +39,7 @@ export function StudioShell() {
       <ImportWizardDialog />
       <RecentProjectsDialog />
       <RestoreSessionDialog />
+      <ConfirmUnsavedDialog />
       <WindowDropOverlay />
     </div>
   );

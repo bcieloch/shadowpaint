@@ -36,10 +36,14 @@ describe('StudioShell and WebGL2Gate', () => {
 
     expect(screen.getByTestId('topbar-project-name')).toHaveTextContent('Untitled');
     expect(screen.getByText('Workspace & Tools')).toBeInTheDocument();
+    expect(screen.getByTestId('btn-open-project')).toHaveTextContent('Open');
+    expect(screen.getByTestId('btn-save-menu')).toHaveTextContent('Save');
 
     fireEvent.click(screen.getByTestId('lang-pl'));
     expect(screen.getByTestId('topbar-project-name')).toHaveTextContent('Bez tytułu');
     expect(screen.getByText('Obszar roboczy i narzędzia')).toBeInTheDocument();
+    expect(screen.getByTestId('btn-open-project')).toHaveTextContent('Otwórz');
+    expect(screen.getByTestId('btn-save-menu')).toHaveTextContent('Zapisz');
   });
 
   it('renders GitHub repository link and author/idea credits in both EN and PL', () => {

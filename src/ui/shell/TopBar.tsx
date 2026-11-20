@@ -1,16 +1,28 @@
+import { useCallback, useEffect, useRef } from 'react';
 import {
   Archive,
   Box,
+  ChevronDown,
+  Download,
   ExternalLink,
   FilePlus2,
+  FolderOpen,
   Info,
   Layers3,
   Redo2,
+  Save,
+  SaveAll,
   Square,
   Undo2,
 } from 'lucide-react';
 import { AUTHOR_NAME, IDEA_AUTHOR_NAME, LICENSE_SPDX, REPOSITORY_URL } from '@/core/constants';
+import { pickReliefFileWithFsAccess, supportsFileSystemAccess } from '@/persistence/fileAccess';
 import { exportPackage } from '@/services/exportService';
+import {
+  OPEN_PROJECT_EVENT,
+  requestOpenReliefFile,
+  saveProjectRelief,
+} from '@/services/fileService';
 import { formatHistoryMeta, redoGlobal, undoGlobal } from '@/services/historyService';
 import { useEditorStore } from '@/state/editorStore';
 import {
@@ -22,6 +34,14 @@ import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { Badge } from '@/ui/components/ui/badge';
 import { Button } from '@/ui/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@/ui/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/components/ui/popover';
 import { Separator } from '@/ui/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/components/ui/tooltip';
@@ -39,14 +59,37 @@ function GithubIcon({ className }: { className?: string }) {
 export function TopBar() {
   const { locale, setLocale, t } = useI18n();
   const projectName = useProjectStore((s) => s.project.name);
+  const isDirty = useProjectStore((s) => s.isDirty);
   const setDialogOpen = useUiStore((s) => s.setDialogOpen);
   const isTaskBusy = useUiStore((s) => s.tasks.length > 0);
   const layout = useEditorStore((s) => s.layout);
   const setLayout = useEditorStore((s) => s.setLayout);
   const undoEntry = useHistoryStore(selectGlobalUndoEntry);
   const redoEntry = useHistoryStore(selectGlobalRedoEntry);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const displayName = projectName === 'Untitled' ? t('app.untitledProject') : projectName;
+
+  const handleOpenProject = useCallback(async () => {
+    if (supportsFileSystemAccess()) {
+      const picked = await pickReliefFileWithFsAccess();
+      if (picked.status === 'picked') {
+        await requestOpenReliefFile(picked.file, picked.handle);
+      }
+      return;
+    }
+    fileInputRef.current?.click();
+  }, []);
+
+  useEffect(() => {
+    const onOpenRequest = () => {
+      void handleOpenProject();
+    };
+    window.addEventListener(OPEN_PROJECT_EVENT, onOpenRequest);
+    return () => {
+      window.removeEventListener(OPEN_PROJECT_EVENT, onOpenRequest);
+    };
+  }, [handleOpenProject]);
 
   const undoTooltip = undoEntry
     ? t('topbar.undoTooltip', { action: formatHistoryMeta(undoEntry.meta, t) })
@@ -58,26 +101,27 @@ export function TopBar() {
 
   return (
     <header className="border-border bg-card flex h-11 shrink-0 items-center justify-between border-b px-3 select-none">
-      <div className="flex items-center gap-2">
-        <div className="text-foreground flex items-center gap-1.5 font-semibold tracking-tight">
+      <div className="flex items-center gap-1.5">
+        <div className="text-foreground flex shrink-0 items-center gap-1.5 font-semibold tracking-tight">
           <Layers3 className="text-primary size-4" aria-hidden="true" />
           <span>{t('app.name')}</span>
         </div>
         <Separator orientation="vertical" className="h-4" />
         <span
-          className="text-muted-foreground max-w-44 truncate text-xs"
+          className="text-muted-foreground max-w-32 truncate text-xs 2xl:max-w-44"
           data-testid="topbar-project-name"
         >
           {displayName}
         </span>
         <Separator orientation="vertical" className="h-4" />
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               type="button"
               size="xs"
               variant="ghost"
-              className="gap-1.5"
+              className="shrink-0 gap-1"
               onClick={() => setDialogOpen('newProjectOpen', true)}
               data-testid="btn-new-project"
             >
@@ -88,13 +132,102 @@ export function TopBar() {
           <TooltipContent>{t('topbar.newProjectTooltip')}</TooltipContent>
         </Tooltip>
 
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".relief,.zip"
+          className="hidden"
+          data-testid="open-project-file-input"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) {
+              void requestOpenReliefFile(file);
+            }
+          }}
+        />
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               type="button"
               size="xs"
               variant="ghost"
-              className="gap-1.5"
+              className="shrink-0 gap-1"
+              disabled={isTaskBusy}
+              onClick={() => void handleOpenProject()}
+              data-testid="btn-open-project"
+            >
+              <FolderOpen className="size-3.5" />
+              <span>{t('topbar.openProject')}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('topbar.openProjectTooltip')}</TooltipContent>
+        </Tooltip>
+
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  className="shrink-0 gap-1"
+                  disabled={isTaskBusy}
+                  data-testid="btn-save-menu"
+                  data-dirty={isDirty ? 'true' : 'false'}
+                >
+                  <Save className="size-3.5" />
+                  <span>{t('topbar.saveMenu')}</span>
+                  {isDirty && (
+                    <span
+                      className="bg-primary size-1.5 rounded-full"
+                      data-testid="unsaved-dot"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <ChevronDown className="text-muted-foreground size-3" />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>{t('topbar.saveMenuTooltip')}</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="start" className="w-52">
+            <DropdownMenuItem
+              data-testid="menu-save"
+              onClick={() => void saveProjectRelief()}
+            >
+              <Save className="size-3.5" />
+              <span>{t('topbar.saveAction')}</span>
+              <DropdownMenuShortcut>Ctrl+S</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid="menu-save-as"
+              onClick={() => void saveProjectRelief({ saveAs: true })}
+            >
+              <SaveAll className="size-3.5" />
+              <span>{t('topbar.saveAsAction')}</span>
+              <DropdownMenuShortcut>Ctrl+Shift+S</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              data-testid="menu-download-relief"
+              onClick={() => void saveProjectRelief({ forceDownload: true })}
+            >
+              <Download className="size-3.5" />
+              <span>{t('topbar.downloadReliefAction')}</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              className="shrink-0 gap-1"
               disabled={isTaskBusy}
               onClick={() => void exportPackage()}
               data-testid="btn-export-package"
@@ -108,7 +241,7 @@ export function TopBar() {
 
         <Separator orientation="vertical" className="h-4" />
 
-        <div className="flex items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-0.5">
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-flex">
@@ -155,7 +288,7 @@ export function TopBar() {
         <Separator orientation="vertical" className="h-4" />
 
         <div
-          className="border-border bg-background flex items-center rounded-md border p-0.5"
+          className="border-border bg-background flex shrink-0 items-center rounded-md border p-0.5"
           role="group"
           aria-label={t('topbar.layoutLabel')}
         >
@@ -196,7 +329,7 @@ export function TopBar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5">
         <AutosaveIndicator />
         <Separator orientation="vertical" className="h-4" />
 

@@ -15,6 +15,7 @@ import {
 } from '@/imaging/resample';
 import { createDefaultTransform } from '@/imaging/transform';
 import { getMaxTextureSize } from '@/lib/webgl';
+import { clearActiveFileHandle } from '@/persistence/fileAccess';
 import { clearHistory, recordSettingsPatchHistory } from '@/services/historyService';
 import { useEditorStore } from '@/state/editorStore';
 import { useHistoryStore } from '@/state/historyStore';
@@ -53,6 +54,7 @@ export function createAndActivateProject(
     throw err;
   }
 
+  clearActiveFileHandle();
   useHistoryStore.getState().clearAll();
   useProjectStore.getState().setProject(settings, false);
   const editor = useEditorStore.getState();

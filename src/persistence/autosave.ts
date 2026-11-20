@@ -25,6 +25,7 @@ import {
   type StoredBinaryPayload,
   type ShadowPaintDb,
 } from '@/persistence/db';
+import { clearActiveFileHandle } from '@/persistence/fileAccess';
 import { migrateProjectSettings } from '@/persistence/migrations';
 import { packReliefProject } from '@/persistence/projectArchive';
 import { encodeThumbnailPngSync } from '@/persistence/thumbnail';
@@ -611,6 +612,7 @@ export async function restoreProjectFromIndexedDb(
       opacityEffective: decoded.opacityEffective,
       selection: decoded.selection,
     });
+    clearActiveFileHandle();
     useHistoryStore.getState().clearAll();
     useProjectStore.getState().setProject(decoded.settings, false);
     const editor = useEditorStore.getState();
