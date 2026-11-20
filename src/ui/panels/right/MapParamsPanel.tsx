@@ -1,5 +1,11 @@
-import { useMemo, useState } from 'react';
-import { computeFloatMapStats, recomputeEffectiveMap, smoothFloatMap } from '@/services/adjustService';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ColorAdjustments, HeightAdjustments, MapId, OpacityAdjustments } from '@/core/types';
+import {
+  computeFloatMapStats,
+  recomputeEffectiveMap,
+  smoothFloatMap,
+} from '@/services/adjustService';
+import { recordSettingsPatchHistory } from '@/services/historyService';
 import { useEditorStore } from '@/state/editorStore';
 import { useMapsVersionStore } from '@/state/mapsVersion';
 import { useProjectStore } from '@/state/projectStore';
@@ -10,6 +16,51 @@ import { Switch } from '@/ui/components/ui/switch';
 import { useI18n } from '@/ui/hooks/useI18n';
 import { LabeledSlider } from '@/ui/widgets/LabeledSlider';
 
+type AdjustmentSnapshot =
+  | { mapId: 'color'; value: ColorAdjustments }
+  | { mapId: 'height'; value: HeightAdjustments }
+  | { mapId: 'opacity'; value: OpacityAdjustments };
+
+function cloneAdjustmentSnapshot(mapId: MapId): AdjustmentSnapshot {
+  const adjustments = useProjectStore.getState().project.adjustments;
+  if (mapId === 'color') {
+    return { mapId: 'color', value: { ...adjustments.color } };
+  }
+  if (mapId === 'height') {
+    return { mapId: 'height', value: { ...adjustments.height } };
+  }
+  return { mapId: 'opacity', value: { ...adjustments.opacity } };
+}
+
+function recordAdjustmentDiff(
+  action: 'adjustment' | 'resetAdjustments',
+  before: AdjustmentSnapshot,
+  after: AdjustmentSnapshot,
+): void {
+  if (before.mapId === 'color' && after.mapId === 'color') {
+    recordSettingsPatchHistory(action, {
+      path: 'adjustments.color',
+      affectedMapId: 'color',
+      before: before.value,
+      after: after.value,
+    });
+  } else if (before.mapId === 'height' && after.mapId === 'height') {
+    recordSettingsPatchHistory(action, {
+      path: 'adjustments.height',
+      affectedMapId: 'height',
+      before: before.value,
+      after: after.value,
+    });
+  } else if (before.mapId === 'opacity' && after.mapId === 'opacity') {
+    recordSettingsPatchHistory(action, {
+      path: 'adjustments.opacity',
+      affectedMapId: 'opacity',
+      before: before.value,
+      after: after.value,
+    });
+  }
+}
+
 export function MapParamsPanel() {
   const { t } = useI18n();
   const activeMap = useEditorStore((s) => s.activeMap);
@@ -19,6 +70,26 @@ export function MapParamsPanel() {
 
   const [smoothRadiusPx, setSmoothRadiusPx] = useState(4);
   const [smoothing, setSmoothing] = useState(false);
+
+  const pendingBeforeRef = useRef<AdjustmentSnapshot | null>(null);
+
+  useEffect(() => {
+    pendingBeforeRef.current = null;
+  }, [activeMap]);
+
+  const ensurePendingSnapshot = (mapId: MapId) => {
+    if (!pendingBeforeRef.current || pendingBeforeRef.current.mapId !== mapId) {
+      pendingBeforeRef.current = cloneAdjustmentSnapshot(mapId);
+    }
+  };
+
+  const commitPendingSnapshot = (mapId: MapId) => {
+    const before = pendingBeforeRef.current;
+    pendingBeforeRef.current = null;
+    if (!before || before.mapId !== mapId) return;
+    const after = cloneAdjustmentSnapshot(mapId);
+    recordAdjustmentDiff('adjustment', before, after);
+  };
 
   const stats = useMemo(() => {
     void mapVersion;
@@ -41,15 +112,17 @@ export function MapParamsPanel() {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-foreground">{t('maps.color')}</h3>
+          <h3 className="text-foreground text-xs font-semibold">{t('maps.color')}</h3>
           <Button
             type="button"
             size="xs"
             variant="ghost"
             onClick={() => {
+              const before = cloneAdjustmentSnapshot('color');
               updateProject((d) => {
                 d.adjustments.color = { brightness: 0, contrast: 0, saturation: 0 };
               });
+              recordAdjustmentDiff('resetAdjustments', before, cloneAdjustmentSnapshot('color'));
               void recomputeEffectiveMap('color');
             }}
           >
@@ -65,11 +138,13 @@ export function MapParamsPanel() {
           step={1}
           suffix="%"
           onValueChange={(v) => {
+            ensurePendingSnapshot('color');
             updateProject((d) => {
               d.adjustments.color.brightness = v / 100;
             });
             void recomputeEffectiveMap('color');
           }}
+          onValueCommit={() => commitPendingSnapshot('color')}
         />
         <LabeledSlider
           label={t('mapParams.contrast')}
@@ -79,11 +154,13 @@ export function MapParamsPanel() {
           step={1}
           suffix="%"
           onValueChange={(v) => {
+            ensurePendingSnapshot('color');
             updateProject((d) => {
               d.adjustments.color.contrast = v / 100;
             });
             void recomputeEffectiveMap('color');
           }}
+          onValueCommit={() => commitPendingSnapshot('color')}
         />
         <LabeledSlider
           label={t('mapParams.saturation')}
@@ -93,13 +170,15 @@ export function MapParamsPanel() {
           step={1}
           suffix="%"
           onValueChange={(v) => {
+            ensurePendingSnapshot('color');
             updateProject((d) => {
               d.adjustments.color.saturation = v / 100;
             });
             void recomputeEffectiveMap('color');
           }}
+          onValueCommit={() => commitPendingSnapshot('color')}
         />
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
+        <p className="text-muted-foreground text-[11px] leading-relaxed">
           {t('mapParams.colorNote')}
         </p>
       </div>
@@ -111,15 +190,17 @@ export function MapParamsPanel() {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-foreground">{t('maps.height')}</h3>
+          <h3 className="text-foreground text-xs font-semibold">{t('maps.height')}</h3>
           <Button
             type="button"
             size="xs"
             variant="ghost"
             onClick={() => {
+              const before = cloneAdjustmentSnapshot('height');
               updateProject((d) => {
                 d.adjustments.height = { invert: false, contrast: 0, gamma: 1 };
               });
+              recordAdjustmentDiff('resetAdjustments', before, cloneAdjustmentSnapshot('height'));
               void recomputeEffectiveMap('height');
             }}
           >
@@ -128,16 +209,18 @@ export function MapParamsPanel() {
         </div>
 
         <div className="flex items-center justify-between">
-          <Label htmlFor="height-invert" className="text-xs font-normal text-muted-foreground">
+          <Label htmlFor="height-invert" className="text-muted-foreground text-xs font-normal">
             {t('mapParams.invert')}
           </Label>
           <Switch
             id="height-invert"
             checked={h.invert}
             onCheckedChange={(checked) => {
+              const before = cloneAdjustmentSnapshot('height');
               updateProject((d) => {
                 d.adjustments.height.invert = checked;
               });
+              recordAdjustmentDiff('adjustment', before, cloneAdjustmentSnapshot('height'));
               void recomputeEffectiveMap('height');
             }}
           />
@@ -151,11 +234,13 @@ export function MapParamsPanel() {
           step={1}
           suffix="%"
           onValueChange={(v) => {
+            ensurePendingSnapshot('height');
             updateProject((d) => {
               d.adjustments.height.contrast = v / 100;
             });
             void recomputeEffectiveMap('height');
           }}
+          onValueCommit={() => commitPendingSnapshot('height')}
         />
 
         <LabeledSlider
@@ -166,17 +251,19 @@ export function MapParamsPanel() {
           step={0.05}
           decimals={2}
           onValueChange={(v) => {
+            ensurePendingSnapshot('height');
             updateProject((d) => {
               d.adjustments.height.gamma = v;
             });
             void recomputeEffectiveMap('height');
           }}
+          onValueCommit={() => commitPendingSnapshot('height')}
         />
 
         <Separator />
 
         <div className="space-y-2">
-          <div className="text-xs font-medium text-foreground">{t('mapParams.smoothTitle')}</div>
+          <div className="text-foreground text-xs font-medium">{t('mapParams.smoothTitle')}</div>
           <LabeledSlider
             label={t('mapParams.smoothRadiusPx')}
             value={smoothRadiusPx}
@@ -199,9 +286,9 @@ export function MapParamsPanel() {
         </div>
 
         {stats && (
-          <div className="rounded border border-border bg-background/60 p-2 text-[11px]">
-            <div className="mb-0.5 font-medium text-foreground">{t('mapParams.statsTitle')}</div>
-            <div className="font-mono text-muted-foreground">
+          <div className="border-border bg-background/60 rounded border p-2 text-[11px]">
+            <div className="text-foreground mb-0.5 font-medium">{t('mapParams.statsTitle')}</div>
+            <div className="text-muted-foreground font-mono">
               {t('mapParams.statsRangeMm', {
                 min: stats.min.toFixed(2),
                 max: stats.max.toFixed(2),
@@ -218,12 +305,13 @@ export function MapParamsPanel() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-foreground">{t('maps.opacity')}</h3>
+        <h3 className="text-foreground text-xs font-semibold">{t('maps.opacity')}</h3>
         <Button
           type="button"
           size="xs"
           variant="ghost"
           onClick={() => {
+            const before = cloneAdjustmentSnapshot('opacity');
             updateProject((d) => {
               d.adjustments.opacity = {
                 invert: false,
@@ -232,6 +320,7 @@ export function MapParamsPanel() {
                 maxOpacityPct: 100,
               };
             });
+            recordAdjustmentDiff('resetAdjustments', before, cloneAdjustmentSnapshot('opacity'));
             void recomputeEffectiveMap('opacity');
           }}
         >
@@ -240,16 +329,18 @@ export function MapParamsPanel() {
       </div>
 
       <div className="flex items-center justify-between">
-        <Label htmlFor="opacity-invert" className="text-xs font-normal text-muted-foreground">
+        <Label htmlFor="opacity-invert" className="text-muted-foreground text-xs font-normal">
           {t('mapParams.invert')}
         </Label>
         <Switch
           id="opacity-invert"
           checked={o.invert}
           onCheckedChange={(checked) => {
+            const before = cloneAdjustmentSnapshot('opacity');
             updateProject((d) => {
               d.adjustments.opacity.invert = checked;
             });
+            recordAdjustmentDiff('adjustment', before, cloneAdjustmentSnapshot('opacity'));
             void recomputeEffectiveMap('opacity');
           }}
         />
@@ -263,11 +354,13 @@ export function MapParamsPanel() {
         step={1}
         suffix="%"
         onValueChange={(v) => {
+          ensurePendingSnapshot('opacity');
           updateProject((d) => {
             d.adjustments.opacity.maxTransmissionPct = v;
           });
           void recomputeEffectiveMap('opacity');
         }}
+        onValueCommit={() => commitPendingSnapshot('opacity')}
       />
 
       <LabeledSlider
@@ -278,11 +371,13 @@ export function MapParamsPanel() {
         step={1}
         suffix="%"
         onValueChange={(v) => {
+          ensurePendingSnapshot('opacity');
           updateProject((d) => {
             d.adjustments.opacity.maxOpacityPct = v;
           });
           void recomputeEffectiveMap('opacity');
         }}
+        onValueCommit={() => commitPendingSnapshot('opacity')}
       />
 
       <LabeledSlider
@@ -293,17 +388,19 @@ export function MapParamsPanel() {
         step={1}
         suffix="%"
         onValueChange={(v) => {
+          ensurePendingSnapshot('opacity');
           updateProject((d) => {
             d.adjustments.opacity.contrast = v / 100;
           });
           void recomputeEffectiveMap('opacity');
         }}
+        onValueCommit={() => commitPendingSnapshot('opacity')}
       />
 
       <Separator />
 
       <div className="space-y-2">
-        <div className="text-xs font-medium text-foreground">{t('mapParams.smoothTitle')}</div>
+        <div className="text-foreground text-xs font-medium">{t('mapParams.smoothTitle')}</div>
         <LabeledSlider
           label={t('mapParams.smoothRadiusPx')}
           value={smoothRadiusPx}
@@ -326,9 +423,9 @@ export function MapParamsPanel() {
       </div>
 
       {stats && (
-        <div className="rounded border border-border bg-background/60 p-2 text-[11px]">
-          <div className="mb-0.5 font-medium text-foreground">{t('mapParams.statsTitle')}</div>
-          <div className="font-mono text-muted-foreground">
+        <div className="border-border bg-background/60 rounded border p-2 text-[11px]">
+          <div className="text-foreground mb-0.5 font-medium">{t('mapParams.statsTitle')}</div>
+          <div className="text-muted-foreground font-mono">
             {t('mapParams.statsRangePct', {
               min: stats.min.toFixed(1),
               max: stats.max.toFixed(1),

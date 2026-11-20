@@ -6,10 +6,12 @@ import { getCalibrationMetrics } from '@/core/units/calibration';
 import { PointerRouter } from '@/editor2d/input/PointerRouter';
 import { zoomAtPoint, type ViewportSize } from '@/editor2d/viewTransform';
 import {
-  useEditorStore,
-  type HeightDisplayMode,
-  type ViewMode2D,
-} from '@/state/editorStore';
+  recordTileHistory,
+  redoGlobal,
+  undoActiveMap,
+  undoGlobal,
+} from '@/services/historyService';
+import { useEditorStore, type HeightDisplayMode, type ViewMode2D } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { Button } from '@/ui/components/ui/button';
@@ -105,6 +107,7 @@ export function ViewportHost() {
             statusClearTimerRef.current = null;
           }, 4000);
         },
+        recordMapTileEntry: recordTileHistory,
       },
     });
     pointerRouterRef.current = router;
@@ -155,7 +158,7 @@ export function ViewportHost() {
     };
   }, [containerRef]);
 
-  // Keyboard shortcuts: Space pan, Ctrl+0 fit, Ctrl+1 1:1, B/E/I/H, [/], 1/2/3
+  // Keyboard shortcuts: Space pan, Ctrl+Z/Shift+Z/Y/Alt+Z history, Ctrl+0 fit, Ctrl+1 1:1, B/E/I/H, [/], 1/2/3
   useEffect(() => {
     const adjustBrushSize = (scale: number) => {
       const editor = useEditorStore.getState();
@@ -177,10 +180,7 @@ export function ViewportHost() {
       } else {
         const minCm = Math.max(0.05, Number((1 / pxPerCm).toFixed(2)));
         const maxCm = Math.max(0.5, Number((2000 / pxPerCm).toFixed(2)));
-        const next = Math.max(
-          minCm,
-          Math.min(maxCm, Number((sizeValue * scale).toFixed(2))),
-        );
+        const next = Math.max(minCm, Math.min(maxCm, Number((sizeValue * scale).toFixed(2))));
         editor.setBrushOption('sizeValue', next);
       }
       pointerRouterRef.current?.refreshCursor();
@@ -198,7 +198,20 @@ export function ViewportHost() {
       }
 
       if (e.ctrlKey || e.metaKey) {
-        if (e.key === '0') {
+        const lower = e.key.toLowerCase();
+        if (e.altKey && !e.shiftKey && lower === 'z') {
+          e.preventDefault();
+          undoActiveMap();
+        } else if (!e.altKey && e.shiftKey && lower === 'z') {
+          e.preventDefault();
+          redoGlobal();
+        } else if (!e.altKey && !e.shiftKey && lower === 'y') {
+          e.preventDefault();
+          redoGlobal();
+        } else if (!e.altKey && !e.shiftKey && lower === 'z') {
+          e.preventDefault();
+          undoGlobal();
+        } else if (e.key === '0') {
           e.preventDefault();
           fitView();
         } else if (e.key === '1') {
@@ -275,7 +288,7 @@ export function ViewportHost() {
       aria-label={t('shell.viewportTitle')}
       className="relative flex h-full w-full flex-col overflow-hidden bg-[#121214]"
     >
-      <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border bg-card/70 px-2.5">
+      <div className="border-border bg-card/70 flex h-9 shrink-0 items-center justify-between gap-2 border-b px-2.5">
         <div className="flex items-center gap-2">
           <ToggleGroup
             type="single"
@@ -288,11 +301,7 @@ export function ViewportHost() {
               }
             }}
           >
-            <ToggleGroupItem
-              value="color"
-              data-testid="mode-color"
-              className="h-7 px-2.5 text-xs"
-            >
+            <ToggleGroupItem value="color" data-testid="mode-color" className="h-7 px-2.5 text-xs">
               {t('viewport.modeColor')}
             </ToggleGroupItem>
             <ToggleGroupItem
@@ -361,7 +370,7 @@ export function ViewportHost() {
         <div className="flex items-center gap-1">
           <span
             data-testid="viewport-zoom-pct"
-            className="mr-1 min-w-12 text-right font-mono text-xs text-muted-foreground"
+            className="text-muted-foreground mr-1 min-w-12 text-right font-mono text-xs"
           >
             {Math.round(pane2D.zoom * 100)}%
           </span>

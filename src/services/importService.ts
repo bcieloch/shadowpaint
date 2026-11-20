@@ -17,6 +17,7 @@ import { computeHeightFromWidthPx } from '@/core/units/calibration';
 import { hexToRgb01 } from '@/core/units/colorTemperature';
 import { ImageDecodeError } from '@/imaging/decodeTiff';
 import { createDefaultTransform } from '@/imaging/transform';
+import { clearHistory, recordFullMapHistory } from '@/services/historyService';
 import { useProjectStore } from '@/state/projectStore';
 import { getImageWorker, type DecodedAssetResult } from '@/workers/client';
 import { runTask } from '@/workers/tasks';
@@ -169,16 +170,17 @@ export async function applyImportToProject(
   const targetCanvas = targetCanvasOverride ?? project.canvas;
   const { widthPx: dstW, heightPx: dstH } = targetCanvas;
 
-  if (
-    targetCanvas.widthPx !== mapRegistry.width ||
-    targetCanvas.heightPx !== mapRegistry.height
-  ) {
+  const dimensionsChanged =
+    targetCanvas.widthPx !== mapRegistry.width || targetCanvas.heightPx !== mapRegistry.height;
+
+  if (dimensionsChanged) {
     try {
       mapRegistry.allocate(dstW, dstH, {
         color: String(project.maps.color.defaultValue),
         height: Number(project.maps.height.defaultValue),
         opacity: Number(project.maps.opacity.defaultValue),
       });
+      clearHistory();
     } catch (err) {
       if (err instanceof MapMemoryError) {
         return {
@@ -231,41 +233,85 @@ export async function applyImportToProject(
       },
     );
 
+    const prevSource = structuredClone(useProjectStore.getState().project.maps[mapId].source);
+    const nextSource = {
+      fileName: slot.fileName,
+      format: slot.decoded.format,
+      widthPx: slot.decoded.width,
+      heightPx: slot.decoded.height,
+      bitDepth: slot.decoded.bitDepth,
+      fit: slot.fit,
+      transform: slot.transform,
+      importedAt: now,
+    };
+
+    const currentAdjustments = useProjectStore.getState().project.adjustments;
+
     if (mapId === 'color' && res.rgba8) {
       const buf = mapRegistry.color;
+      const workingBefore = !dimensionsChanged ? new Uint8ClampedArray(buf.working) : null;
+      const baseBefore = !dimensionsChanged ? new Uint8ClampedArray(buf.base) : null;
       buf.replaceBase(res.rgba8);
-      applyColorAdjustments(buf.working, buf.effective, dstW, dstH, project.adjustments.color);
+      applyColorAdjustments(buf.working, buf.effective, dstW, dstH, currentAdjustments.color);
       mapRegistry.emitReplaced('color');
+
+      if (workingBefore && baseBefore) {
+        recordFullMapHistory({
+          mapId: 'color',
+          action: 'importMap',
+          workingBefore,
+          workingAfter: new Uint8ClampedArray(buf.working),
+          baseBefore,
+          baseAfter: new Uint8ClampedArray(buf.base),
+          sourceBefore: prevSource,
+          sourceAfter: nextSource,
+        });
+      }
     } else if (mapId === 'height' && res.float32) {
       const buf = mapRegistry.heightMap;
+      const workingBefore = !dimensionsChanged ? new Float32Array(buf.working) : null;
+      const baseBefore = !dimensionsChanged ? new Float32Array(buf.base) : null;
       buf.replaceBase(res.float32);
-      applyHeightAdjustments(buf.working, buf.effective, dstW, dstH, project.adjustments.height);
+      applyHeightAdjustments(buf.working, buf.effective, dstW, dstH, currentAdjustments.height);
       mapRegistry.emitReplaced('height');
+
+      if (workingBefore && baseBefore) {
+        recordFullMapHistory({
+          mapId: 'height',
+          action: 'importMap',
+          workingBefore,
+          workingAfter: new Float32Array(buf.working),
+          baseBefore,
+          baseAfter: new Float32Array(buf.base),
+          sourceBefore: prevSource,
+          sourceAfter: nextSource,
+        });
+      }
     } else if (mapId === 'opacity' && res.float32) {
       const buf = mapRegistry.opacity;
+      const workingBefore = !dimensionsChanged ? new Float32Array(buf.working) : null;
+      const baseBefore = !dimensionsChanged ? new Float32Array(buf.base) : null;
       buf.replaceBase(res.float32);
-      applyOpacityAdjustments(
-        buf.working,
-        buf.effective,
-        dstW,
-        dstH,
-        project.adjustments.opacity,
-      );
+      applyOpacityAdjustments(buf.working, buf.effective, dstW, dstH, currentAdjustments.opacity);
       mapRegistry.emitReplaced('opacity');
+
+      if (workingBefore && baseBefore) {
+        recordFullMapHistory({
+          mapId: 'opacity',
+          action: 'importMap',
+          workingBefore,
+          workingAfter: new Float32Array(buf.working),
+          baseBefore,
+          baseAfter: new Float32Array(buf.base),
+          sourceBefore: prevSource,
+          sourceAfter: nextSource,
+        });
+      }
     }
 
     projectStore.updateProject((draft) => {
       draft.canvas = { ...targetCanvas };
-      draft.maps[mapId].source = {
-        fileName: slot.fileName,
-        format: slot.decoded.format,
-        widthPx: slot.decoded.width,
-        heightPx: slot.decoded.height,
-        bitDepth: slot.decoded.bitDepth,
-        fit: slot.fit,
-        transform: slot.transform,
-        importedAt: now,
-      };
+      draft.maps[mapId].source = nextSource;
     });
   }
 

@@ -1,12 +1,12 @@
 import { createDefaultProject, type CreateDefaultProjectOptions } from '@/core/constants';
 import { MapMemoryError, mapRegistry } from '@/core/maps/MapRegistry';
 import type { ProjectSettings } from '@/core/types';
+import { useHistoryStore } from '@/state/historyStore';
 import { useProjectStore } from '@/state/projectStore';
 import '@/state/mapsVersion';
 
 export type ProjectCreateResult =
-  | { ok: true; project: ProjectSettings }
-  | { ok: false; error: 'outOfMemory'; requiredMb: number };
+  { ok: true; project: ProjectSettings } | { ok: false; error: 'outOfMemory'; requiredMb: number };
 
 export function createAndActivateProject(
   options: CreateDefaultProjectOptions = {},
@@ -29,6 +29,7 @@ export function createAndActivateProject(
     throw err;
   }
 
+  useHistoryStore.getState().clearAll();
   useProjectStore.getState().setProject(settings, false);
   return { ok: true, project: settings };
 }

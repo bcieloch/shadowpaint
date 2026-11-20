@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { Lock, Unlock } from 'lucide-react';
+import { Lock, Undo2, Unlock } from 'lucide-react';
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import type { MapId } from '@/core/types';
+import { formatHistoryMeta, undoMap } from '@/services/historyService';
 import { useEditorStore } from '@/state/editorStore';
+import { useHistoryStore } from '@/state/historyStore';
 import { useMapsVersionStore } from '@/state/mapsVersion';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
@@ -65,7 +67,7 @@ function MapThumbnail({ mapId }: { mapId: MapId }) {
       ref={canvasRef}
       width={28}
       height={28}
-      className="size-7 shrink-0 rounded border border-border bg-black object-cover"
+      className="border-border size-7 shrink-0 rounded border bg-black object-cover"
     />
   );
 }
@@ -77,6 +79,7 @@ export function MapLayers() {
   const maps = useProjectStore((s) => s.project.maps);
   const updateProject = useProjectStore((s) => s.updateProject);
   const setStatusMessage = useUiStore((s) => s.setStatusMessage);
+  const stacks = useHistoryStore((s) => s.stacks);
 
   const toggleLock = (id: MapId) => {
     const nextLocked = !maps[id].locked;
@@ -89,8 +92,8 @@ export function MapLayers() {
   };
 
   return (
-    <section className="space-y-2 border-b border-border p-3">
-      <h2 className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+    <section className="border-border space-y-2 border-b p-3">
+      <h2 className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
         {t('maps.sectionTitle')}
       </h2>
       <div className="space-y-1">
@@ -98,10 +101,19 @@ export function MapLayers() {
           const selected = activeMap === id;
           const locked = maps[id].locked;
           const mapName = t(`maps.${id}` as const);
+          const mapUndoStack = stacks[id].undo;
+          const mapUndoTop = mapUndoStack[mapUndoStack.length - 1] ?? null;
+          const undoMapTooltip = mapUndoTop
+            ? t('maps.undoMap', {
+                map: mapName,
+                action: formatHistoryMeta(mapUndoTop.meta, t),
+              })
+            : t('maps.undoMapEmpty', { map: mapName });
+
           return (
             <div
               key={id}
-              className={`flex items-center gap-1.5 rounded border pr-1 text-xs transition-colors ${
+              className={`flex items-center gap-1 rounded border pr-1 text-xs transition-colors ${
                 selected
                   ? 'border-primary bg-primary/15 text-foreground'
                   : 'border-border bg-background/50 text-muted-foreground hover:bg-accent/50 hover:text-foreground'
@@ -121,6 +133,27 @@ export function MapLayers() {
                   </span>
                 )}
               </button>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="ghost"
+                      disabled={!mapUndoTop}
+                      aria-label={undoMapTooltip}
+                      data-testid={`map-undo-${id}`}
+                      onClick={() => undoMap(id)}
+                      className="text-muted-foreground"
+                    >
+                      <Undo2 className="size-3.5" />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{undoMapTooltip}</TooltipContent>
+              </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button

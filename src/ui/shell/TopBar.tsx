@@ -1,4 +1,10 @@
-import { FilePlus2, Layers3 } from 'lucide-react';
+import { FilePlus2, Layers3, Redo2, Undo2 } from 'lucide-react';
+import { formatHistoryMeta, redoGlobal, undoGlobal } from '@/services/historyService';
+import {
+  selectGlobalRedoEntry,
+  selectGlobalUndoEntry,
+  useHistoryStore,
+} from '@/state/historyStore';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { Button } from '@/ui/components/ui/button';
@@ -10,20 +16,29 @@ export function TopBar() {
   const { locale, setLocale, t } = useI18n();
   const projectName = useProjectStore((s) => s.project.name);
   const setDialogOpen = useUiStore((s) => s.setDialogOpen);
+  const undoEntry = useHistoryStore(selectGlobalUndoEntry);
+  const redoEntry = useHistoryStore(selectGlobalRedoEntry);
 
-  const displayName =
-    projectName === 'Untitled' ? t('app.untitledProject') : projectName;
+  const displayName = projectName === 'Untitled' ? t('app.untitledProject') : projectName;
+
+  const undoTooltip = undoEntry
+    ? t('topbar.undoTooltip', { action: formatHistoryMeta(undoEntry.meta, t) })
+    : t('topbar.undoEmptyTooltip');
+
+  const redoTooltip = redoEntry
+    ? t('topbar.redoTooltip', { action: formatHistoryMeta(redoEntry.meta, t) })
+    : t('topbar.redoEmptyTooltip');
 
   return (
-    <header className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card px-3 select-none">
+    <header className="border-border bg-card flex h-11 shrink-0 items-center justify-between border-b px-3 select-none">
       <div className="flex items-center gap-2.5">
-        <div className="flex items-center gap-1.5 font-semibold tracking-tight text-foreground">
-          <Layers3 className="size-4 text-primary" aria-hidden="true" />
+        <div className="text-foreground flex items-center gap-1.5 font-semibold tracking-tight">
+          <Layers3 className="text-primary size-4" aria-hidden="true" />
           <span>{t('app.name')}</span>
         </div>
         <Separator orientation="vertical" className="h-4" />
         <span
-          className="max-w-52 truncate text-xs text-muted-foreground"
+          className="text-muted-foreground max-w-52 truncate text-xs"
           data-testid="topbar-project-name"
         >
           {displayName}
@@ -45,11 +60,57 @@ export function TopBar() {
           </TooltipTrigger>
           <TooltipContent>{t('topbar.newProjectTooltip')}</TooltipContent>
         </Tooltip>
+
+        <Separator orientation="vertical" className="h-4" />
+
+        <div className="flex items-center gap-0.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  className="gap-1 px-2"
+                  disabled={!undoEntry}
+                  onClick={() => undoGlobal()}
+                  aria-label={undoTooltip}
+                  data-testid="btn-undo"
+                >
+                  <Undo2 className="size-3.5" />
+                  <span>{t('topbar.undo')}</span>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{undoTooltip}</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  className="gap-1 px-2"
+                  disabled={!redoEntry}
+                  onClick={() => redoGlobal()}
+                  aria-label={redoTooltip}
+                  data-testid="btn-redo"
+                >
+                  <Redo2 className="size-3.5" />
+                  <span>{t('topbar.redo')}</span>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{redoTooltip}</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
         <div
-          className="flex items-center rounded-md border border-border bg-background p-0.5"
+          className="border-border bg-background flex items-center rounded-md border p-0.5"
           role="group"
           aria-label={t('language.label')}
         >

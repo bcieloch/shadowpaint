@@ -23,7 +23,9 @@ function makePointerEvent(x: number, y: number, pressure = 1): ToolPointerEvent 
 
 function makeToolContext(
   registry: MapRegistry,
-  project = createDefaultProject({ canvas: { widthPx: 64, heightPx: 64, widthCm: 10, heightCm: 10 } }),
+  project = createDefaultProject({
+    canvas: { widthPx: 64, heightPx: 64, widthCm: 10, heightCm: 10 },
+  }),
   onLockedMapAttempt: (mapId: 'color' | 'height' | 'opacity') => void = () => {},
 ): ToolContext {
   return {
