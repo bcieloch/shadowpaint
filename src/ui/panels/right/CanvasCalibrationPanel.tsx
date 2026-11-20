@@ -14,7 +14,7 @@ import {
   MIN_THICKNESS_MM,
 } from '@/core/constants';
 import { MapRegistry } from '@/core/maps/MapRegistry';
-import type { CanvasSettings, MeshDetail, View3DSettings } from '@/core/types';
+import type { CanvasSettings, GridSettings, MeshDetail, View3DSettings } from '@/core/types';
 import {
   computeHeightFromWidthPx,
   computeMeshSegments,
@@ -26,6 +26,7 @@ import {
 import { getMaxTextureSize } from '@/lib/webgl';
 import { recordSettingsPatchHistory } from '@/services/historyService';
 import { updateCanvasWithoutResample } from '@/services/projectService';
+import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
 import { Button } from '@/ui/components/ui/button';
 import { Checkbox } from '@/ui/components/ui/checkbox';
@@ -41,10 +42,12 @@ import { Separator } from '@/ui/components/ui/separator';
 import { Switch } from '@/ui/components/ui/switch';
 import { ResizeProjectDialog } from '@/ui/dialogs/ResizeProjectDialog';
 import { useI18n } from '@/ui/hooks/useI18n';
+import { ColorField } from '@/ui/widgets/ColorField';
 import { LabeledSlider } from '@/ui/widgets/LabeledSlider';
 import { UnitNumberField } from '@/ui/widgets/UnitNumberField';
 
 const MESH_DETAILS: readonly MeshDetail[] = [256, 512, 1024, 2048];
+const GRID_SPACING_PRESETS_CM = [0.5, 1, 2, 5, 10] as const;
 
 interface DimensionsDraft {
   baseSignature: string;
@@ -63,8 +66,11 @@ interface ThicknessDraft {
 export function CanvasCalibrationPanel() {
   const { t } = useI18n();
   const canvas = useProjectStore((s) => s.project.canvas);
+  const grid = useProjectStore((s) => s.project.grid);
   const view3d = useProjectStore((s) => s.project.view3d);
   const updateProject = useProjectStore((s) => s.updateProject);
+  const showRulers = useEditorStore((s) => s.showRulers);
+  const setShowRulers = useEditorStore((s) => s.setShowRulers);
 
   const maxTextureSize = useMemo(() => getMaxTextureSize(), []);
   const maxPxAllowed = Math.min(maxTextureSize, MAX_PROJECT_PX);
@@ -81,6 +87,7 @@ export function CanvasCalibrationPanel() {
   const [resizeDialogOpen, setResizeDialogOpen] = useState(false);
 
   const pendingView3dBeforeRef = useRef<View3DSettings | null>(null);
+  const pendingGridBeforeRef = useRef<GridSettings | null>(null);
 
   const activeDims =
     dimDraft && dimDraft.baseSignature === dimSignature
@@ -297,6 +304,39 @@ export function CanvasCalibrationPanel() {
     if (res.ok) {
       setThicknessDraft(null);
     }
+  };
+
+  const commitGridUpdate = (mutator: (draftGrid: GridSettings) => void) => {
+    const before = { ...useProjectStore.getState().project.grid };
+    updateProject((d) => {
+      mutator(d.grid);
+    });
+    const after = { ...useProjectStore.getState().project.grid };
+    recordSettingsPatchHistory('settingsChange', {
+      path: 'grid',
+      before,
+      after,
+    });
+  };
+
+  const previewGridUpdate = (mutator: (draftGrid: GridSettings) => void) => {
+    if (!pendingGridBeforeRef.current) {
+      pendingGridBeforeRef.current = { ...useProjectStore.getState().project.grid };
+    }
+    updateProject((d) => {
+      mutator(d.grid);
+    });
+  };
+
+  const flushGridCommit = () => {
+    const before = pendingGridBeforeRef.current;
+    pendingGridBeforeRef.current = null;
+    if (!before) return;
+    recordSettingsPatchHistory('settingsChange', {
+      path: 'grid',
+      before,
+      after: { ...useProjectStore.getState().project.grid },
+    });
   };
 
   const thicknessInvalid =
@@ -525,6 +565,167 @@ export function CanvasCalibrationPanel() {
             {t('validation.invalidThicknessRange')}
           </div>
         )}
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3" data-testid="canvas-grid-section">
+        <h3 className="text-foreground text-xs font-semibold">{t('canvas.gridTitle')}</h3>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="grid-show-2d" className="text-xs font-normal">
+              {t('canvas.gridShow2D')}
+            </Label>
+            <Switch
+              id="grid-show-2d"
+              data-testid="grid-show-2d"
+              size="sm"
+              checked={grid.show2D}
+              onCheckedChange={(checked) =>
+                commitGridUpdate((g) => {
+                  g.show2D = checked;
+                })
+              }
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label htmlFor="grid-show-3d" className="text-xs font-normal">
+              {t('canvas.gridShow3D')}
+            </Label>
+            <Switch
+              id="grid-show-3d"
+              data-testid="grid-show-3d"
+              size="sm"
+              checked={grid.show3D}
+              onCheckedChange={(checked) =>
+                commitGridUpdate((g) => {
+                  g.show3D = checked;
+                })
+              }
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label htmlFor="grid-show-labels" className="text-xs font-normal">
+              {t('canvas.gridShowLabels')}
+            </Label>
+            <Switch
+              id="grid-show-labels"
+              data-testid="grid-show-labels"
+              size="sm"
+              checked={grid.labels}
+              onCheckedChange={(checked) =>
+                commitGridUpdate((g) => {
+                  g.labels = checked;
+                })
+              }
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label htmlFor="grid-show-rulers" className="text-xs font-normal">
+              {t('canvas.gridShowRulers')}
+            </Label>
+            <Switch
+              id="grid-show-rulers"
+              data-testid="grid-show-rulers"
+              size="sm"
+              checked={showRulers}
+              onCheckedChange={setShowRulers}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-muted-foreground text-xs font-normal">
+            {t('canvas.gridSpacingCm')}
+          </Label>
+          <div className="flex flex-wrap gap-1">
+            {GRID_SPACING_PRESETS_CM.map((preset) => (
+              <Button
+                key={preset}
+                type="button"
+                size="xs"
+                variant={Math.abs(grid.spacingCm - preset) < 1e-4 ? 'secondary' : 'outline'}
+                data-testid={`grid-spacing-preset-${String(preset).replace('.', '_')}`}
+                className="h-6 px-2 font-mono text-[11px]"
+                onClick={() =>
+                  commitGridUpdate((g) => {
+                    g.spacingCm = preset;
+                  })
+                }
+              >
+                {preset} cm
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <UnitNumberField
+            id="grid-spacing-cm"
+            testId="grid-spacing-cm"
+            label={t('canvas.gridSpacingCm')}
+            value={grid.spacingCm}
+            min={0.1}
+            max={100}
+            step={0.5}
+            decimals={2}
+            suffix="cm"
+            onValueChange={(v) =>
+              previewGridUpdate((g) => {
+                g.spacingCm = Math.max(0.1, Math.min(100, v));
+              })
+            }
+            onValueCommit={() => flushGridCommit()}
+          />
+          <UnitNumberField
+            id="grid-subdivisions"
+            testId="grid-subdivisions"
+            label={t('canvas.gridSubdivisions')}
+            value={grid.subdivisions}
+            min={1}
+            max={20}
+            step={1}
+            integer
+            onValueChange={(v) =>
+              previewGridUpdate((g) => {
+                g.subdivisions = Math.max(1, Math.min(20, Math.round(v)));
+              })
+            }
+            onValueCommit={() => flushGridCommit()}
+          />
+        </div>
+
+        <ColorField
+          label={t('canvas.gridColor')}
+          value={grid.color}
+          pickerTestId="grid-color-picker"
+          hexTestId="grid-color-hex"
+          onValueChange={(hex) =>
+            previewGridUpdate((g) => {
+              g.color = hex;
+            })
+          }
+          onValueCommit={() => flushGridCommit()}
+        />
+
+        <LabeledSlider
+          label={t('canvas.gridOpacity')}
+          value={Math.round(grid.opacity * 100)}
+          min={0}
+          max={100}
+          step={1}
+          suffix="%"
+          onValueChange={(v) =>
+            previewGridUpdate((g) => {
+              g.opacity = Math.max(0, Math.min(1, v / 100));
+            })
+          }
+          onValueCommit={() => flushGridCommit()}
+        />
       </div>
 
       <Separator />

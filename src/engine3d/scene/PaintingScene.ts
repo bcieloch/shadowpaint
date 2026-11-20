@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type {
   CanvasSettings,
+  GridSettings,
   LightingMode,
   LightingSettings,
   MaterialSettings,
@@ -36,6 +37,7 @@ export class PaintingScene {
     maxTextureSize: number,
     showGizmo: boolean,
     effectiveMode: LightingMode = lighting.mode,
+    grid?: GridSettings,
   ) {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x121214);
@@ -52,7 +54,7 @@ export class PaintingScene {
     this.backLight = new BackLight(lighting.back, canvas, mix.backScale, showGizmo);
     const backParams = this.backLight.getShaderParams();
 
-    this.canvasMesh = new CanvasMesh(textures, canvas, materialSettings, view3d, backParams);
+    this.canvasMesh = new CanvasMesh(textures, canvas, materialSettings, view3d, backParams, grid);
 
     this.scene.add(
       this.canvasMesh.group,
@@ -73,6 +75,7 @@ export class PaintingScene {
     maxTextureSize: number,
     showGizmo: boolean,
     effectiveMode: LightingMode = lighting.mode,
+    grid?: GridSettings,
   ): { shadowConfigChanged: boolean; frontScale: number } {
     if (this.disposed) return { shadowConfigChanged: false, frontScale: 0 };
 
@@ -80,7 +83,7 @@ export class PaintingScene {
     this.ambientLight.intensity = mix.ambient;
 
     const backParams = this.backLight.update(lighting.back, canvas, mix.backScale, showGizmo);
-    this.canvasMesh.update(textures, canvas, materialSettings, view3d, backParams);
+    this.canvasMesh.update(textures, canvas, materialSettings, view3d, backParams, grid);
 
     const { shadowConfigChanged } = this.frontLight.update(
       lighting.front,

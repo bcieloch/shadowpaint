@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import type { CanvasSettings, MaterialSettings, MeshDetail, View3DSettings } from '@/core/types';
+import type {
+  CanvasSettings,
+  GridSettings,
+  MaterialSettings,
+  MeshDetail,
+  View3DSettings,
+} from '@/core/types';
 import {
   computeDisplacementParams,
   computeMeshSegments,
@@ -93,6 +99,7 @@ export interface CanvasMeshStats {
   segY: number;
   vertices: number;
   frameVisible: boolean;
+  gridVisible: boolean;
 }
 
 export class CanvasMesh {
@@ -112,6 +119,7 @@ export class CanvasMesh {
   private segY: number;
   private vertices: number;
   private lastDisplacement: DisplacementParams;
+  private gridVisible = false;
   private disposed = false;
 
   constructor(
@@ -120,6 +128,7 @@ export class CanvasMesh {
     materialSettings: MaterialSettings,
     view3d: View3DSettings,
     backParams?: BackLightShaderParams,
+    grid?: GridSettings,
   ) {
     this.group = new THREE.Group();
     this.group.name = 'CanvasRoot';
@@ -127,6 +136,7 @@ export class CanvasMesh {
     this.builtWidthCm = canvas.widthCm;
     this.builtHeightCm = canvas.heightCm;
     this.builtMeshDetail = view3d.meshDetail;
+    this.gridVisible = Boolean(grid?.show3D);
 
     const frontGeoRes = createCanvasMeshGeometry(
       canvas.widthCm,
@@ -149,6 +159,7 @@ export class CanvasMesh {
       materialSettings,
       view3d,
       backParams,
+      grid,
     );
     this.paintDepthMaterial = createPaintDepthMaterial(
       textures.heightTex,
@@ -195,6 +206,7 @@ export class CanvasMesh {
     materialSettings: MaterialSettings,
     view3d: View3DSettings,
     backParams?: BackLightShaderParams,
+    grid?: GridSettings,
   ): void {
     if (this.disposed) return;
 
@@ -212,6 +224,7 @@ export class CanvasMesh {
       canvas.maxThicknessMm,
       view3d.reliefMultiplier,
     );
+    this.gridVisible = Boolean(grid?.show3D);
 
     updatePaintMaterial(
       this.paintMaterial,
@@ -221,6 +234,7 @@ export class CanvasMesh {
       textures.width,
       textures.height,
       backParams,
+      grid,
     );
     updatePaintDepthMaterial(
       this.paintDepthMaterial,
@@ -261,6 +275,7 @@ export class CanvasMesh {
       segY: this.segY,
       vertices: this.vertices,
       frameVisible: this.frameGroup.visible,
+      gridVisible: this.gridVisible,
     };
   }
 

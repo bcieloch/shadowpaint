@@ -1,11 +1,15 @@
-import type { Rect, Vec2 } from '@/core/types';
+import type { GridSettings, Rect, Vec2 } from '@/core/types';
+import { computeRulerStepCm, formatGridCmLabel, generateGridLines } from '@/core/units/grid';
 import { renderMarchingAntsOverlay } from '@/editor2d/selection/SelectionMask';
 import {
   imagePxToScreen,
+  screenToImagePx,
   type ViewportSize,
   type ViewTransformState,
 } from '@/editor2d/viewTransform';
 import type { GradientKind } from '@/imaging/gradient';
+
+export const RULER_THICKNESS_PX = 20;
 
 export type SelectionDraftPreview =
   | { kind: 'rect'; rect: Rect }
@@ -25,8 +29,12 @@ export interface OverlayRenderState {
   viewport: ViewportSize;
   imageWidth: number;
   imageHeight: number;
+  canvasWidthCm: number;
+  canvasHeightCm: number;
   transform: ViewTransformState;
   cursor: OverlayCursorState | null;
+  grid?: GridSettings;
+  showRulers?: boolean;
   selectionMask?: Uint8Array | null;
   hasSelection?: boolean;
   marchingAntsPhasePx?: number;
@@ -90,6 +98,11 @@ export class OverlayRenderer {
     const rectW = Math.round(bottomRight.x - topLeft.x);
     const rectH = Math.round(bottomRight.y - topLeft.y);
 
+    // Draw 2D measurement grid overlay if enabled
+    if (state.grid?.show2D && state.grid.opacity > 0.001) {
+      this.renderMeasurementGrid(ctx, state, state.grid, topLeft, bottomRight);
+    }
+
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
     ctx.lineWidth = 1;
     ctx.strokeRect(rectX, rectY, rectW, rectH);
@@ -137,6 +150,363 @@ export class OverlayRenderer {
       ctx.lineTo(x, y + arm);
       ctx.stroke();
     }
+
+    // Draw calibrated cm edge rulers on top & left viewport edges
+    if (state.showRulers) {
+      this.renderEdgeRulers(ctx, state, topLeft, bottomRight);
+    }
+
+    ctx.restore();
+  }
+
+  private renderMeasurementGrid(
+    ctx: CanvasRenderingContext2D,
+    state: OverlayRenderState,
+    grid: GridSettings,
+    topLeft: Vec2,
+    bottomRight: Vec2,
+  ): void {
+    const generated = generateGridLines(
+      {
+        widthCm: state.canvasWidthCm,
+        heightCm: state.canvasHeightCm,
+        widthPx: state.imageWidth,
+        heightPx: state.imageHeight,
+      },
+      grid,
+    );
+
+    const x0 = topLeft.x;
+    const y0 = topLeft.y;
+    const x1 = bottomRight.x;
+    const y1 = bottomRight.y;
+    const spanW = x1 - x0;
+    const spanH = y1 - y0;
+    if (spanW < 2 || spanH < 2) return;
+
+    const pxPerCmX = state.imageWidth / Math.max(1e-3, state.canvasWidthCm);
+    const pxPerCmY = state.imageHeight / Math.max(1e-3, state.canvasHeightCm);
+    const majorScreenX = generated.majorSpacingCm * pxPerCmX * state.transform.zoom;
+    const majorScreenY = generated.majorSpacingCm * pxPerCmY * state.transform.zoom;
+    const minorScreenX = generated.minorSpacingCm * pxPerCmX * state.transform.zoom;
+    const minorScreenY = generated.minorSpacingCm * pxPerCmY * state.transform.zoom;
+
+    const baseOpacity = Math.max(0, Math.min(1, grid.opacity));
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, y0, spanW, spanH);
+    ctx.clip();
+
+    ctx.strokeStyle = grid.color;
+    ctx.lineWidth = 1;
+
+    // Minor subdivision lines
+    if (generated.subdivisions > 1 && minorScreenX >= 4 && minorScreenY >= 4) {
+      ctx.globalAlpha = baseOpacity * 0.42;
+      ctx.beginPath();
+      for (const line of generated.vertical) {
+        if (line.isMajor) continue;
+        const sx =
+          Math.round(
+            imagePxToScreen(
+              state.transform,
+              state.viewport,
+              state.imageWidth,
+              state.imageHeight,
+              line.positionPx,
+              0,
+            ).x,
+          ) + 0.5;
+        ctx.moveTo(sx, y0);
+        ctx.lineTo(sx, y1);
+      }
+      for (const line of generated.horizontal) {
+        if (line.isMajor) continue;
+        const sy =
+          Math.round(
+            imagePxToScreen(
+              state.transform,
+              state.viewport,
+              state.imageWidth,
+              state.imageHeight,
+              0,
+              line.positionPx,
+            ).y,
+          ) + 0.5;
+        ctx.moveTo(x0, sy);
+        ctx.lineTo(x1, sy);
+      }
+      ctx.stroke();
+    }
+
+    // Major lines
+    if (majorScreenX >= 3 && majorScreenY >= 3) {
+      ctx.globalAlpha = baseOpacity;
+      ctx.beginPath();
+      for (const line of generated.vertical) {
+        if (!line.isMajor) continue;
+        const sx =
+          Math.round(
+            imagePxToScreen(
+              state.transform,
+              state.viewport,
+              state.imageWidth,
+              state.imageHeight,
+              line.positionPx,
+              0,
+            ).x,
+          ) + 0.5;
+        ctx.moveTo(sx, y0);
+        ctx.lineTo(sx, y1);
+      }
+      for (const line of generated.horizontal) {
+        if (!line.isMajor) continue;
+        const sy =
+          Math.round(
+            imagePxToScreen(
+              state.transform,
+              state.viewport,
+              state.imageWidth,
+              state.imageHeight,
+              0,
+              line.positionPx,
+            ).y,
+          ) + 0.5;
+        ctx.moveTo(x0, sy);
+        ctx.lineTo(x1, sy);
+      }
+      ctx.stroke();
+
+      if (grid.labels && majorScreenX >= 22 && majorScreenY >= 18) {
+        const minTop = state.showRulers ? RULER_THICKNESS_PX + 2 : 2;
+        const minLeft = state.showRulers ? RULER_THICKNESS_PX + 2 : 2;
+        const labelY = Math.max(y0 + 3, minTop);
+        const labelX = Math.max(x0 + 3, minLeft);
+
+        ctx.font = '10px "JetBrains Mono", monospace';
+        ctx.textBaseline = 'top';
+        ctx.globalAlpha = Math.min(1, Math.max(0.65, baseOpacity + 0.35));
+
+        const drawPillLabel = (text: string, px: number, py: number) => {
+          const metrics = ctx.measureText(text);
+          const padX = 2;
+          const w = Math.ceil(metrics.width) + padX * 2;
+          const h = 12;
+          ctx.fillStyle = 'rgba(11, 11, 13, 0.72)';
+          ctx.fillRect(px, py, w, h);
+          ctx.fillStyle = grid.color;
+          ctx.fillText(text, px + padX, py + 1);
+        };
+
+        for (const line of generated.vertical) {
+          if (!line.isMajor || !line.label) continue;
+          const sx = imagePxToScreen(
+            state.transform,
+            state.viewport,
+            state.imageWidth,
+            state.imageHeight,
+            line.positionPx,
+            0,
+          ).x;
+          if (sx + 24 > x1 || sx < x0 - 2) continue;
+          drawPillLabel(line.label, sx + 3, labelY);
+        }
+
+        for (const line of generated.horizontal) {
+          if (!line.isMajor || !line.label || line.index === 0) continue;
+          const sy = imagePxToScreen(
+            state.transform,
+            state.viewport,
+            state.imageWidth,
+            state.imageHeight,
+            0,
+            line.positionPx,
+          ).y;
+          if (sy + 14 > y1 || sy < y0 - 2) continue;
+          drawPillLabel(line.label, labelX, sy + 2);
+        }
+      }
+    }
+
+    ctx.restore();
+  }
+
+  private renderEdgeRulers(
+    ctx: CanvasRenderingContext2D,
+    state: OverlayRenderState,
+    topLeft: Vec2,
+    bottomRight: Vec2,
+  ): void {
+    const { viewport, imageWidth, imageHeight, canvasWidthCm, canvasHeightCm, transform } = state;
+    if (viewport.width <= RULER_THICKNESS_PX || viewport.height <= RULER_THICKNESS_PX) return;
+
+    const pxPerCmX = imageWidth / Math.max(1e-3, canvasWidthCm);
+    const pxPerCmY = imageHeight / Math.max(1e-3, canvasHeightCm);
+    const step = computeRulerStepCm(transform.zoom, Math.max(pxPerCmX, pxPerCmY));
+
+    ctx.save();
+
+    // Ruler backgrounds
+    ctx.fillStyle = 'rgba(21, 21, 24, 0.92)';
+    ctx.fillRect(RULER_THICKNESS_PX, 0, viewport.width - RULER_THICKNESS_PX, RULER_THICKNESS_PX);
+    ctx.fillRect(0, RULER_THICKNESS_PX, RULER_THICKNESS_PX, viewport.height - RULER_THICKNESS_PX);
+
+    // Canvas span tint along top & left rulers
+    const spanLeft = Math.max(RULER_THICKNESS_PX, topLeft.x);
+    const spanRight = Math.min(viewport.width, bottomRight.x);
+    if (spanRight > spanLeft) {
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+      ctx.fillRect(spanLeft, 0, spanRight - spanLeft, RULER_THICKNESS_PX);
+    }
+
+    const spanTop = Math.max(RULER_THICKNESS_PX, topLeft.y);
+    const spanBottom = Math.min(viewport.height, bottomRight.y);
+    if (spanBottom > spanTop) {
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+      ctx.fillRect(0, spanTop, RULER_THICKNESS_PX, spanBottom - spanTop);
+    }
+
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.textBaseline = 'top';
+
+    const minorStepCm = step.majorCm / step.minorDivisions;
+
+    // Top horizontal ruler ticks
+    const minVisiblePxX = screenToImagePx(
+      transform,
+      viewport,
+      imageWidth,
+      imageHeight,
+      RULER_THICKNESS_PX,
+      0,
+    ).x;
+    const maxVisiblePxX = screenToImagePx(
+      transform,
+      viewport,
+      imageWidth,
+      imageHeight,
+      viewport.width,
+      0,
+    ).x;
+    const minCmX = Math.floor(minVisiblePxX / pxPerCmX / minorStepCm) - 1;
+    const maxCmX = Math.ceil(maxVisiblePxX / pxPerCmX / minorStepCm) + 1;
+
+    ctx.lineWidth = 1;
+    for (let k = minCmX; k <= maxCmX; k++) {
+      const isMajor = ((k % step.minorDivisions) + step.minorDivisions) % step.minorDivisions === 0;
+      const cm = k * minorStepCm;
+      const sx = imagePxToScreen(transform, viewport, imageWidth, imageHeight, cm * pxPerCmX, 0).x;
+      if (sx < RULER_THICKNESS_PX || sx > viewport.width) continue;
+
+      const xAligned = Math.round(sx) + 0.5;
+      const insideCanvas = cm >= -1e-4 && cm <= canvasWidthCm + 1e-4;
+      ctx.strokeStyle = isMajor
+        ? insideCanvas
+          ? 'rgba(228, 228, 231, 0.75)'
+          : 'rgba(161, 161, 170, 0.45)'
+        : 'rgba(161, 161, 170, 0.3)';
+
+      const tickH = isMajor ? 9 : 4;
+      ctx.beginPath();
+      ctx.moveTo(xAligned, RULER_THICKNESS_PX - tickH);
+      ctx.lineTo(xAligned, RULER_THICKNESS_PX);
+      ctx.stroke();
+
+      if (isMajor) {
+        ctx.fillStyle = insideCanvas ? '#e4e4e7' : '#a1a1aa';
+        ctx.fillText(formatGridCmLabel(cm), sx + 2, 2);
+      }
+    }
+
+    // Left vertical ruler ticks
+    const minVisiblePxY = screenToImagePx(
+      transform,
+      viewport,
+      imageWidth,
+      imageHeight,
+      0,
+      RULER_THICKNESS_PX,
+    ).y;
+    const maxVisiblePxY = screenToImagePx(
+      transform,
+      viewport,
+      imageWidth,
+      imageHeight,
+      0,
+      viewport.height,
+    ).y;
+    const minCmY = Math.floor(minVisiblePxY / pxPerCmY / minorStepCm) - 1;
+    const maxCmY = Math.ceil(maxVisiblePxY / pxPerCmY / minorStepCm) + 1;
+
+    for (let k = minCmY; k <= maxCmY; k++) {
+      const isMajor = ((k % step.minorDivisions) + step.minorDivisions) % step.minorDivisions === 0;
+      const cm = k * minorStepCm;
+      const sy = imagePxToScreen(transform, viewport, imageWidth, imageHeight, 0, cm * pxPerCmY).y;
+      if (sy < RULER_THICKNESS_PX || sy > viewport.height) continue;
+
+      const yAligned = Math.round(sy) + 0.5;
+      const insideCanvas = cm >= -1e-4 && cm <= canvasHeightCm + 1e-4;
+      ctx.strokeStyle = isMajor
+        ? insideCanvas
+          ? 'rgba(228, 228, 231, 0.75)'
+          : 'rgba(161, 161, 170, 0.45)'
+        : 'rgba(161, 161, 170, 0.3)';
+
+      const tickW = isMajor ? 9 : 4;
+      ctx.beginPath();
+      ctx.moveTo(RULER_THICKNESS_PX - tickW, yAligned);
+      ctx.lineTo(RULER_THICKNESS_PX, yAligned);
+      ctx.stroke();
+
+      if (isMajor) {
+        ctx.save();
+        ctx.translate(2, sy + 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = insideCanvas ? '#e4e4e7' : '#a1a1aa';
+        ctx.fillText(formatGridCmLabel(cm), 0, 0);
+        ctx.restore();
+      }
+    }
+
+    // Cursor position marker on rulers
+    if (state.cursor) {
+      const cx = Math.round(state.cursor.screenPos.x) + 0.5;
+      const cy = Math.round(state.cursor.screenPos.y) + 0.5;
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.25;
+      if (cx >= RULER_THICKNESS_PX && cx <= viewport.width) {
+        ctx.beginPath();
+        ctx.moveTo(cx, 0);
+        ctx.lineTo(cx, RULER_THICKNESS_PX);
+        ctx.stroke();
+      }
+      if (cy >= RULER_THICKNESS_PX && cy <= viewport.height) {
+        ctx.beginPath();
+        ctx.moveTo(0, cy);
+        ctx.lineTo(RULER_THICKNESS_PX, cy);
+        ctx.stroke();
+      }
+    }
+
+    // Ruler borders & corner box
+    ctx.fillStyle = '#151518';
+    ctx.fillRect(0, 0, RULER_THICKNESS_PX, RULER_THICKNESS_PX);
+    ctx.strokeStyle = '#26262b';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, RULER_THICKNESS_PX - 0.5);
+    ctx.lineTo(viewport.width, RULER_THICKNESS_PX - 0.5);
+    ctx.moveTo(RULER_THICKNESS_PX - 0.5, 0);
+    ctx.lineTo(RULER_THICKNESS_PX - 0.5, viewport.height);
+    ctx.stroke();
+
+    ctx.fillStyle = '#a1a1aa';
+    ctx.font = '8px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('cm', RULER_THICKNESS_PX / 2, RULER_THICKNESS_PX / 2);
 
     ctx.restore();
   }

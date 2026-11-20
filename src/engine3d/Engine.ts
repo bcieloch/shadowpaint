@@ -3,6 +3,7 @@ import type { MapRegistry } from '@/core/maps/MapRegistry';
 import { unionRect } from '@/core/maps/rect';
 import type {
   CanvasSettings,
+  GridSettings,
   LightingMode,
   LightingSettings,
   MapId,
@@ -45,6 +46,7 @@ export interface EngineRenderParams {
   material: MaterialSettings;
   lighting: LightingSettings;
   view3d: View3DSettings;
+  grid: GridSettings;
   viewMode2D: ViewMode2D;
   heightDisplay: HeightRenderDisplay;
   contourStepMm: number;
@@ -314,6 +316,7 @@ export class Engine {
         material,
         lighting,
         view3d,
+        grid,
         viewMode2D,
         heightDisplay,
         contourStepMm,
@@ -332,6 +335,7 @@ export class Engine {
           this.getMaxTextureSize(),
           showLampGizmos,
           lighting.mode,
+          grid,
         );
         if (shadowConfigChanged) {
           this.shadowDirty = true;
@@ -360,6 +364,7 @@ export class Engine {
           this.getMaxTextureSize(),
           false,
           viewMode2D,
+          undefined,
         );
         if (shadowConfigChanged) {
           this.shadowDirty = true;
@@ -411,7 +416,8 @@ export class Engine {
 
     this.disposeSceneResources();
 
-    const { canvas, material, lighting, view3d, layout, viewMode2D, showLampGizmos } = this.params;
+    const { canvas, material, lighting, view3d, grid, layout, viewMode2D, showLampGizmos } =
+      this.params;
     const textures = new MapTextures(this.registry, this.renderer);
     const flatMat = createFlatViewMaterial(textures);
     const flatGeo = createCanvasQuadGeometry(canvas.widthCm, canvas.heightCm);
@@ -429,6 +435,7 @@ export class Engine {
       this.getMaxTextureSize(),
       layout === '3d' && showLampGizmos,
       effectiveMode,
+      layout === '3d' ? grid : undefined,
     );
 
     this.mapTextures = textures;
@@ -517,6 +524,7 @@ export class Engine {
           this.getMaxTextureSize(),
           false,
           viewMode2D,
+          undefined,
         );
         if (shadowConfigChanged) {
           this.shadowDirty = true;
@@ -586,7 +594,7 @@ export class Engine {
       return new Uint8Array(0);
     }
 
-    const { canvas, material, lighting, view3d, showLampGizmos } = this.params;
+    const { canvas, material, lighting, view3d, grid, showLampGizmos } = this.params;
     const { shadowConfigChanged, frontScale } = this.paintingScene.update(
       this.mapTextures,
       canvas,
@@ -596,6 +604,7 @@ export class Engine {
       this.getMaxTextureSize(),
       showLampGizmos,
       lighting.mode,
+      grid,
     );
     if (shadowConfigChanged) {
       this.shadowDirty = true;
@@ -695,6 +704,7 @@ export class Engine {
       this.getMaxTextureSize(),
       this.params.layout === '3d' && this.params.showLampGizmos,
       effectiveMode,
+      this.params.layout === '3d' ? this.params.grid : undefined,
     );
     return this.paintingScene.getCanvasStats();
   }
@@ -716,6 +726,7 @@ export class Engine {
       this.getMaxTextureSize(),
       this.params.layout === '3d' && this.params.showLampGizmos,
       effectiveMode,
+      this.params.layout === '3d' ? this.params.grid : undefined,
     );
     return this.paintingScene.getFrontLightStats();
   }
@@ -737,6 +748,7 @@ export class Engine {
       this.getMaxTextureSize(),
       this.params.layout === '3d' && this.params.showLampGizmos,
       effectiveMode,
+      this.params.layout === '3d' ? this.params.grid : undefined,
     );
     return this.paintingScene.getBackLightStats();
   }
@@ -801,7 +813,8 @@ export class Engine {
 
   private flushPendingResources(): void {
     if (!this.params || !this.registry.isAllocated) return;
-    const { canvas, material, lighting, view3d, layout, viewMode2D, showLampGizmos } = this.params;
+    const { canvas, material, lighting, view3d, grid, layout, viewMode2D, showLampGizmos } =
+      this.params;
 
     const pixelDimsChanged =
       this.builtWidthPx !== this.registry.width || this.builtHeightPx !== this.registry.height;
@@ -838,6 +851,7 @@ export class Engine {
       this.getMaxTextureSize(),
       layout === '3d' && showLampGizmos,
       effectiveMode,
+      layout === '3d' ? grid : undefined,
     );
     if (shadowConfigChanged) {
       this.shadowDirty = true;

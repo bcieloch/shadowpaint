@@ -94,6 +94,7 @@ export interface EditorState {
   selectionTools: SelectionToolOptions;
   hasSelection: boolean;
   showMaskOverlay: boolean;
+  showRulers: boolean;
   layout: LayoutMode;
   viewMode2D: ViewMode2D;
   view3DLighting: LightingMode;
@@ -123,6 +124,7 @@ export interface EditorState {
   ) => void;
   setHasSelection: (hasSelection: boolean) => void;
   setShowMaskOverlay: (show: boolean) => void;
+  setShowRulers: (show: boolean) => void;
   setLayout: (layout: LayoutMode) => void;
   setViewMode2D: (mode: ViewMode2D) => void;
   setView3DLighting: (mode: LightingMode) => void;
@@ -180,6 +182,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   },
   hasSelection: false,
   showMaskOverlay: true,
+  showRulers: true,
   layout: '2d',
   viewMode2D: 'color',
   view3DLighting: 'combined',
@@ -203,6 +206,7 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((s) => ({ selectionTools: { ...s.selectionTools, [key]: value } })),
   setHasSelection: (hasSelection) => set({ hasSelection }),
   setShowMaskOverlay: (showMaskOverlay) => set({ showMaskOverlay }),
+  setShowRulers: (showRulers) => set({ showRulers }),
   setLayout: (layout) => set({ layout }),
   setViewMode2D: (viewMode2D) => set({ viewMode2D }),
   setView3DLighting: (view3DLighting) => set({ view3DLighting }),

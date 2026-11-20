@@ -2,6 +2,7 @@ import type {
   CanvasSettings,
   ColorAdjustments,
   ExportSettings,
+  GridSettings,
   HeightAdjustments,
   LightingSettings,
   MapId,
@@ -112,6 +113,11 @@ export type SettingsPatch =
       path: 'view3d';
       before: View3DSettings;
       after: View3DSettings;
+    }
+  | {
+      path: 'grid';
+      before: GridSettings;
+      after: GridSettings;
     }
   | {
       path: 'lighting';

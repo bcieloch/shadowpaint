@@ -168,6 +168,9 @@ function applySettingsPatch(patch: SettingsPatch, direction: 'undo' | 'redo'): v
     } else if (patch.path === 'view3d') {
       const value = direction === 'undo' ? patch.before : patch.after;
       draft.view3d = { ...value };
+    } else if (patch.path === 'grid') {
+      const value = direction === 'undo' ? patch.before : patch.after;
+      draft.grid = { ...value };
     } else if (patch.path === 'material') {
       const value = direction === 'undo' ? patch.before : patch.after;
       draft.material = { ...value };

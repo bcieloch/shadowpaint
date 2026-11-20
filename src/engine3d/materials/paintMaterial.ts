@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import type { CanvasSettings, MaterialSettings, View3DSettings } from '@/core/types';
+import type { CanvasSettings, GridSettings, MaterialSettings, View3DSettings } from '@/core/types';
 import { computeDisplacementParams, getCalibrationMetrics } from '@/core/units/calibration';
 import type { BackLightShaderParams } from '@/engine3d/lights/BackLight';
 import backlightFragGlsl from '@/engine3d/shaders/backlight.frag.glsl?raw';
+import gridFragGlsl from '@/engine3d/shaders/grid.frag.glsl?raw';
 import type { MapTextures } from '@/engine3d/textures/MapTextures';
 
 export interface PaintMaterialUniforms {
@@ -25,6 +26,12 @@ export interface PaintMaterialUniforms {
   uBackType: THREE.IUniform<number>;
   uBackScale: THREE.IUniform<number>;
   uScatterRadiusTex: THREE.IUniform<number>;
+  uGridEnabled: THREE.IUniform<number>;
+  uGridSpacingCm: THREE.IUniform<number>;
+  uGridSubdivisions: THREE.IUniform<number>;
+  uGridColor: THREE.IUniform<THREE.Color>;
+  uGridOpacity: THREE.IUniform<number>;
+  uGridCanvasCm: THREE.IUniform<THREE.Vector2>;
 }
 
 const PAINT_UNIFORMS_KEY = 'paintUniforms';
@@ -35,6 +42,7 @@ export function createPaintMaterial(
   materialSettings: MaterialSettings,
   view3d: View3DSettings,
   backParams?: BackLightShaderParams,
+  grid?: GridSettings,
 ): THREE.MeshStandardMaterial {
   const disp = computeDisplacementParams(
     canvas.minThicknessMm,
@@ -65,6 +73,12 @@ export function createPaintMaterial(
     uBackType: { value: backParams?.type === 'panel' ? 1 : 0 },
     uBackScale: { value: backParams?.backScale ?? 0 },
     uScatterRadiusTex: { value: (materialSettings.scatterRadiusMm / 10) * pxPerCm },
+    uGridEnabled: { value: grid?.show3D ? 1 : 0 },
+    uGridSpacingCm: { value: Math.max(0.05, grid?.spacingCm ?? 5) },
+    uGridSubdivisions: { value: Math.max(1, grid?.subdivisions ?? 5) },
+    uGridColor: { value: new THREE.Color(grid?.color ?? '#f59e0b') },
+    uGridOpacity: { value: grid?.opacity ?? 0.35 },
+    uGridCanvasCm: { value: new THREE.Vector2(canvas.widthCm, canvas.heightCm) },
   };
 
   const material = new THREE.MeshStandardMaterial({
@@ -77,7 +91,7 @@ export function createPaintMaterial(
   });
 
   material.userData[PAINT_UNIFORMS_KEY] = paintUniforms;
-  material.customProgramCacheKey = () => 'shadowpaint-paint-v2';
+  material.customProgramCacheKey = () => 'shadowpaint-paint-v3';
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uHeight = paintUniforms.uHeight;
@@ -99,6 +113,12 @@ export function createPaintMaterial(
     shader.uniforms.uBackType = paintUniforms.uBackType;
     shader.uniforms.uBackScale = paintUniforms.uBackScale;
     shader.uniforms.uScatterRadiusTex = paintUniforms.uScatterRadiusTex;
+    shader.uniforms.uGridEnabled = paintUniforms.uGridEnabled;
+    shader.uniforms.uGridSpacingCm = paintUniforms.uGridSpacingCm;
+    shader.uniforms.uGridSubdivisions = paintUniforms.uGridSubdivisions;
+    shader.uniforms.uGridColor = paintUniforms.uGridColor;
+    shader.uniforms.uGridOpacity = paintUniforms.uGridOpacity;
+    shader.uniforms.uGridCanvasCm = paintUniforms.uGridCanvasCm;
 
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -119,7 +139,8 @@ vPaintWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
 uniform vec2 uTexelSize;
 uniform vec2 uTexelCm;
 uniform float uDispScale;
-${backlightFragGlsl}`,
+${backlightFragGlsl}
+${gridFragGlsl}`,
       )
       .replace(
         '#include <normal_fragment_begin>',
@@ -140,6 +161,10 @@ ${backlightFragGlsl}`,
         '#include <opaque_fragment>',
         `#ifdef USE_MAP
   outgoingLight += computeBackLightContribution(vMapUv, diffuseColor.rgb, vPaintWorldPos);
+  float spGridAlpha = computeGridOverlayAlpha(vMapUv);
+  if (spGridAlpha > 0.0) {
+    outgoingLight = mix(outgoingLight, uGridColor, spGridAlpha);
+  }
 #endif
 #include <opaque_fragment>`,
       );
@@ -156,6 +181,7 @@ export function updatePaintMaterial(
   texturesWidth: number,
   texturesHeight: number,
   backParams?: BackLightShaderParams,
+  grid?: GridSettings,
 ): void {
   const disp = computeDisplacementParams(
     canvas.minThicknessMm,
@@ -183,6 +209,7 @@ export function updatePaintMaterial(
     paintUniforms.uKTint.value = materialSettings.kTint;
     paintUniforms.uTauCanvas.value = materialSettings.canvasTransmittance;
     paintUniforms.uScatterRadiusTex.value = (materialSettings.scatterRadiusMm / 10) * pxPerCm;
+    paintUniforms.uGridCanvasCm.value.set(canvas.widthCm, canvas.heightCm);
 
     if (backParams) {
       paintUniforms.uKAtt.value = backParams.attenuation;
@@ -192,6 +219,16 @@ export function updatePaintMaterial(
       paintUniforms.uBackIntensity.value = backParams.intensity;
       paintUniforms.uBackType.value = backParams.type === 'panel' ? 1 : 0;
       paintUniforms.uBackScale.value = backParams.backScale;
+    }
+
+    if (grid) {
+      paintUniforms.uGridEnabled.value = grid.show3D ? 1 : 0;
+      paintUniforms.uGridSpacingCm.value = Math.max(0.05, grid.spacingCm);
+      paintUniforms.uGridSubdivisions.value = Math.max(1, grid.subdivisions);
+      paintUniforms.uGridColor.value.set(grid.color);
+      paintUniforms.uGridOpacity.value = grid.opacity;
+    } else {
+      paintUniforms.uGridEnabled.value = 0;
     }
   }
 }
