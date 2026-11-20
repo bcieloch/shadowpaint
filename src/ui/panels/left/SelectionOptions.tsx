@@ -20,6 +20,7 @@ import {
 } from '@/ui/components/ui/select';
 import { Switch } from '@/ui/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/ui/toggle-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/components/ui/tooltip';
 import { useI18n } from '@/ui/hooks/useI18n';
 import { LabeledSlider } from '@/ui/widgets/LabeledSlider';
 
@@ -64,16 +65,21 @@ export function SelectionOptions() {
           <span className="text-muted-foreground text-[11px] font-medium">
             {t('selection.activeStripTitle')}
           </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            data-testid="selection-strip-clear"
-            onClick={() => clearSelection()}
-            className="h-5 px-1.5 text-[10px]"
-          >
-            {t('selection.clear')}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                data-testid="selection-strip-clear"
+                onClick={() => clearSelection()}
+                className="h-5 px-1.5 text-[10px]"
+              >
+                {t('selection.clear')}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('selection.clearTooltip')}</TooltipContent>
+          </Tooltip>
         </div>
 
         <ToggleGroup
@@ -292,37 +298,54 @@ export function SelectionOptions() {
       <div className="border-border space-y-2 border-t pt-2.5">
         <span className="text-muted-foreground text-xs">{t('selection.actionsLabel')}</span>
         <div className="grid grid-cols-3 gap-1.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            data-testid="selection-action-all"
-            onClick={() => selectAllSelection()}
-            className="h-7 text-xs"
-          >
-            {t('selection.selectAll')}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            data-testid="selection-action-invert"
-            onClick={() => invertSelection()}
-            className="h-7 text-xs"
-          >
-            {t('selection.invert')}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            data-testid="selection-action-clear"
-            disabled={!hasSelection}
-            onClick={() => clearSelection()}
-            className="h-7 text-xs"
-          >
-            {t('selection.clear')}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                data-testid="selection-action-all"
+                onClick={() => selectAllSelection()}
+                className="h-7 text-xs"
+              >
+                {t('selection.selectAll')}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('selection.selectAllTooltip')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                data-testid="selection-action-invert"
+                onClick={() => invertSelection()}
+                className="h-7 text-xs"
+              >
+                {t('selection.invert')}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('selection.invertTooltip')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  data-testid="selection-action-clear"
+                  disabled={!hasSelection}
+                  onClick={() => clearSelection()}
+                  className="h-7 w-full text-xs"
+                >
+                  {t('selection.clear')}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{t('selection.clearTooltip')}</TooltipContent>
+          </Tooltip>
         </div>
 
         <div className="flex items-end gap-1.5">

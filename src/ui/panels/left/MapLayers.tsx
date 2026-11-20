@@ -12,6 +12,12 @@ import { Button } from '@/ui/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/components/ui/tooltip';
 import { useI18n } from '@/ui/hooks/useI18n';
 
+const MAP_SHORTCUT_KEY: Record<MapId, string> = {
+  color: '1',
+  height: '2',
+  opacity: '3',
+};
+
 function MapThumbnail({ mapId }: { mapId: MapId }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const version = useMapsVersionStore((s) => s.mapVersions[mapId]);
@@ -109,6 +115,10 @@ export function MapLayers() {
                 action: formatHistoryMeta(mapUndoTop.meta, t),
               })
             : t('maps.undoMapEmpty', { map: mapName });
+          const selectTooltip = t('maps.selectMapTooltip', {
+            map: mapName,
+            key: MAP_SHORTCUT_KEY[id],
+          });
 
           return (
             <div
@@ -119,20 +129,26 @@ export function MapLayers() {
                   : 'border-border bg-background/50 text-muted-foreground hover:bg-accent/50 hover:text-foreground'
               }`}
             >
-              <button
-                type="button"
-                onClick={() => setActiveMap(id)}
-                data-testid={`map-layer-${id}`}
-                className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left"
-              >
-                <MapThumbnail mapId={id} />
-                <span className="flex-1 truncate font-medium">{mapName}</span>
-                {locked && (
-                  <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-                    {t('maps.lockedBadge')}
-                  </span>
-                )}
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setActiveMap(id)}
+                    aria-pressed={selected}
+                    data-testid={`map-layer-${id}`}
+                    className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left"
+                  >
+                    <MapThumbnail mapId={id} />
+                    <span className="flex-1 truncate font-medium">{mapName}</span>
+                    {locked && (
+                      <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                        {t('maps.lockedBadge')}
+                      </span>
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{selectTooltip}</TooltipContent>
+              </Tooltip>
 
               <Tooltip>
                 <TooltipTrigger asChild>

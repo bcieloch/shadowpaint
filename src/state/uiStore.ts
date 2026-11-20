@@ -25,6 +25,18 @@ export interface UiDialogsState {
   importWizardOpen: boolean;
   exportOpen: boolean;
   recentProjectsOpen: boolean;
+  shortcutsOpen: boolean;
+}
+
+export function hasOpenModalDialog(state: Pick<UiState, 'dialogs' | 'pendingOpenRelief'>): boolean {
+  return (
+    state.pendingOpenRelief !== null ||
+    state.dialogs.newProjectOpen ||
+    state.dialogs.importWizardOpen ||
+    state.dialogs.exportOpen ||
+    state.dialogs.recentProjectsOpen ||
+    state.dialogs.shortcutsOpen
+  );
 }
 
 export interface UiState {
@@ -50,6 +62,7 @@ export const useUiStore = create<UiState>((set) => ({
     importWizardOpen: false,
     exportOpen: false,
     recentProjectsOpen: false,
+    shortcutsOpen: false,
   },
   pendingOpenRelief: null,
   rightTab: 'map',

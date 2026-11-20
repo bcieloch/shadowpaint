@@ -2,20 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Frame, Grid3x3, Lightbulb, Maximize2, RotateCcw, Ruler, Scan } from 'lucide-react';
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import type { LightingMode, MapId } from '@/core/types';
-import { getCalibrationMetrics } from '@/core/units/calibration';
 import { PointerRouter } from '@/editor2d/input/PointerRouter';
 import { clampSplitRatio, computeSplitPanes } from '@/editor2d/splitLayout';
 import { zoomAtPoint, type ViewportSize } from '@/editor2d/viewTransform';
-import { exportPackage } from '@/services/exportService';
-import { saveProjectRelief, triggerOpenProjectDialog } from '@/services/fileService';
-import {
-  recordSettingsPatchHistory,
-  recordTileHistory,
-  redoGlobal,
-  undoActiveMap,
-  undoGlobal,
-} from '@/services/historyService';
-import { clearSelection, invertSelection, selectAllSelection } from '@/services/selectionService';
+import { recordSettingsPatchHistory, recordTileHistory } from '@/services/historyService';
 import { useEditorStore, type HeightDisplayMode } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
 import { clearCursorReadout, scheduleCursorReadout } from '@/state/readoutStore';
@@ -32,16 +22,11 @@ import { ToggleGroup, ToggleGroupItem } from '@/ui/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/components/ui/tooltip';
 import { useEngine } from '@/ui/hooks/useEngine';
 import { useI18n } from '@/ui/hooks/useI18n';
+import { useShortcuts } from '@/ui/hooks/useShortcuts';
 import { HeightLegend } from '@/ui/widgets/HeightLegend';
 import { OpacityLegend } from '@/ui/widgets/OpacityLegend';
 
 const CONTOUR_STEPS = [0.25, 0.5, 1, 2];
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
-}
 
 function getLockedWarningKey(mapId: MapId) {
   if (mapId === 'color') return 'maps.lockedWarningColor' as const;
@@ -99,7 +84,6 @@ export function ViewportHost() {
   const tool = useEditorStore((s) => s.tool);
   const brushSizeValue = useEditorStore((s) => s.brush.sizeValue);
   const brushSizeUnit = useEditorStore((s) => s.brush.sizeUnit);
-  const setLayout = useEditorStore((s) => s.setLayout);
   const setViewMode2D = useEditorStore((s) => s.setViewMode2D);
   const setView3DLighting = useEditorStore((s) => s.setView3DLighting);
   const setSplitRatio = useEditorStore((s) => s.setSplitRatio);
@@ -292,241 +276,15 @@ export function ViewportHost() {
     };
   }, [containerRef]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const adjustBrushSize = (scale: number) => {
-      const editor = useEditorStore.getState();
-      const projCanvas = useProjectStore.getState().project.canvas;
-      const pxPerCm = Math.max(0.001, getCalibrationMetrics(projCanvas).pxPerCm);
-      const { sizeValue, sizeUnit } = editor.brush;
-
-      if (sizeUnit === 'px') {
-        const next = Math.max(
-          1,
-          Math.min(
-            2000,
-            scale > 1
-              ? Math.max(sizeValue + 1, Math.round(sizeValue * scale))
-              : Math.min(sizeValue - 1, Math.round(sizeValue * scale)),
-          ),
-        );
-        editor.setBrushOption('sizeValue', next);
-      } else {
-        const minCm = Math.max(0.05, Number((1 / pxPerCm).toFixed(2)));
-        const maxCm = Math.max(0.5, Number((2000 / pxPerCm).toFixed(2)));
-        const next = Math.max(minCm, Math.min(maxCm, Number((sizeValue * scale).toFixed(2))));
-        editor.setBrushOption('sizeValue', next);
-      }
-      pointerRouterRef.current?.refreshCursor();
-    };
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (isEditableTarget(e.target)) return;
-
-      if (e.key === 'F1') {
-        e.preventDefault();
-        setLayout('2d');
-        return;
-      }
-      if (e.key === 'F2') {
-        e.preventDefault();
-        setLayout('3d');
-        return;
-      }
-      if (e.key === 'F3') {
-        e.preventDefault();
-        setLayout('split');
-        return;
-      }
-      if (e.key === 'Home') {
-        const currentLayout = useEditorStore.getState().layout;
-        if (currentLayout === '3d' || currentLayout === 'split') {
-          e.preventDefault();
-          resetView3D();
-        }
-        return;
-      }
-
-      if (e.code === 'Space' && !e.repeat) {
-        if (useEditorStore.getState().layout === '3d') return;
-        e.preventDefault();
-        setSpacePressed(true);
-        pointerRouterRef.current?.setSpacePressed(true);
-        pointerRouterRef.current?.refreshCursor();
-        return;
-      }
-
-      if (e.ctrlKey || e.metaKey) {
-        const lower = e.key.toLowerCase();
-        if (e.altKey && !e.shiftKey && lower === 'z') {
-          e.preventDefault();
-          undoActiveMap();
-        } else if (!e.altKey && e.shiftKey && lower === 'z') {
-          e.preventDefault();
-          redoGlobal();
-        } else if (!e.altKey && !e.shiftKey && lower === 'y') {
-          e.preventDefault();
-          redoGlobal();
-        } else if (!e.altKey && !e.shiftKey && lower === 'z') {
-          e.preventDefault();
-          undoGlobal();
-        } else if (e.key === '0') {
-          e.preventDefault();
-          fitView();
-        } else if (e.key === '1') {
-          e.preventDefault();
-          setZoom100();
-        } else if (!e.altKey && !e.shiftKey && lower === 'o') {
-          e.preventDefault();
-          triggerOpenProjectDialog();
-        } else if (!e.altKey && e.shiftKey && lower === 's') {
-          e.preventDefault();
-          void saveProjectRelief({ saveAs: true });
-        } else if (!e.altKey && !e.shiftKey && lower === 's') {
-          e.preventDefault();
-          void saveProjectRelief();
-        } else if (!e.altKey && !e.shiftKey && lower === 'e') {
-          e.preventDefault();
-          void exportPackage();
-        } else if (!e.altKey && !e.shiftKey && lower === 'a') {
-          e.preventDefault();
-          selectAllSelection();
-        } else if (!e.altKey && !e.shiftKey && lower === 'd') {
-          e.preventDefault();
-          clearSelection();
-        } else if (!e.altKey && e.shiftKey && lower === 'i') {
-          e.preventDefault();
-          invertSelection();
-        } else if (!e.altKey && !e.shiftKey && lower === 'r') {
-          e.preventDefault();
-          const editor = useEditorStore.getState();
-          editor.setShowRulers(!editor.showRulers);
-        } else if (!e.altKey && !e.shiftKey && (e.code === 'Quote' || e.key === "'")) {
-          e.preventDefault();
-          const is3d = useEditorStore.getState().layout === '3d';
-          toggleGridVisibilityWithHistory(is3d ? '3d' : '2d');
-        }
-        return;
-      }
-
-      if (e.altKey) return;
-
-      const editor = useEditorStore.getState();
-
-      if (e.shiftKey) {
-        const lower = e.key.toLowerCase();
-        if (e.code === 'Digit1') {
-          e.preventDefault();
-          editor.setViewMode2D('color');
-        } else if (e.code === 'Digit2') {
-          e.preventDefault();
-          editor.setViewMode2D('height');
-        } else if (e.code === 'Digit3') {
-          e.preventDefault();
-          editor.setViewMode2D('opacity');
-        } else if (e.code === 'Digit4') {
-          e.preventDefault();
-          if (editor.layout === '3d') {
-            setProjectLightingModeWithHistory('front');
-          } else {
-            editor.setViewMode2D('front');
-          }
-        } else if (e.code === 'Digit5') {
-          e.preventDefault();
-          if (editor.layout === '3d') {
-            setProjectLightingModeWithHistory('back');
-          } else {
-            editor.setViewMode2D('back');
-          }
-        } else if (e.code === 'Digit6') {
-          e.preventDefault();
-          if (editor.layout === '3d') {
-            setProjectLightingModeWithHistory('combined');
-          } else {
-            editor.setViewMode2D('combined');
-          }
-        } else if (e.code === 'Digit7') {
-          e.preventDefault();
-          editor.setLayout('3d');
-        } else if (lower === 'm') {
-          e.preventDefault();
-          editor.setTool('selectEllipse');
-        }
-        return;
-      }
-
-      const lower = e.key.toLowerCase();
-      if (lower === 'b') {
-        editor.setTool('brush');
-      } else if (lower === 'e') {
-        editor.setTool('eraser');
-      } else if (lower === 's') {
-        editor.setTool('smooth');
-      } else if (lower === 'r') {
-        editor.setTool('blur');
-      } else if (lower === 'g') {
-        editor.setTool('gradient');
-      } else if (lower === 'f') {
-        editor.setTool('fill');
-      } else if (lower === 'i') {
-        editor.setTool('eyedropper');
-      } else if (lower === 'h') {
-        editor.setTool('pan');
-      } else if (lower === 'u') {
-        editor.setTool('ruler');
-      } else if (lower === 'x') {
-        editor.setTool('crossSection');
-      } else if (lower === 'm') {
-        editor.setTool('selectRect');
-      } else if (lower === 'l') {
-        editor.setTool('selectLasso');
-      } else if (lower === 'w') {
-        editor.setTool('magicWand');
-      } else if (lower === 'q') {
-        editor.setTool('maskBrush');
-      } else if (e.key === 'Escape' && editor.tool === 'ruler' && editor.rulerLine) {
-        editor.setRulerLine(null);
-      } else if (e.key === 'Escape' && editor.tool === 'crossSection' && editor.crossSectionLine) {
-        editor.setCrossSectionLine(null);
-      } else if (e.key === '[') {
-        e.preventDefault();
-        adjustBrushSize(1 / 1.18);
-      } else if (e.key === ']') {
-        e.preventDefault();
-        adjustBrushSize(1.18);
-      } else if (e.key === '1') {
-        editor.setActiveMap('color');
-      } else if (e.key === '2') {
-        editor.setActiveMap('height');
-      } else if (e.key === '3') {
-        editor.setActiveMap('opacity');
-      }
-    };
-
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        setSpacePressed(false);
-        pointerRouterRef.current?.setSpacePressed(false);
-        pointerRouterRef.current?.refreshCursor();
-      }
-    };
-
-    const onBlur = () => {
-      setSpacePressed(false);
-      setIsPanning(false);
-      pointerRouterRef.current?.setSpacePressed(false);
-      pointerRouterRef.current?.cancelActive();
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('blur', onBlur);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('blur', onBlur);
-    };
-  }, [fitView, resetView3D, setLayout, setZoom100]);
+  useShortcuts({
+    pointerRouterRef,
+    pane2DSizeRef,
+    fitView,
+    setZoom100,
+    resetView3D,
+    setSpacePressed,
+    setIsPanning,
+  });
 
   const handleToggleFrame = () => {
     const before = { ...useProjectStore.getState().project.view3d };
@@ -590,6 +348,15 @@ export function ViewportHost() {
           ? 'cursor-grab'
           : 'cursor-crosshair';
 
+  const mode2DItems = [
+    { value: 'color', testId: 'mode-color', label: t('viewport.modeColor'), tooltip: t('viewport.modeColorTooltip') },
+    { value: 'height', testId: 'mode-height', label: t('viewport.modeHeight'), tooltip: t('viewport.modeHeightTooltip') },
+    { value: 'opacity', testId: 'mode-opacity', label: t('viewport.modeOpacity'), tooltip: t('viewport.modeOpacityTooltip') },
+    { value: 'front', testId: 'mode-front', label: t('viewport.modeFront'), tooltip: t('viewport.modeFrontTooltip') },
+    { value: 'back', testId: 'mode-back', label: t('viewport.modeBack'), tooltip: t('viewport.modeBackTooltip') },
+    { value: 'combined', testId: 'mode-combined', label: t('viewport.modeCombined'), tooltip: t('viewport.modeCombinedTooltip') },
+  ] as const;
+
   const render2DControls = (compact: boolean) => (
     <>
       <div className="flex items-center gap-1.5">
@@ -611,48 +378,20 @@ export function ViewportHost() {
             }
           }}
         >
-          <ToggleGroupItem
-            value="color"
-            data-testid="mode-color"
-            className={compact ? 'h-6 px-1.5 text-[11px]' : 'h-7 px-2.5 text-xs'}
-          >
-            {t('viewport.modeColor')}
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="height"
-            data-testid="mode-height"
-            className={compact ? 'h-6 px-1.5 text-[11px]' : 'h-7 px-2.5 text-xs'}
-          >
-            {t('viewport.modeHeight')}
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="opacity"
-            data-testid="mode-opacity"
-            className={compact ? 'h-6 px-1.5 text-[11px]' : 'h-7 px-2.5 text-xs'}
-          >
-            {t('viewport.modeOpacity')}
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="front"
-            data-testid="mode-front"
-            className={compact ? 'h-6 px-1.5 text-[11px]' : 'h-7 px-2.5 text-xs'}
-          >
-            {t('viewport.modeFront')}
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="back"
-            data-testid="mode-back"
-            className={compact ? 'h-6 px-1.5 text-[11px]' : 'h-7 px-2.5 text-xs'}
-          >
-            {t('viewport.modeBack')}
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="combined"
-            data-testid="mode-combined"
-            className={compact ? 'h-6 px-1.5 text-[11px]' : 'h-7 px-2.5 text-xs'}
-          >
-            {t('viewport.modeCombined')}
-          </ToggleGroupItem>
+          {mode2DItems.map((item) => (
+            <Tooltip key={item.value}>
+              <TooltipTrigger asChild>
+                <ToggleGroupItem
+                  value={item.value}
+                  data-testid={item.testId}
+                  className={compact ? 'h-6 px-1.5 text-[11px]' : 'h-7 px-2.5 text-xs'}
+                >
+                  {item.label}
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>{item.tooltip}</TooltipContent>
+            </Tooltip>
+          ))}
         </ToggleGroup>
 
         {viewMode2D === 'height' && (
@@ -783,6 +522,12 @@ export function ViewportHost() {
     </>
   );
 
+  const lighting3DItems = [
+    { value: 'front', testId: 'view3d-mode-front', label: t('viewport.modeFront'), tooltip: t('viewport.modeFrontTooltip') },
+    { value: 'back', testId: 'view3d-mode-back', label: t('viewport.modeBack'), tooltip: t('viewport.modeBackTooltip') },
+    { value: 'combined', testId: 'view3d-mode-combined', label: t('viewport.modeCombined'), tooltip: t('viewport.modeCombinedTooltip') },
+  ] as const;
+
   const render3DControls = (compact: boolean) => (
     <>
       <div className="flex items-center gap-2">
@@ -793,27 +538,20 @@ export function ViewportHost() {
           value={active3DLightingValue}
           onValueChange={handleChange3DLighting}
         >
-          <ToggleGroupItem
-            value="front"
-            data-testid="view3d-mode-front"
-            className={compact ? 'h-6 px-1.5 text-[11px]' : 'h-7 px-2.5 text-xs'}
-          >
-            {t('viewport.modeFront')}
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="back"
-            data-testid="view3d-mode-back"
-            className={compact ? 'h-6 px-1.5 text-[11px]' : 'h-7 px-2.5 text-xs'}
-          >
-            {t('viewport.modeBack')}
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="combined"
-            data-testid="view3d-mode-combined"
-            className={compact ? 'h-6 px-1.5 text-[11px]' : 'h-7 px-2.5 text-xs'}
-          >
-            {t('viewport.modeCombined')}
-          </ToggleGroupItem>
+          {lighting3DItems.map((item) => (
+            <Tooltip key={item.value}>
+              <TooltipTrigger asChild>
+                <ToggleGroupItem
+                  value={item.value}
+                  data-testid={item.testId}
+                  className={compact ? 'h-6 px-1.5 text-[11px]' : 'h-7 px-2.5 text-xs'}
+                >
+                  {item.label}
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>{item.tooltip}</TooltipContent>
+            </Tooltip>
+          ))}
         </ToggleGroup>
         {!compact && (
           <span className="text-muted-foreground hidden text-[11px] lg:inline">
