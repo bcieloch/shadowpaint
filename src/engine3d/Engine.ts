@@ -6,6 +6,7 @@ import type {
   GridSettings,
   LightingMode,
   LightingSettings,
+  LineSegment,
   MapId,
   MaterialSettings,
   Rect,
@@ -33,7 +34,8 @@ import {
   type RenderedPreviewImage,
 } from '@/engine3d/offscreen/renderPreview';
 import type { CanvasMeshStats } from '@/engine3d/scene/CanvasMesh';
-import { PaintingScene } from '@/engine3d/scene/PaintingScene';
+import type { CrossSection3DOverlayStats } from '@/engine3d/scene/CrossSection3DOverlay';
+import { PaintingScene, type CrossSectionOverlayInput } from '@/engine3d/scene/PaintingScene';
 import { MapTextures } from '@/engine3d/textures/MapTextures';
 import type { LayoutMode, ViewMode2D } from '@/state/editorStore';
 
@@ -53,6 +55,8 @@ export interface EngineRenderParams {
   showLampGizmos: boolean;
   showMaskOverlay?: boolean;
   pane2D: ViewTransformState;
+  crossSectionLine?: LineSegment | null;
+  crossSectionHoverT?: number | null;
 }
 
 export interface EngineCallbacks {
@@ -115,6 +119,7 @@ export class Engine {
   private builtHeightCm = 0;
   private orbitInitializedForProject = false;
   private shadowDirty = true;
+  private heightVersion = 0;
 
   private viewport: ViewportSize = { width: 1, height: 1 };
   private params: EngineRenderParams | null = null;
@@ -193,6 +198,7 @@ export class Engine {
     this.unsubDirty = this.registry.events.on('dirty', ({ mapId, rect }) => {
       if (mapId === 'height') {
         this.shadowDirty = true;
+        this.heightVersion++;
       }
       if (this.pendingFull[mapId] || this.needsRebuild) return;
       const prev = this.pendingDirty[mapId];
@@ -203,6 +209,7 @@ export class Engine {
     this.unsubReplaced = this.registry.events.on('replaced', ({ mapId }) => {
       if (mapId === 'all' || mapId === 'height') {
         this.shadowDirty = true;
+        this.heightVersion++;
       }
       if (mapId === 'all') {
         this.needsRebuild = true;
@@ -233,6 +240,16 @@ export class Engine {
     if (this.registry.isAllocated) {
       this.needsRebuild = true;
     }
+  }
+
+  private buildCrossSectionInput(visible: boolean): CrossSectionOverlayInput {
+    return {
+      visible,
+      line: this.params?.crossSectionLine ?? null,
+      hoverT: this.params?.crossSectionHoverT ?? null,
+      heightEffective: this.registry.isAllocated ? this.registry.heightMap.effective : null,
+      heightVersion: this.heightVersion,
+    };
   }
 
   setRenderParams(params: EngineRenderParams): void {
@@ -336,6 +353,7 @@ export class Engine {
           showLampGizmos,
           lighting.mode,
           grid,
+          this.buildCrossSectionInput(true),
         );
         if (shadowConfigChanged) {
           this.shadowDirty = true;
@@ -364,6 +382,7 @@ export class Engine {
           this.getMaxTextureSize(),
           false,
           viewMode2D,
+          undefined,
           undefined,
         );
         if (shadowConfigChanged) {
@@ -436,6 +455,7 @@ export class Engine {
       layout === '3d' && showLampGizmos,
       effectiveMode,
       layout === '3d' ? grid : undefined,
+      layout === '3d' ? this.buildCrossSectionInput(true) : undefined,
     );
 
     this.mapTextures = textures;
@@ -525,6 +545,7 @@ export class Engine {
           false,
           viewMode2D,
           undefined,
+          undefined,
         );
         if (shadowConfigChanged) {
           this.shadowDirty = true;
@@ -605,6 +626,7 @@ export class Engine {
       showLampGizmos,
       lighting.mode,
       grid,
+      this.buildCrossSectionInput(true),
     );
     if (shadowConfigChanged) {
       this.shadowDirty = true;
@@ -705,6 +727,7 @@ export class Engine {
       this.params.layout === '3d' && this.params.showLampGizmos,
       effectiveMode,
       this.params.layout === '3d' ? this.params.grid : undefined,
+      this.params.layout === '3d' ? this.buildCrossSectionInput(true) : undefined,
     );
     return this.paintingScene.getCanvasStats();
   }
@@ -727,6 +750,7 @@ export class Engine {
       this.params.layout === '3d' && this.params.showLampGizmos,
       effectiveMode,
       this.params.layout === '3d' ? this.params.grid : undefined,
+      this.params.layout === '3d' ? this.buildCrossSectionInput(true) : undefined,
     );
     return this.paintingScene.getFrontLightStats();
   }
@@ -749,8 +773,26 @@ export class Engine {
       this.params.layout === '3d' && this.params.showLampGizmos,
       effectiveMode,
       this.params.layout === '3d' ? this.params.grid : undefined,
+      this.params.layout === '3d' ? this.buildCrossSectionInput(true) : undefined,
     );
     return this.paintingScene.getBackLightStats();
+  }
+
+  getCrossSection3DStats(): CrossSection3DOverlayStats | null {
+    if (!this.paintingScene || !this.params || !this.mapTextures) return null;
+    this.paintingScene.update(
+      this.mapTextures,
+      this.params.canvas,
+      this.params.material,
+      this.params.lighting,
+      this.params.view3d,
+      this.getMaxTextureSize(),
+      this.params.layout === '3d' && this.params.showLampGizmos,
+      this.params.lighting.mode,
+      this.params.layout === '3d' ? this.params.grid : undefined,
+      this.buildCrossSectionInput(this.params.layout === '3d'),
+    );
+    return this.paintingScene.getCrossSectionStats();
   }
 
   getMemoryInfo(): RendererMemoryInfo {
@@ -852,6 +894,7 @@ export class Engine {
       layout === '3d' && showLampGizmos,
       effectiveMode,
       layout === '3d' ? grid : undefined,
+      layout === '3d' ? this.buildCrossSectionInput(true) : undefined,
     );
     if (shadowConfigChanged) {
       this.shadowDirty = true;

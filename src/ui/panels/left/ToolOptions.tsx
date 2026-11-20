@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ArrowLeftRight, Trash2 } from 'lucide-react';
+import { ArrowLeftRight, PanelRightOpen, Trash2 } from 'lucide-react';
 import { measureRulerLine } from '@/core/geometry/ruler';
 import { brushSizeToPx, getCalibrationMetrics } from '@/core/units/calibration';
 import { BLUR_REALTIME_MAX_RADIUS_PX } from '@/editor2d/tools/BlurTool';
 import { applyFillSelectionToActiveMap } from '@/services/filterService';
 import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
+import { useUiStore } from '@/state/uiStore';
 import { Button } from '@/ui/components/ui/button';
 import { Input } from '@/ui/components/ui/input';
 import { Label } from '@/ui/components/ui/label';
@@ -83,6 +84,7 @@ export function ToolOptions() {
   const gradientTool = useEditorStore((s) => s.gradientTool);
   const fillTool = useEditorStore((s) => s.fillTool);
   const rulerLine = useEditorStore((s) => s.rulerLine);
+  const crossSectionLine = useEditorStore((s) => s.crossSectionLine);
   const hasSelection = useEditorStore((s) => s.hasSelection);
   const setBrushOption = useEditorStore((s) => s.setBrushOption);
   const setSmoothToolOption = useEditorStore((s) => s.setSmoothToolOption);
@@ -90,6 +92,8 @@ export function ToolOptions() {
   const setGradientToolOption = useEditorStore((s) => s.setGradientToolOption);
   const setFillToolOption = useEditorStore((s) => s.setFillToolOption);
   const setRulerLine = useEditorStore((s) => s.setRulerLine);
+  const setCrossSectionLine = useEditorStore((s) => s.setCrossSectionLine);
+  const setRightTab = useUiStore((s) => s.setRightTab);
   const canvas = useProjectStore((s) => s.project.canvas);
   const activeMapLocked = useProjectStore((s) => s.project.maps[activeMap].locked);
 
@@ -161,6 +165,9 @@ export function ToolOptions() {
 
   const blurKernelRadiusPx = brushSizeToPx(blurTool.radiusValue, blurTool.radiusUnit, pxPerCm);
   const rulerMeasurement = rulerLine ? measureRulerLine(rulerLine, canvas) : null;
+  const crossSectionMeasurement = crossSectionLine
+    ? measureRulerLine(crossSectionLine, canvas)
+    : null;
 
   return (
     <section className="space-y-3 p-3">
@@ -720,6 +727,54 @@ export function ToolOptions() {
           >
             <Trash2 className="size-3.5" />
             {t('toolOptions.rulerClear')}
+          </Button>
+        </div>
+      )}
+
+      {tool === 'crossSection' && (
+        <div className="space-y-2.5" data-testid="cross-section-options">
+          <p className="text-muted-foreground text-[11px] leading-relaxed">
+            {t('toolOptions.crossSectionHint')}
+          </p>
+
+          {crossSectionMeasurement ? (
+            <div className="border-border bg-background/60 flex items-center justify-between rounded-md border px-2.5 py-2 font-mono text-[11px]">
+              <span className="text-muted-foreground font-sans text-xs">
+                {t('toolOptions.rulerLength')}
+              </span>
+              <span className="text-foreground font-semibold">
+                {crossSectionMeasurement.lengthCm.toFixed(2)} cm
+              </span>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-xs" data-testid="cross-section-options-empty">
+              {t('toolOptions.crossSectionEmpty')}
+            </p>
+          )}
+
+          <Button
+            type="button"
+            variant="secondary"
+            size="xs"
+            data-testid="btn-open-section-panel"
+            onClick={() => setRightTab('section')}
+            className="h-7 w-full gap-1.5 text-xs"
+          >
+            <PanelRightOpen className="size-3.5" />
+            {t('toolOptions.crossSectionOpenPanel')}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            data-testid="btn-cross-section-clear-tool"
+            disabled={!crossSectionLine}
+            onClick={() => setCrossSectionLine(null)}
+            className="h-7 w-full gap-1.5 text-xs"
+          >
+            <Trash2 className="size-3.5" />
+            {t('toolOptions.crossSectionClear')}
           </Button>
         </div>
       )}

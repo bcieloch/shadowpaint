@@ -1,5 +1,6 @@
 import { BlurTool } from '@/editor2d/tools/BlurTool';
 import { BrushTool } from '@/editor2d/tools/BrushTool';
+import { CrossSectionTool } from '@/editor2d/tools/CrossSectionTool';
 import { EraserTool } from '@/editor2d/tools/EraserTool';
 import { EyedropperTool } from '@/editor2d/tools/EyedropperTool';
 import { FillTool } from '@/editor2d/tools/FillTool';
@@ -28,6 +29,7 @@ export function createToolRegistry(): Partial<Record<ToolId, Tool>> {
     eyedropper: new EyedropperTool(),
     pan: new PanTool(),
     ruler: new RulerTool(),
+    crossSection: new CrossSectionTool(),
     selectRect: new SelectRectTool(),
     selectEllipse: new SelectEllipseTool(),
     selectLasso: new SelectLassoTool(),

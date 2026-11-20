@@ -48,6 +48,13 @@ export interface ShadowPaintDebugHandle {
     backScale: number;
     gizmoVisible: boolean;
   } | null;
+  getCrossSection3DStats: () => {
+    visible: boolean;
+    vertexCount: number;
+    hoverVisible: boolean;
+    minZCm: number | null;
+    maxZCm: number | null;
+  } | null;
   getSelectionStats: () => {
     hasSelection: boolean;
     selectedPixels: number;

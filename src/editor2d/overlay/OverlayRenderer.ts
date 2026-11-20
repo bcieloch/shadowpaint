@@ -38,6 +38,9 @@ export interface OverlayRenderState {
   showRulers?: boolean;
   rulerLine?: LineSegment | null;
   isRulerToolActive?: boolean;
+  crossSectionLine?: LineSegment | null;
+  crossSectionHoverT?: number | null;
+  isCrossSectionToolActive?: boolean;
   selectionMask?: Uint8Array | null;
   hasSelection?: boolean;
   marchingAntsPhasePx?: number;
@@ -129,6 +132,17 @@ export class OverlayRenderer {
       this.renderSelectionDraft(ctx, state, draft);
     }
 
+    // Draw persistent cross-section cut line & optional synced hover marker
+    if (state.crossSectionLine) {
+      this.renderCrossSectionLine(
+        ctx,
+        state,
+        state.crossSectionLine,
+        state.crossSectionHoverT ?? null,
+        Boolean(state.isCrossSectionToolActive),
+      );
+    }
+
     // Draw interactive measurement ruler line & badge
     if (state.rulerLine) {
       this.renderRulerMeasurement(ctx, state, state.rulerLine, Boolean(state.isRulerToolActive));
@@ -162,6 +176,96 @@ export class OverlayRenderer {
     // Draw calibrated cm edge rulers on top & left viewport edges
     if (state.showRulers) {
       this.renderEdgeRulers(ctx, state, topLeft, bottomRight);
+    }
+
+    ctx.restore();
+  }
+
+  private renderCrossSectionLine(
+    ctx: CanvasRenderingContext2D,
+    state: OverlayRenderState,
+    line: LineSegment,
+    hoverT: number | null,
+    highlightHandles: boolean,
+  ): void {
+    const s0 = imagePxToScreen(
+      state.transform,
+      state.viewport,
+      state.imageWidth,
+      state.imageHeight,
+      line.p0.x,
+      line.p0.y,
+    );
+    const s1 = imagePxToScreen(
+      state.transform,
+      state.viewport,
+      state.imageWidth,
+      state.imageHeight,
+      line.p1.x,
+      line.p1.y,
+    );
+
+    ctx.save();
+
+    // High-contrast dashed backing + amber section line
+    ctx.beginPath();
+    ctx.moveTo(s0.x, s0.y);
+    ctx.lineTo(s1.x, s1.y);
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = 'rgba(11, 11, 13, 0.9)';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(s0.x, s0.y);
+    ctx.lineTo(s1.x, s1.y);
+    ctx.lineWidth = 1.75;
+    ctx.strokeStyle = '#f59e0b';
+    ctx.stroke();
+
+    const handleRadius = highlightHandles ? 5.5 : 4;
+    const drawHandle = (pt: Vec2, tag: string) => {
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, handleRadius, 0, Math.PI * 2);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(11, 11, 13, 0.95)';
+      ctx.stroke();
+
+      ctx.font = 'bold 9px "JetBrains Mono", monospace';
+      ctx.textBaseline = 'bottom';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(11, 11, 13, 0.85)';
+      ctx.fillText(tag, pt.x + 1, pt.y - handleRadius - 2);
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText(tag, pt.x, pt.y - handleRadius - 3);
+    };
+
+    drawHandle(s0, 'A');
+    drawHandle(s1, 'B');
+
+    // Synced hover marker from SVG chart
+    if (hoverT !== null && Number.isFinite(hoverT)) {
+      const t = Math.min(1, Math.max(0, hoverT));
+      const hx = s0.x + (s1.x - s0.x) * t;
+      const hy = s0.y + (s1.y - s0.y) * t;
+
+      ctx.beginPath();
+      ctx.arc(hx, hy, 7, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(11, 11, 13, 0.95)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(hx, hy, 7, 0, Math.PI * 2);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.75;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(hx, hy, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#f4f4f5';
+      ctx.fill();
     }
 
     ctx.restore();

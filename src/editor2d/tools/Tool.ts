@@ -21,6 +21,7 @@ export interface ToolContext {
   getZoom?: () => number;
   setBrushOption: <K extends keyof BrushOptions>(key: K, value: BrushOptions[K]) => void;
   setRulerLine?: (line: LineSegment | null) => void;
+  setCrossSectionLine?: (line: LineSegment | null) => void;
   onLockedMapAttempt: (mapId: MapId) => void;
   recordMapTileEntry?: (entry: NewHistoryEntry<TilesMapHistoryEntry>) => void;
 }
