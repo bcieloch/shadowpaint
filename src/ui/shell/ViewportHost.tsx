@@ -13,6 +13,7 @@ import {
   undoActiveMap,
   undoGlobal,
 } from '@/services/historyService';
+import { clearSelection, invertSelection, selectAllSelection } from '@/services/selectionService';
 import { useEditorStore, type HeightDisplayMode } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
 import { clearCursorReadout, scheduleCursorReadout } from '@/state/readoutStore';
@@ -210,7 +211,7 @@ export function ViewportHost() {
     };
   }, [containerRef]);
 
-  // Keyboard shortcuts: F1/F2 layout, Home reset 3D, Shift+1..6 modes, Space pan, Ctrl+Z/Shift+Z/Y/Alt+Z history, Ctrl+0/1, B/E/I/H, [/], 1/2/3
+  // Keyboard shortcuts
   useEffect(() => {
     const adjustBrushSize = (scale: number) => {
       const editor = useEditorStore.getState();
@@ -291,6 +292,15 @@ export function ViewportHost() {
         } else if (!e.altKey && !e.shiftKey && lower === 'e') {
           e.preventDefault();
           void exportPackage();
+        } else if (!e.altKey && !e.shiftKey && lower === 'a') {
+          e.preventDefault();
+          selectAllSelection();
+        } else if (!e.altKey && !e.shiftKey && lower === 'd') {
+          e.preventDefault();
+          clearSelection();
+        } else if (!e.altKey && e.shiftKey && lower === 'i') {
+          e.preventDefault();
+          invertSelection();
         }
         return;
       }
@@ -300,6 +310,7 @@ export function ViewportHost() {
       const editor = useEditorStore.getState();
 
       if (e.shiftKey) {
+        const lower = e.key.toLowerCase();
         if (e.code === 'Digit1') {
           e.preventDefault();
           editor.setViewMode2D('color');
@@ -330,6 +341,9 @@ export function ViewportHost() {
           } else {
             editor.setViewMode2D('combined');
           }
+        } else if (lower === 'm') {
+          e.preventDefault();
+          editor.setTool('selectEllipse');
         }
         return;
       }
@@ -343,6 +357,14 @@ export function ViewportHost() {
         editor.setTool('eyedropper');
       } else if (lower === 'h') {
         editor.setTool('pan');
+      } else if (lower === 'm') {
+        editor.setTool('selectRect');
+      } else if (lower === 'l') {
+        editor.setTool('selectLasso');
+      } else if (lower === 'w') {
+        editor.setTool('magicWand');
+      } else if (lower === 'q') {
+        editor.setTool('maskBrush');
       } else if (e.key === '[') {
         e.preventDefault();
         adjustBrushSize(1 / 1.18);

@@ -86,6 +86,7 @@ export class PointerRouter {
       this.activeTool.onCancel(this.deps.toolContext);
       this.activeTool = null;
       this.activePointerId = null;
+      this.refreshCursor();
     }
   }
 
@@ -150,8 +151,8 @@ export class PointerRouter {
 
     const screenPos = this.toScreenPos(e);
     this.lastScreenPos = screenPos;
-    this.emitCursor(screenPos);
     tool.onDown(this.toToolEvent(e, screenPos), this.deps.toolContext);
+    this.emitCursor(screenPos);
   };
 
   private readonly handlePointerMove = (e: PointerEvent): void => {
@@ -199,9 +200,11 @@ export class PointerRouter {
     if (this.activeTool && this.activePointerId === e.pointerId) {
       this.releaseCaptureSafe(e.pointerId);
       const screenPos = this.toScreenPos(e);
+      this.lastScreenPos = screenPos;
       this.activeTool.onUp(this.toToolEvent(e, screenPos), this.deps.toolContext);
       this.activeTool = null;
       this.activePointerId = null;
+      this.emitCursor(screenPos);
     }
   };
 
@@ -220,6 +223,7 @@ export class PointerRouter {
       this.activeTool.onCancel(this.deps.toolContext);
       this.activeTool = null;
       this.activePointerId = null;
+      this.refreshCursor();
     }
   };
 
@@ -276,7 +280,10 @@ export class PointerRouter {
     const imagePos = this.toImagePos(screenPos);
 
     let radiusPx: number | undefined;
-    if ((editor.tool === 'brush' || editor.tool === 'eraser') && !this.spacePressed) {
+    if (
+      (editor.tool === 'brush' || editor.tool === 'eraser' || editor.tool === 'maskBrush') &&
+      !this.spacePressed
+    ) {
       const metrics = getCalibrationMetrics(project.canvas);
       const diameterPx = Math.max(
         1,
@@ -289,6 +296,7 @@ export class PointerRouter {
       screenPos,
       imagePos,
       radiusPx,
+      selectionDraft: this.activeTool?.getOverlayPreview?.() ?? null,
     });
     this.deps.onCursorImageMove?.(imagePos);
   }

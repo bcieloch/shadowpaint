@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import { BrushTool } from '@/editor2d/tools/BrushTool';
 import type { Tool, ToolContext, ToolPointerEvent } from '@/editor2d/tools/Tool';
+import { createRectSelectionMask } from '@/imaging/selectionOps';
 import {
   recordSettingsPatchHistory,
   recordTileHistory,
@@ -10,6 +11,14 @@ import {
   undoMap,
 } from '@/services/historyService';
 import { createAndActivateProject } from '@/services/projectService';
+import {
+  applyShapeSelection,
+  clearSelection,
+  featherSelection,
+  invertSelection,
+  selectAllSelection,
+  setSelectionProtectMode,
+} from '@/services/selectionService';
 import { useEditorStore } from '@/state/editorStore';
 import {
   selectGlobalRedoEntry,
@@ -256,6 +265,57 @@ describe('historyStore and historyService', () => {
     expect(useProjectStore.getState().project.export).toEqual(before);
     redoGlobal();
     expect(useProjectStore.getState().project.export).toEqual(after);
+  });
+
+  it('undoes and redoes selection mask operations and mode changes byte-for-byte', async () => {
+    const rectMask = createRectSelectionMask(128, 128, { x: 16, y: 16, w: 32, h: 32 });
+    applyShapeSelection(rectMask, 'replace');
+    expect(useEditorStore.getState().hasSelection).toBe(true);
+    expect(mapRegistry.selection[20 * 128 + 20]).toBe(255);
+    expect(mapRegistry.selection[5 * 128 + 5]).toBe(0);
+
+    setSelectionProtectMode('editInside');
+    expect(useProjectStore.getState().project.selection.mode).toBe('editInside');
+
+    invertSelection();
+    expect(mapRegistry.selection[20 * 128 + 20]).toBe(0);
+    expect(mapRegistry.selection[5 * 128 + 5]).toBe(255);
+
+    await featherSelection(3);
+    expect(mapRegistry.selection[16 * 128 + 16]).toBeGreaterThan(0);
+    expect(mapRegistry.selection[16 * 128 + 16]).toBeLessThan(255);
+
+    selectAllSelection();
+    expect(mapRegistry.selection[20 * 128 + 20]).toBe(255);
+
+    clearSelection();
+    expect(useEditorStore.getState().hasSelection).toBe(false);
+    expect(mapRegistry.selection[20 * 128 + 20]).toBe(0);
+
+    // Undo back through clear -> selectAll -> feather -> invert -> mode -> shape
+    undoGlobal(); // undo clear -> all 255
+    expect(useEditorStore.getState().hasSelection).toBe(true);
+    expect(mapRegistry.selection[20 * 128 + 20]).toBe(255);
+
+    undoGlobal(); // undo selectAll -> feathered inverted
+    undoGlobal(); // undo feather -> inverted
+    expect(mapRegistry.selection[20 * 128 + 20]).toBe(0);
+    expect(mapRegistry.selection[5 * 128 + 5]).toBe(255);
+
+    undoGlobal(); // undo invert -> original rect
+    expect(mapRegistry.selection[20 * 128 + 20]).toBe(255);
+
+    undoGlobal(); // undo mode change
+    expect(useProjectStore.getState().project.selection.mode).toBe('protect');
+
+    undoGlobal(); // undo shape -> empty selection
+    expect(useEditorStore.getState().hasSelection).toBe(false);
+    expect(mapRegistry.selection[20 * 128 + 20]).toBe(0);
+
+    // Redo shape -> restored byte-for-byte
+    redoGlobal();
+    expect(useEditorStore.getState().hasSelection).toBe(true);
+    expect(mapRegistry.selection).toEqual(rectMask);
   });
 
   it('evicts oldest entries when step limit or memory limit is exceeded', () => {

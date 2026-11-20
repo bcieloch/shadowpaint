@@ -11,6 +11,8 @@ export interface FlatViewUniforms {
   uColorMap: THREE.IUniform<THREE.Texture>;
   uHeightMap: THREE.IUniform<THREE.Texture>;
   uOpacityMap: THREE.IUniform<THREE.Texture>;
+  uMaskMap: THREE.IUniform<THREE.Texture>;
+  uShowMaskOverlay: THREE.IUniform<number>;
   uMode: THREE.IUniform<number>;
   uMinMm: THREE.IUniform<number>;
   uMaxMm: THREE.IUniform<number>;
@@ -34,6 +36,8 @@ export function createFlatViewMaterial(textures: MapTextures): THREE.ShaderMater
     uColorMap: { value: textures.colorTex },
     uHeightMap: { value: textures.heightTex },
     uOpacityMap: { value: textures.opacityTex },
+    uMaskMap: { value: textures.maskTex },
+    uShowMaskOverlay: { value: 1 },
     uMode: { value: 0 },
     uMinMm: { value: 0 },
     uMaxMm: { value: 5 },

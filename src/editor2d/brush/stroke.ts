@@ -1,8 +1,12 @@
 import { recomputeEffectiveRect } from '@/core/maps/adjustments';
 import type { MapRegistry } from '@/core/maps/MapRegistry';
 import { isEmptyRect, unionRect } from '@/core/maps/rect';
-import type { MapId, ProjectSettings, Rect, Vec2 } from '@/core/types';
+import type { MapId, ProjectSettings, Rect, SelectionMode, Vec2 } from '@/core/types';
 import { computeDabBounds, stampDab, type BrushMode } from '@/editor2d/brush/dab';
+import {
+  createSelectionMaskConfig,
+  type SelectionMaskConfig,
+} from '@/editor2d/selection/SelectionMask';
 
 export interface StrokeParams {
   kind: 'brush' | 'eraser';
@@ -16,6 +20,7 @@ export interface StrokeParams {
   targetColorRgb?: readonly [number, number, number];
   targetValue?: number;
   adjustments: ProjectSettings['adjustments'];
+  selectionMode?: SelectionMode;
 }
 
 export interface StrokeHooks {
@@ -30,6 +35,7 @@ export class StrokeSession {
   private lastPressure = 1;
   private residualDist = 0;
   private totalDirtyRect: Rect | null = null;
+  private maskConfig: SelectionMaskConfig | undefined = undefined;
 
   constructor(registry: MapRegistry, hooks?: StrokeHooks) {
     this.registry = registry;
@@ -48,6 +54,7 @@ export class StrokeSession {
     this.lastPressure = pressure;
     this.residualDist = 0;
     this.totalDirtyRect = null;
+    this.maskConfig = createSelectionMaskConfig(this.registry, params.selectionMode ?? 'protect');
 
     const effectiveFlow = this.computeEffectiveFlow(params.flow, pressure, params.usePressure);
     if (effectiveFlow > 0) {
@@ -74,6 +81,7 @@ export class StrokeSession {
       mode: params.mode,
       targetColorRgb: params.targetColorRgb,
       targetValue: params.targetValue,
+      mask: this.maskConfig,
     });
 
     if (rect && !isEmptyRect(rect)) {
@@ -132,6 +140,7 @@ export class StrokeSession {
         mode: params.mode,
         targetColorRgb: params.targetColorRgb,
         targetValue: params.targetValue,
+        mask: this.maskConfig,
       });
 
       if (rect && !isEmptyRect(rect)) {
@@ -157,6 +166,7 @@ export class StrokeSession {
 
   end(): Rect | null {
     this.active = false;
+    this.maskConfig = undefined;
     const bounds = this.totalDirtyRect;
     this.totalDirtyRect = null;
     return bounds;
@@ -164,6 +174,7 @@ export class StrokeSession {
 
   cancel(): void {
     this.active = false;
+    this.maskConfig = undefined;
     this.totalDirtyRect = null;
   }
 

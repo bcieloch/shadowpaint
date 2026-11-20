@@ -22,23 +22,23 @@ export class MapTextures {
   readonly colorTex: THREE.DataTexture;
   readonly heightTex: THREE.DataTexture;
   readonly opacityTex: THREE.DataTexture;
+  readonly maskTex: THREE.DataTexture;
 
   private readonly colorData: Uint8ClampedArray;
   private readonly heightHalfData: Uint16Array;
   private readonly opacityHalfData: Uint16Array;
+  private readonly maskData: Uint8Array;
   private readonly dstPosition = new THREE.Vector2();
   private readonly gpuInitialized: Record<MapId, boolean> = {
     color: false,
     height: false,
     opacity: false,
   };
+  private maskGpuInitialized = false;
   private nearestEnabled = false;
   private disposed = false;
 
-  constructor(
-    registry: MapRegistry,
-    renderer: THREE.WebGLRenderer,
-  ) {
+  constructor(registry: MapRegistry, renderer: THREE.WebGLRenderer) {
     if (!registry.isAllocated) {
       throw new Error('Cannot create MapTextures before MapRegistry is allocated');
     }
@@ -47,7 +47,9 @@ export class MapTextures {
     const height = registry.height;
     const maxSize = renderer.capabilities.maxTextureSize;
     if (width > maxSize || height > maxSize) {
-      throw new Error(`Project resolution ${width}x${height} exceeds GPU maxTextureSize (${maxSize})`);
+      throw new Error(
+        `Project resolution ${width}x${height} exceeds GPU maxTextureSize (${maxSize})`,
+      );
     }
 
     this.width = width;
@@ -56,6 +58,7 @@ export class MapTextures {
     this.colorData = new Uint8ClampedArray(registry.color.effective);
     this.heightHalfData = float32ToHalfFloatArray(registry.heightMap.effective);
     this.opacityHalfData = float32ToHalfFloatArray(registry.opacity.effective);
+    this.maskData = new Uint8Array(registry.selection);
 
     const anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
@@ -111,6 +114,23 @@ export class MapTextures {
     this.opacityTex.magFilter = THREE.LinearFilter;
     this.opacityTex.unpackAlignment = 2;
     this.opacityTex.needsUpdate = true;
+
+    this.maskTex = new THREE.DataTexture(
+      this.maskData,
+      width,
+      height,
+      THREE.RedFormat,
+      THREE.UnsignedByteType,
+    );
+    this.maskTex.colorSpace = THREE.NoColorSpace;
+    this.maskTex.flipY = false;
+    this.maskTex.wrapS = THREE.ClampToEdgeWrapping;
+    this.maskTex.wrapT = THREE.ClampToEdgeWrapping;
+    this.maskTex.generateMipmaps = false;
+    this.maskTex.minFilter = THREE.LinearFilter;
+    this.maskTex.magFilter = THREE.LinearFilter;
+    this.maskTex.unpackAlignment = 1;
+    this.maskTex.needsUpdate = true;
   }
 
   getTexture(mapId: MapId): THREE.DataTexture {
@@ -123,6 +143,7 @@ export class MapTextures {
     this.gpuInitialized.color = true;
     this.gpuInitialized.height = true;
     this.gpuInitialized.opacity = true;
+    this.maskGpuInitialized = true;
   }
 
   uploadFull(registry: MapRegistry, mapId: MapId): void {
@@ -141,10 +162,54 @@ export class MapTextures {
     this.opacityTex.needsUpdate = true;
   }
 
+  uploadMaskFull(registry: MapRegistry): void {
+    if (this.disposed) return;
+    this.maskData.set(registry.selection);
+    this.maskTex.needsUpdate = true;
+  }
+
+  uploadMaskDirtyRect(renderer: THREE.WebGLRenderer, registry: MapRegistry, rawRect: Rect): void {
+    if (this.disposed) return;
+    const aligned = alignRectTo4(rawRect, this.width, this.height);
+    if (isEmptyRect(aligned)) return;
+
+    const totalArea = this.width * this.height;
+    const dirtyArea = aligned.w * aligned.h;
+
+    if (!this.maskGpuInitialized || dirtyArea >= totalArea * 0.6) {
+      this.uploadMaskFull(registry);
+      return;
+    }
+
+    const sub = new Uint8Array(aligned.w * aligned.h);
+    const src = registry.selection;
+    for (let y = 0; y < aligned.h; y++) {
+      const srcStart = (aligned.y + y) * this.width + aligned.x;
+      const dstStart = y * aligned.w;
+      const rowSlice = src.subarray(srcStart, srcStart + aligned.w);
+      sub.set(rowSlice, dstStart);
+      this.maskData.set(rowSlice, srcStart);
+    }
+
+    this.dstPosition.set(aligned.x, aligned.y);
+    const srcTex = new THREE.DataTexture(
+      sub,
+      aligned.w,
+      aligned.h,
+      THREE.RedFormat,
+      THREE.UnsignedByteType,
+    );
+    srcTex.colorSpace = THREE.NoColorSpace;
+    srcTex.flipY = false;
+    srcTex.unpackAlignment = 1;
+    renderer.copyTextureToTexture(srcTex, this.maskTex, null, this.dstPosition);
+  }
+
   uploadAll(registry: MapRegistry): void {
     this.uploadFull(registry, 'color');
     this.uploadFull(registry, 'height');
     this.uploadFull(registry, 'opacity');
+    this.uploadMaskFull(registry);
   }
 
   uploadDirtyRect(
@@ -221,6 +286,7 @@ export class MapTextures {
     this.colorTex.magFilter = filter;
     this.heightTex.magFilter = filter;
     this.opacityTex.magFilter = filter;
+    this.maskTex.magFilter = filter;
 
     // Update GL texture parameters in-place without re-uploading megabytes of pixels.
     const gl = renderer.getContext();
@@ -229,7 +295,7 @@ export class MapTextures {
     gl.activeTexture(gl.TEXTURE0);
     const prevBound = gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null;
 
-    for (const tex of [this.colorTex, this.heightTex, this.opacityTex]) {
+    for (const tex of [this.colorTex, this.heightTex, this.opacityTex, this.maskTex]) {
       const props = renderer.properties.get(tex) as { __webglTexture?: WebGLTexture } | undefined;
       if (props?.__webglTexture) {
         gl.bindTexture(gl.TEXTURE_2D, props.__webglTexture);
@@ -247,5 +313,6 @@ export class MapTextures {
     this.colorTex.dispose();
     this.heightTex.dispose();
     this.opacityTex.dispose();
+    this.maskTex.dispose();
   }
 }

@@ -66,3 +66,54 @@ export function gaussianBlurFloat32(
   onProgress?.(1);
   return dst;
 }
+
+export function gaussianBlurUint8(
+  src: Uint8Array,
+  width: number,
+  height: number,
+  radiusPx: number,
+  onProgress?: (progress: number) => void,
+): Uint8Array {
+  if (radiusPx <= 0.25) {
+    onProgress?.(1);
+    return new Uint8Array(src);
+  }
+
+  const kernel = buildGaussianKernel(radiusPx);
+  const r = (kernel.length - 1) >> 1;
+  const temp = new Float32Array(width * height);
+  const dst = new Uint8Array(width * height);
+
+  for (let y = 0; y < height; y++) {
+    const rowOff = y * width;
+    for (let x = 0; x < width; x++) {
+      let acc = 0;
+      for (let k = -r; k <= r; k++) {
+        const sx = x + k < 0 ? 0 : x + k >= width ? width - 1 : x + k;
+        acc += (src[rowOff + sx] ?? 0) * (kernel[k + r] ?? 0);
+      }
+      temp[rowOff + x] = acc;
+    }
+    if (onProgress && (y & 31) === 0) {
+      onProgress((y + 1) / (height * 2));
+    }
+  }
+
+  for (let y = 0; y < height; y++) {
+    const rowOff = y * width;
+    for (let x = 0; x < width; x++) {
+      let acc = 0;
+      for (let k = -r; k <= r; k++) {
+        const sy = y + k < 0 ? 0 : y + k >= height ? height - 1 : y + k;
+        acc += (temp[sy * width + x] ?? 0) * (kernel[k + r] ?? 0);
+      }
+      dst[rowOff + x] = Math.max(0, Math.min(255, Math.round(acc)));
+    }
+    if (onProgress && (y & 31) === 0) {
+      onProgress(0.5 + (y + 1) / (height * 2));
+    }
+  }
+
+  onProgress?.(1);
+  return dst;
+}

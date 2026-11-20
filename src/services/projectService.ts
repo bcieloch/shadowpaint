@@ -16,6 +16,7 @@ import {
 import { createDefaultTransform } from '@/imaging/transform';
 import { getMaxTextureSize } from '@/lib/webgl';
 import { clearHistory, recordSettingsPatchHistory } from '@/services/historyService';
+import { useEditorStore } from '@/state/editorStore';
 import { useHistoryStore } from '@/state/historyStore';
 import { useProjectStore } from '@/state/projectStore';
 import { getImageWorker } from '@/workers/client';
@@ -54,6 +55,7 @@ export function createAndActivateProject(
 
   useHistoryStore.getState().clearAll();
   useProjectStore.getState().setProject(settings, false);
+  useEditorStore.getState().setHasSelection(mapRegistry.hasSelection);
   return { ok: true, project: settings };
 }
 
@@ -342,6 +344,7 @@ export async function resizeProject(
   projectStore.updateProject((draft) => {
     draft.canvas = { ...nextCanvas };
   }, true);
+  useEditorStore.getState().setHasSelection(mapRegistry.hasSelection);
 
   return { ok: true, resampled: true };
 }

@@ -6,10 +6,11 @@ import { StrokeSession } from '@/editor2d/brush/stroke';
 import { BrushTool } from '@/editor2d/tools/BrushTool';
 import { EraserTool } from '@/editor2d/tools/EraserTool';
 import { EyedropperTool } from '@/editor2d/tools/EyedropperTool';
+import { MaskBrushTool } from '@/editor2d/tools/MaskBrushTool';
 import type { Tool, ToolContext, ToolPointerEvent } from '@/editor2d/tools/Tool';
 import { useEditorStore } from '@/state/editorStore';
 
-function makePointerEvent(x: number, y: number, pressure = 1): ToolPointerEvent {
+function makePointerEvent(x: number, y: number, pressure = 1, altKey = false): ToolPointerEvent {
   return {
     imagePos: { x, y },
     screenPos: { x, y },
@@ -17,7 +18,7 @@ function makePointerEvent(x: number, y: number, pressure = 1): ToolPointerEvent 
     pointerType: 'mouse',
     buttons: 1,
     shiftKey: false,
-    altKey: false,
+    altKey,
   };
 }
 
@@ -213,5 +214,117 @@ describe('brush dab, stroke, and tools', () => {
     eyedropper.onDown(makePointerEvent(4, 4), ctx);
     eyedropper.onUp(makePointerEvent(4, 4), ctx);
     expect(useEditorStore.getState().brush.opacityPct).toBeCloseTo(40, 1);
+  });
+
+  it('respects selection mask in protect and editInside modes and paints everywhere when empty', () => {
+    const registry = new MapRegistry();
+    registry.allocate(32, 32, { height: 0.1 });
+    const project = createDefaultProject({
+      canvas: { widthPx: 32, heightPx: 32, widthCm: 10, heightCm: 10 },
+    });
+
+    // Mark x < 16 with mask = 255, x >= 16 with mask = 0
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 16; x++) {
+        registry.selection[y * 32 + x] = 255;
+      }
+    }
+    registry.emitSelectionChanged();
+
+    // 1. Protect mode: x=10 (masked=255) is protected, x=20 (masked=0) is painted
+    const sessionProtect = new StrokeSession(registry);
+    sessionProtect.begin({ x: 16, y: 16 }, 1, {
+      kind: 'brush',
+      mapId: 'height',
+      radiusPx: 10,
+      hardness: 1,
+      flow: 1,
+      spacing: 0.25,
+      usePressure: false,
+      mode: 'set',
+      targetValue: 0.9,
+      adjustments: project.adjustments,
+      selectionMode: 'protect',
+    });
+    sessionProtect.end();
+
+    expect(registry.heightMap.working[16 * 32 + 10]).toBeCloseTo(0.1, 5);
+    expect(registry.heightMap.working[16 * 32 + 20]).toBeCloseTo(0.9, 5);
+
+    // 2. EditInside mode: x=10 (masked=255) is edited, x=20 (masked=0) keeps 0.9
+    const sessionInside = new StrokeSession(registry);
+    sessionInside.begin({ x: 16, y: 16 }, 1, {
+      kind: 'brush',
+      mapId: 'height',
+      radiusPx: 10,
+      hardness: 1,
+      flow: 1,
+      spacing: 0.25,
+      usePressure: false,
+      mode: 'set',
+      targetValue: 0.4,
+      adjustments: project.adjustments,
+      selectionMode: 'editInside',
+    });
+    sessionInside.end();
+
+    expect(registry.heightMap.working[16 * 32 + 10]).toBeCloseTo(0.4, 5);
+    expect(registry.heightMap.working[16 * 32 + 20]).toBeCloseTo(0.9, 5);
+
+    // 3. Empty selection mask: even with selectionMode = 'editInside', entire stroke paints
+    registry.selection.fill(0);
+    registry.emitSelectionChanged();
+    const sessionEmpty = new StrokeSession(registry);
+    sessionEmpty.begin({ x: 16, y: 16 }, 1, {
+      kind: 'brush',
+      mapId: 'height',
+      radiusPx: 10,
+      hardness: 1,
+      flow: 1,
+      spacing: 0.25,
+      usePressure: false,
+      mode: 'set',
+      targetValue: 0.75,
+      adjustments: project.adjustments,
+      selectionMode: 'editInside',
+    });
+    sessionEmpty.end();
+
+    expect(registry.heightMap.working[16 * 32 + 10]).toBeCloseTo(0.75, 5);
+    expect(registry.heightMap.working[16 * 32 + 20]).toBeCloseTo(0.75, 5);
+  });
+
+  it('MaskBrushTool paints, erases with Alt, and rolls back on cancel', () => {
+    const registry = new MapRegistry();
+    registry.allocate(32, 32);
+    const project = createDefaultProject({
+      canvas: { widthPx: 32, heightPx: 32, widthCm: 10, heightCm: 10 },
+    });
+
+    useEditorStore.getState().setBrushOption('sizeUnit', 'px');
+    useEditorStore.getState().setBrushOption('sizeValue', 8);
+    useEditorStore.getState().setBrushOption('hardness', 1);
+    useEditorStore.getState().setBrushOption('flow', 1);
+    useEditorStore.getState().setSelectionToolOption('maskBrushErase', false);
+    useEditorStore.getState().setSelectionToolOption('combineMode', 'replace');
+
+    const ctx = makeToolContext(registry, project);
+    const maskBrush = new MaskBrushTool();
+
+    // Paint mask around (16, 16)
+    maskBrush.onDown(makePointerEvent(16.5, 16.5), ctx);
+    maskBrush.onUp(makePointerEvent(16.5, 16.5), ctx);
+    expect(registry.selection[16 * 32 + 16]).toBe(255);
+
+    // Erase mask using Alt key
+    maskBrush.onDown(makePointerEvent(16.5, 16.5, 1, true), ctx);
+    maskBrush.onUp(makePointerEvent(16.5, 16.5, 1, true), ctx);
+    expect(registry.selection[16 * 32 + 16]).toBe(0);
+
+    // Paint then cancel -> rolls back cleanly
+    maskBrush.onDown(makePointerEvent(16.5, 16.5), ctx);
+    expect(registry.selection[16 * 32 + 16]).toBe(255);
+    maskBrush.onCancel(ctx);
+    expect(registry.selection[16 * 32 + 16]).toBe(0);
   });
 });

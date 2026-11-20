@@ -27,6 +27,7 @@ import {
   resampleMaskUint8,
   resampleRgbaWithTransform,
 } from '@/imaging/resample';
+import { createMagicWandMask, featherSelectionMask } from '@/imaging/selectionOps';
 import { createDefaultTransform } from '@/imaging/transform';
 
 export type ProgressCallback = (progress: number) => void;
@@ -264,6 +265,32 @@ const imageWorkerApi = {
     onProgress?: ProgressCallback,
   ): Float32Array {
     const out = gaussianBlurFloat32(working, width, height, radiusPx, onProgress);
+    return transfer(out, [out.buffer]);
+  },
+
+  featherSelectionMask(
+    src: Uint8Array,
+    width: number,
+    height: number,
+    radiusPx: number,
+    onProgress?: ProgressCallback,
+  ): Uint8Array {
+    const out = featherSelectionMask(src, width, height, radiusPx, onProgress);
+    return transfer(out, [out.buffer]);
+  },
+
+  magicWandSelection(params: {
+    width: number;
+    height: number;
+    seedX: number;
+    seedY: number;
+    tolerancePct: number;
+    contiguous: boolean;
+    sourceKind: MapId;
+    colorData?: Uint8ClampedArray;
+    scalarData?: Float32Array;
+  }): Uint8Array {
+    const out = createMagicWandMask(params);
     return transfer(out, [out.buffer]);
   },
 

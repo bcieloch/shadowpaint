@@ -1,6 +1,10 @@
 import type { MapRegistry } from '@/core/maps/MapRegistry';
 import { clamp01 } from '@/core/maps/quantize';
 import type { MapId, Rect } from '@/core/types';
+import {
+  getSelectionMaskWeight,
+  type SelectionMaskConfig,
+} from '@/editor2d/selection/SelectionMask';
 
 export type BrushMode = 'set' | 'raise' | 'lower';
 
@@ -16,6 +20,7 @@ export interface BrushDabConfig {
   targetColorRgb?: readonly [number, number, number];
   targetValue?: number;
   raiseLowerStep?: number;
+  mask?: SelectionMaskConfig;
 }
 
 const DEFAULT_RAISE_LOWER_STEP = 0.08;
@@ -65,6 +70,7 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
   const isSinglePixelBrush = radius < 1;
   const singlePxX = Math.floor(config.cx);
   const singlePxY = Math.floor(config.cy);
+  const maskCfg = config.mask;
 
   if (config.mapId === 'color') {
     const buf = registry.color;
@@ -76,6 +82,7 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
     const tb = target[2];
 
     for (let y = y0; y < y1; y++) {
+      const rowOffset = y * width;
       for (let x = x0; x < x1; x++) {
         let falloff: number;
         if (isSinglePixelBrush) {
@@ -88,10 +95,16 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
         }
         if (falloff <= 0) continue;
 
-        const alpha = Math.min(1, falloff * flow);
+        const pxIdx = rowOffset + x;
+        const maskWeight = maskCfg?.active
+          ? getSelectionMaskWeight(maskCfg.data, pxIdx, maskCfg.mode, true)
+          : 1;
+        if (maskWeight <= 0) continue;
+
+        const alpha = Math.min(1, falloff * flow * maskWeight);
         if (alpha <= 0) continue;
 
-        const idx = (y * width + x) * 4;
+        const idx = pxIdx * 4;
         if (config.kind === 'eraser') {
           const br = base[idx] ?? 0;
           const bg = base[idx + 1] ?? 0;
@@ -143,10 +156,15 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
       }
       if (falloff <= 0) continue;
 
-      const alpha = Math.min(1, falloff * flow);
+      const idx = rowOffset + x;
+      const maskWeight = maskCfg?.active
+        ? getSelectionMaskWeight(maskCfg.data, idx, maskCfg.mode, true)
+        : 1;
+      if (maskWeight <= 0) continue;
+
+      const alpha = Math.min(1, falloff * flow * maskWeight);
       if (alpha <= 0) continue;
 
-      const idx = rowOffset + x;
       const cur = working[idx] ?? 0;
 
       if (config.kind === 'eraser') {

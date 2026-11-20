@@ -38,6 +38,7 @@ function buildStrokeParams(kind: 'brush' | 'eraser', ctx: ToolContext): StrokePa
     targetColorRgb,
     targetValue,
     adjustments: project.adjustments,
+    selectionMode: project.selection.mode,
   };
 }
 

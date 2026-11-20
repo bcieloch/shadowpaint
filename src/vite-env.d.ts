@@ -48,6 +48,11 @@ export interface ShadowPaintDebugHandle {
     backScale: number;
     gizmoVisible: boolean;
   } | null;
+  getSelectionStats: () => {
+    hasSelection: boolean;
+    selectedPixels: number;
+    mode: 'protect' | 'editInside';
+  };
   readFlatCanvasRgba: (
     width?: number,
     height?: number,
