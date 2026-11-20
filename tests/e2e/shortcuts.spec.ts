@@ -52,8 +52,8 @@ test('keyboard shortcuts reference dialog, actions, editable guard, and EN/PL i1
   await expect(page.getByTestId('tool-brush')).toHaveAttribute('aria-pressed', 'true');
 
   const sizeInput = page.getByTestId('brush-size-input');
-  const hardnessInput = page.getByLabel('Hardness');
-  const flowInput = page.getByLabel('Flow');
+  const hardnessInput = page.getByLabel('Hardness', { exact: true });
+  const flowInput = page.getByLabel('Flow', { exact: true });
 
   const initialSize = Number(await sizeInput.inputValue());
   await page.keyboard.press('BracketRight');

@@ -77,7 +77,7 @@ test.describe('Front Light & Directional Shadows', () => {
     await page.getByTestId('right-tab-canvas').click();
     await page.getByTestId('canvas-mesh-detail').click();
     await page.getByRole('option', { name: /^256 / }).click();
-    await page.getByLabel('Relief multiplier').fill('10');
+    await page.getByLabel('Relief multiplier', { exact: true }).fill('10');
 
     // Create a raised block in the center of the height map (x: 85..115, y: 85..115)
     await page.evaluate(() => {

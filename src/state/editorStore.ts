@@ -1,39 +1,15 @@
 import { create } from 'zustand';
 import { DEFAULT_COLOR_HEX } from '@/core/constants';
+import {
+  clampPanelSizesForBreakpoint,
+  DESKTOP_PANEL_BOUNDS,
+  type UiLayoutPreference,
+} from '@/core/layout';
 import type { LightingMode, LineSegment, MapId, SelectionCombineMode } from '@/core/types';
 import { clampSplitRatio, SPLIT_DEFAULT_RATIO } from '@/editor2d/splitLayout';
 import type { GradientKind } from '@/imaging/gradient';
 
 export type { LineSegment };
-
-const SPLIT_RATIO_STORAGE_KEY = 'shadowpaint.splitRatio';
-
-function readInitialSplitRatio(): number {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const raw = window.localStorage.getItem(SPLIT_RATIO_STORAGE_KEY);
-      if (raw !== null) {
-        const parsed = Number(raw);
-        if (Number.isFinite(parsed)) {
-          return clampSplitRatio(parsed);
-        }
-      }
-    }
-  } catch {
-    // Ignore storage access errors in restricted contexts
-  }
-  return SPLIT_DEFAULT_RATIO;
-}
-
-function saveSplitRatio(ratio: number): void {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(SPLIT_RATIO_STORAGE_KEY, ratio.toFixed(4));
-    }
-  } catch {
-    // Ignore storage access errors
-  }
-}
 
 export type ToolId =
   | 'brush'
@@ -123,6 +99,9 @@ export interface EditorState {
   showMaskOverlay: boolean;
   showRulers: boolean;
   panelsHidden: boolean;
+  leftPanelSize: number;
+  rightPanelSize: number;
+  uiLayoutHydrated: boolean;
   layout: LayoutMode;
   viewMode2D: ViewMode2D;
   view3DLighting: LightingMode;
@@ -156,6 +135,8 @@ export interface EditorState {
   setShowRulers: (show: boolean) => void;
   setPanelsHidden: (hidden: boolean) => void;
   togglePanelsHidden: () => void;
+  setPanelSizes: (sizes: { leftPanelSize?: number; rightPanelSize?: number }) => void;
+  hydrateUiLayout: (pref: UiLayoutPreference) => void;
   setLayout: (layout: LayoutMode) => void;
   setViewMode2D: (mode: ViewMode2D) => void;
   setView3DLighting: (mode: LightingMode) => void;
@@ -216,6 +197,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   showMaskOverlay: true,
   showRulers: true,
   panelsHidden: false,
+  leftPanelSize: DESKTOP_PANEL_BOUNDS.leftDefault,
+  rightPanelSize: DESKTOP_PANEL_BOUNDS.rightDefault,
+  uiLayoutHydrated: false,
   layout: '2d',
   viewMode2D: 'color',
   view3DLighting: 'combined',
@@ -223,7 +207,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   heightContourStepMm: 0.5,
   showLampGizmos: true,
   pane2D: { zoom: 1, panX: 0, panY: 0 },
-  splitRatio: readInitialSplitRatio(),
+  splitRatio: SPLIT_DEFAULT_RATIO,
   rulerLine: null,
   crossSectionLine: null,
   crossSectionHoverT: null,
@@ -243,6 +227,35 @@ export const useEditorStore = create<EditorState>((set) => ({
   setShowRulers: (showRulers) => set({ showRulers }),
   setPanelsHidden: (panelsHidden) => set({ panelsHidden }),
   togglePanelsHidden: () => set((s) => ({ panelsHidden: !s.panelsHidden })),
+  setPanelSizes: ({ leftPanelSize, rightPanelSize }) =>
+    set((s) => {
+      const clamped = clampPanelSizesForBreakpoint(
+        {
+          leftPanelSize: leftPanelSize ?? s.leftPanelSize,
+          rightPanelSize: rightPanelSize ?? s.rightPanelSize,
+        },
+        'desktop',
+      );
+      return clamped;
+    }),
+  hydrateUiLayout: (pref) =>
+    set((s) => {
+      const clamped = clampPanelSizesForBreakpoint(
+        {
+          leftPanelSize: pref.leftPanelSize ?? s.leftPanelSize,
+          rightPanelSize: pref.rightPanelSize ?? s.rightPanelSize,
+        },
+        'desktop',
+      );
+      return {
+        leftPanelSize: clamped.leftPanelSize,
+        rightPanelSize: clamped.rightPanelSize,
+        panelsHidden: typeof pref.panelsHidden === 'boolean' ? pref.panelsHidden : s.panelsHidden,
+        splitRatio:
+          typeof pref.splitRatio === 'number' ? clampSplitRatio(pref.splitRatio) : s.splitRatio,
+        uiLayoutHydrated: true,
+      };
+    }),
   setLayout: (layout) => set({ layout }),
   setViewMode2D: (viewMode2D) => set({ viewMode2D }),
   setView3DLighting: (view3DLighting) => set({ view3DLighting }),
@@ -250,11 +263,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setHeightContourStepMm: (heightContourStepMm) => set({ heightContourStepMm }),
   setShowLampGizmos: (showLampGizmos) => set({ showLampGizmos }),
   setPane2D: (pane) => set((s) => ({ pane2D: { ...s.pane2D, ...pane } })),
-  setSplitRatio: (splitRatio) => {
-    const clamped = clampSplitRatio(splitRatio);
-    saveSplitRatio(clamped);
-    set({ splitRatio: clamped });
-  },
+  setSplitRatio: (splitRatio) => set({ splitRatio: clampSplitRatio(splitRatio) }),
   setRulerLine: (rulerLine) => set({ rulerLine }),
   setCrossSectionLine: (crossSectionLine) =>
     set((s) => ({

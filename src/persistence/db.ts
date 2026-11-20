@@ -1,5 +1,13 @@
 import Dexie, { type Table } from 'dexie';
+import {
+  clampPanelSizesForBreakpoint,
+  isRightTabId,
+  type UiLayoutPreference,
+} from '@/core/layout';
 import type { ProjectSettings } from '@/core/types';
+import { clampSplitRatio } from '@/editor2d/splitLayout';
+
+export type { UiLayoutPreference };
 
 export type BlobKey =
   | 'color.base'
@@ -146,6 +154,68 @@ export async function deleteMetaValue(
   database: ShadowPaintDb = db,
 ): Promise<void> {
   await database.meta.delete(key);
+}
+
+export function sanitizeUiLayout(raw: unknown): UiLayoutPreference {
+  if (!raw || typeof raw !== 'object') return {};
+  const obj = raw as Record<string, unknown>;
+  const out: UiLayoutPreference = {};
+
+  const hasLeft = typeof obj.leftPanelSize === 'number' && Number.isFinite(obj.leftPanelSize);
+  const hasRight = typeof obj.rightPanelSize === 'number' && Number.isFinite(obj.rightPanelSize);
+  if (hasLeft || hasRight) {
+    const clamped = clampPanelSizesForBreakpoint(
+      {
+        leftPanelSize: hasLeft ? (obj.leftPanelSize as number) : undefined,
+        rightPanelSize: hasRight ? (obj.rightPanelSize as number) : undefined,
+      },
+      'desktop',
+    );
+    if (hasLeft) out.leftPanelSize = clamped.leftPanelSize;
+    if (hasRight) out.rightPanelSize = clamped.rightPanelSize;
+  }
+
+  if (typeof obj.panelsHidden === 'boolean') {
+    out.panelsHidden = obj.panelsHidden;
+  }
+  if (typeof obj.splitRatio === 'number' && Number.isFinite(obj.splitRatio)) {
+    out.splitRatio = clampSplitRatio(obj.splitRatio);
+  }
+  if (isRightTabId(obj.rightTab)) {
+    out.rightTab = obj.rightTab;
+  }
+
+  return out;
+}
+
+export async function getUiLayout(
+  database: ShadowPaintDb = db,
+): Promise<UiLayoutPreference> {
+  if (typeof indexedDB === 'undefined') return {};
+  try {
+    const stored = await getMetaValue<unknown>('uiLayout', database);
+    return sanitizeUiLayout(stored);
+  } catch {
+    return {};
+  }
+}
+
+export async function saveUiLayout(
+  patch: UiLayoutPreference,
+  database: ShadowPaintDb = db,
+): Promise<UiLayoutPreference> {
+  const cleanPatch = sanitizeUiLayout(patch);
+  if (typeof indexedDB === 'undefined') {
+    return cleanPatch;
+  }
+  try {
+    const existing = await getUiLayout(database);
+    const merged: UiLayoutPreference = { ...existing, ...cleanPatch };
+    await setMetaValue('uiLayout', merged, database);
+    return merged;
+  } catch {
+    return cleanPatch;
+  }
 }
 
 export async function listRecentProjects(

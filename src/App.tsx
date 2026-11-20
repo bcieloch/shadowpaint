@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { createTranslator } from '@/i18n';
 import { useLocaleStore } from '@/i18n/localeStore';
 import { autosaveController, runWithoutAutosaveTracking } from '@/persistence/autosave';
+import { startUiLayoutSync } from '@/persistence/uiLayoutSync';
 import { ensureInitialProjectAllocated } from '@/services/projectService';
 import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
@@ -29,6 +30,7 @@ export function App() {
       });
     });
     autosaveController.start();
+    const stopUiLayoutSync = startUiLayoutSync();
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (!useProjectStore.getState().isDirty) return;
@@ -39,6 +41,7 @@ export function App() {
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      stopUiLayoutSync();
       autosaveController.setOnQuotaExceeded(undefined);
       autosaveController.stop();
     };

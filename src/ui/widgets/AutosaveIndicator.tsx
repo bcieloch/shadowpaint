@@ -75,6 +75,7 @@ export function AutosaveIndicator() {
             variant="ghost"
             className="h-6 gap-1 px-2 text-[11px]"
             onClick={() => setDialogOpen('recentProjectsOpen', true)}
+            aria-label={t('autosave.recentButton')}
             data-testid="btn-recent-projects"
           >
             <History className="size-3" />

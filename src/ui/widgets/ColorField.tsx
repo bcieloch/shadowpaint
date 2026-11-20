@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Input } from '@/ui/components/ui/input';
 import { Label } from '@/ui/components/ui/label';
+import { useI18n } from '@/ui/hooks/useI18n';
 
 export interface ColorFieldProps {
   label?: string;
@@ -19,6 +20,7 @@ export function ColorField({
   onValueChange,
   onValueCommit,
 }: ColorFieldProps) {
+  const { t } = useI18n();
   const [hexDraft, setHexDraft] = useState<string | null>(null);
 
   const commitHex = (raw: string) => {
@@ -38,7 +40,7 @@ export function ColorField({
       <div className="flex items-center gap-2">
         <input
           type="color"
-          aria-label={label ?? 'Color'}
+          aria-label={label ?? t('common.colorLabel')}
           data-testid={pickerTestId}
           value={value}
           onChange={(e) => {
@@ -46,11 +48,11 @@ export function ColorField({
             onValueChange(e.target.value);
             onValueCommit?.(e.target.value);
           }}
-          className="border-border h-7 w-9 cursor-pointer rounded border bg-transparent p-0.5"
+          className="border-border focus-visible:ring-ring h-7 w-9 cursor-pointer rounded border bg-transparent p-0.5 focus-visible:ring-2 focus-visible:outline-none"
         />
         <Input
           type="text"
-          aria-label={label ? `${label} hex` : 'Color hex'}
+          aria-label={label ? `${label} (${t('common.colorHexLabel')})` : t('common.colorHexLabel')}
           value={hexDraft ?? value}
           data-testid={hexTestId}
           onFocus={() => setHexDraft(value)}

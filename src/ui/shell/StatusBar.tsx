@@ -10,7 +10,7 @@ export function StatusBar() {
   const readout = useReadoutStore((s) => s.readout);
 
   return (
-    <footer className="border-border bg-card text-muted-foreground flex h-[26px] shrink-0 items-center justify-between gap-3 border-t px-3 font-mono text-[11px] select-none">
+    <footer className="border-border bg-card text-muted-foreground flex h-[26px] shrink-0 items-center justify-between gap-3 overflow-hidden border-t px-3 font-mono text-[11px] select-none">
       <div className="flex min-w-0 items-center gap-3">
         {statusMessage ? (
           <span data-testid="statusbar-message" className="shrink-0 font-medium text-amber-400">
