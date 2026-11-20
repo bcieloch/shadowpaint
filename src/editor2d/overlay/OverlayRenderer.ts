@@ -1,4 +1,5 @@
-import type { GridSettings, Rect, Vec2 } from '@/core/types';
+import { measureRulerLine } from '@/core/geometry/ruler';
+import type { GridSettings, LineSegment, Rect, Vec2 } from '@/core/types';
 import { computeRulerStepCm, formatGridCmLabel, generateGridLines } from '@/core/units/grid';
 import { renderMarchingAntsOverlay } from '@/editor2d/selection/SelectionMask';
 import {
@@ -35,6 +36,8 @@ export interface OverlayRenderState {
   cursor: OverlayCursorState | null;
   grid?: GridSettings;
   showRulers?: boolean;
+  rulerLine?: LineSegment | null;
+  isRulerToolActive?: boolean;
   selectionMask?: Uint8Array | null;
   hasSelection?: boolean;
   marchingAntsPhasePx?: number;
@@ -126,6 +129,11 @@ export class OverlayRenderer {
       this.renderSelectionDraft(ctx, state, draft);
     }
 
+    // Draw interactive measurement ruler line & badge
+    if (state.rulerLine) {
+      this.renderRulerMeasurement(ctx, state, state.rulerLine, Boolean(state.isRulerToolActive));
+    }
+
     // Draw cursor crosshair / optional radius ring when inside viewport
     if (state.cursor) {
       const { x, y } = state.cursor.screenPos;
@@ -154,6 +162,124 @@ export class OverlayRenderer {
     // Draw calibrated cm edge rulers on top & left viewport edges
     if (state.showRulers) {
       this.renderEdgeRulers(ctx, state, topLeft, bottomRight);
+    }
+
+    ctx.restore();
+  }
+
+  private renderRulerMeasurement(
+    ctx: CanvasRenderingContext2D,
+    state: OverlayRenderState,
+    line: LineSegment,
+    highlightHandles: boolean,
+  ): void {
+    const s0 = imagePxToScreen(
+      state.transform,
+      state.viewport,
+      state.imageWidth,
+      state.imageHeight,
+      line.p0.x,
+      line.p0.y,
+    );
+    const s1 = imagePxToScreen(
+      state.transform,
+      state.viewport,
+      state.imageWidth,
+      state.imageHeight,
+      line.p1.x,
+      line.p1.y,
+    );
+
+    const measurement = measureRulerLine(line, {
+      widthCm: state.canvasWidthCm,
+      heightCm: state.canvasHeightCm,
+      widthPx: state.imageWidth,
+      heightPx: state.imageHeight,
+    });
+
+    ctx.save();
+
+    // Subtle orthogonal delta guides when the segment is diagonal
+    if (Math.abs(s1.x - s0.x) > 10 && Math.abs(s1.y - s0.y) > 10) {
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+      ctx.beginPath();
+      ctx.moveTo(s0.x, s0.y);
+      ctx.lineTo(s1.x, s0.y);
+      ctx.lineTo(s1.x, s1.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // High-contrast measurement segment
+    ctx.beginPath();
+    ctx.moveTo(s0.x, s0.y);
+    ctx.lineTo(s1.x, s1.y);
+    ctx.lineWidth = 3.25;
+    ctx.strokeStyle = 'rgba(11, 11, 13, 0.88)';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(s0.x, s0.y);
+    ctx.lineTo(s1.x, s1.y);
+    ctx.lineWidth = 1.75;
+    ctx.strokeStyle = '#38bdf8';
+    ctx.stroke();
+
+    // Endpoint handles
+    const handleRadius = highlightHandles ? 5.5 : 4;
+    const drawHandle = (pt: Vec2) => {
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, handleRadius, 0, Math.PI * 2);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(11, 11, 13, 0.95)';
+      ctx.stroke();
+    };
+    drawHandle(s0);
+    drawHandle(s1);
+
+    // Floating badge near segment midpoint
+    if (Math.hypot(s1.x - s0.x, s1.y - s0.y) >= 4) {
+      const line1 = `${measurement.lengthCm.toFixed(2)} cm · ${Math.round(measurement.lengthPx)} px (${measurement.lengthMm.toFixed(1)} mm)`;
+      const line2 = `Δx ${measurement.dxCm.toFixed(2)}  Δy ${measurement.dyCm.toFixed(2)} cm  ${measurement.angleDeg.toFixed(1)}°`;
+
+      ctx.font = '11px "JetBrains Mono", monospace';
+      const w1 = ctx.measureText(line1).width;
+      ctx.font = '10px "JetBrains Mono", monospace';
+      const w2 = ctx.measureText(line2).width;
+
+      const padX = 8;
+      const boxW = Math.ceil(Math.max(w1, w2)) + padX * 2;
+      const boxH = 34;
+
+      const minMarginX = (state.showRulers ? RULER_THICKNESS_PX : 0) + 8;
+      const minMarginY = (state.showRulers ? RULER_THICKNESS_PX : 0) + 8;
+      const midX = (s0.x + s1.x) / 2;
+      const midY = (s0.y + s1.y) / 2;
+
+      const maxBoxX = Math.max(minMarginX, state.viewport.width - boxW - 8);
+      const maxBoxY = Math.max(minMarginY, state.viewport.height - boxH - 8);
+      const boxX = Math.min(maxBoxX, Math.max(minMarginX, Math.round(midX - boxW / 2)));
+      const boxY = Math.min(maxBoxY, Math.max(minMarginY, Math.round(midY - boxH - 12)));
+
+      ctx.fillStyle = 'rgba(11, 11, 13, 0.88)';
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+      ctx.lineWidth = 1;
+      ctx.fillRect(boxX + 0.5, boxY + 0.5, boxW, boxH);
+      ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxW, boxH);
+
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'left';
+      ctx.font = '11px "JetBrains Mono", monospace';
+      ctx.fillStyle = '#f4f4f5';
+      ctx.fillText(line1, boxX + padX, boxY + 4);
+
+      ctx.font = '10px "JetBrains Mono", monospace';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText(line2, boxX + padX, boxY + 18);
     }
 
     ctx.restore();

@@ -46,7 +46,8 @@ export function useEngine(): UseEngineResult {
     const overlay = overlayRef.current;
     if (!overlay) return;
     const { canvas, grid } = useProjectStore.getState().project;
-    const { layout, pane2D, viewMode2D, showMaskOverlay, showRulers } = useEditorStore.getState();
+    const { layout, pane2D, viewMode2D, showMaskOverlay, showRulers, rulerLine, tool } =
+      useEditorStore.getState();
     if (layout === '3d') {
       overlay.clear();
       return;
@@ -62,6 +63,8 @@ export function useEngine(): UseEngineResult {
       cursor: cursorRef.current,
       grid,
       showRulers,
+      rulerLine,
+      isRulerToolActive: tool === 'ruler',
       selectionMask: mapRegistry.isAllocated ? mapRegistry.selection : null,
       hasSelection: mapRegistry.hasSelection,
       marchingAntsPhasePx: antsPhaseRef.current,

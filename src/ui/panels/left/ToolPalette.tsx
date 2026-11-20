@@ -9,6 +9,7 @@ import {
   PaintBucket,
   Paintbrush,
   Pipette,
+  Ruler,
   Shield,
   SquareDashed,
   WandSparkles,
@@ -29,6 +30,7 @@ interface ToolItem {
     | 'tools.fill'
     | 'tools.eyedropper'
     | 'tools.pan'
+    | 'tools.ruler'
     | 'tools.selectRect'
     | 'tools.selectEllipse'
     | 'tools.selectLasso'
@@ -43,6 +45,7 @@ interface ToolItem {
     | 'tools.fillTooltip'
     | 'tools.eyedropperTooltip'
     | 'tools.panTooltip'
+    | 'tools.rulerTooltip'
     | 'tools.selectRectTooltip'
     | 'tools.selectEllipseTooltip'
     | 'tools.selectLassoTooltip'
@@ -70,6 +73,7 @@ const TOOL_ITEMS: readonly ToolItem[] = [
     icon: Pipette,
   },
   { id: 'pan', labelKey: 'tools.pan', tooltipKey: 'tools.panTooltip', icon: Hand },
+  { id: 'ruler', labelKey: 'tools.ruler', tooltipKey: 'tools.rulerTooltip', icon: Ruler },
   {
     id: 'selectRect',
     labelKey: 'tools.selectRect',

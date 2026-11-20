@@ -7,6 +7,7 @@ import { GradientTool } from '@/editor2d/tools/GradientTool';
 import { MagicWandTool } from '@/editor2d/tools/MagicWandTool';
 import { MaskBrushTool } from '@/editor2d/tools/MaskBrushTool';
 import { PanTool } from '@/editor2d/tools/PanTool';
+import { RulerTool } from '@/editor2d/tools/RulerTool';
 import { SelectEllipseTool } from '@/editor2d/tools/SelectEllipseTool';
 import { SelectLassoTool } from '@/editor2d/tools/SelectLassoTool';
 import { SelectRectTool } from '@/editor2d/tools/SelectRectTool';
@@ -26,6 +27,7 @@ export function createToolRegistry(): Partial<Record<ToolId, Tool>> {
     fill: new FillTool(),
     eyedropper: new EyedropperTool(),
     pan: new PanTool(),
+    ruler: new RulerTool(),
     selectRect: new SelectRectTool(),
     selectEllipse: new SelectEllipseTool(),
     selectLasso: new SelectLassoTool(),
