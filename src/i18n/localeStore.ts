@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { DEFAULT_LOCALE, type Locale } from '@/i18n';
+import { setMetaValue } from '@/persistence/db';
 
 const STORAGE_KEY = 'shadowpaint.locale';
 
@@ -24,6 +25,9 @@ function applyDocumentLocale(locale: Locale): void {
     }
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.setItem(STORAGE_KEY, locale);
+    }
+    if (typeof indexedDB !== 'undefined') {
+      void setMetaValue('locale', locale).catch(() => {});
     }
   } catch {
     // Ignore storage access errors

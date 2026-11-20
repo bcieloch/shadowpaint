@@ -31,7 +31,7 @@ export async function recomputeEffectiveMap(mapId: MapId): Promise<void> {
     );
     if (seq !== requestSeq.color) return;
     mapRegistry.color.replaceEffective(out);
-    mapRegistry.emitReplaced('color');
+    mapRegistry.emitReplaced('color', 'effective');
     return;
   }
 
@@ -45,7 +45,7 @@ export async function recomputeEffectiveMap(mapId: MapId): Promise<void> {
     );
     if (seq !== requestSeq.height) return;
     mapRegistry.heightMap.replaceEffective(out);
-    mapRegistry.emitReplaced('height');
+    mapRegistry.emitReplaced('height', 'effective');
     return;
   }
 
@@ -58,7 +58,7 @@ export async function recomputeEffectiveMap(mapId: MapId): Promise<void> {
   );
   if (seq !== requestSeq.opacity) return;
   mapRegistry.opacity.replaceEffective(out);
-  mapRegistry.emitReplaced('opacity');
+  mapRegistry.emitReplaced('opacity', 'effective');
 }
 
 export async function smoothFloatMap(mapId: 'height' | 'opacity', radiusPx: number): Promise<void> {
@@ -92,6 +92,7 @@ export async function smoothFloatMap(mapId: 'height' | 'opacity', radiusPx: numb
     byteSize: estimateFullMapEntryBytes(workingBefore, workingAfter),
   });
   useProjectStore.getState().updateProject(() => {}, true);
+  mapRegistry.emitReplaced(mapId, 'working');
   await recomputeEffectiveMap(mapId);
 }
 

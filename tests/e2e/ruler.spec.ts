@@ -13,7 +13,8 @@ test.describe('Ruler Measurement Tool', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
 
-    // Activate ruler via U shortcut
+    // Activate ruler via U shortcut once shell has mounted
+    await expect(page.getByTestId('tool-ruler')).toBeVisible();
     await page.keyboard.press('u');
     await expect(page.getByTestId('tool-ruler')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('ruler-empty')).toBeVisible();
