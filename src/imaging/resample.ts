@@ -29,6 +29,8 @@ export interface ResampleRgbaOptions {
   fit: FitMode;
   transform: ImportTransform;
   padRgba?: [number, number, number, number];
+  dstYStart?: number;
+  dstYEnd?: number;
   onProgress?: (progress: number) => void;
 }
 
@@ -42,10 +44,20 @@ export function resampleRgbaWithTransform(opts: ResampleRgbaOptions): Uint8Clamp
     fit,
     transform,
     padRgba = [0, 0, 0, 255],
+    dstYStart = 0,
+    dstYEnd = dstHeight,
     onProgress,
   } = opts;
 
-  const dst = new Uint8ClampedArray(dstWidth * dstHeight * 4);
+  const yStartRow = Math.max(0, Math.min(dstHeight, Math.floor(dstYStart)));
+  const yEndRow = Math.max(yStartRow, Math.min(dstHeight, Math.floor(dstYEnd)));
+  const outRows = yEndRow - yStartRow;
+  if (outRows <= 0 || dstWidth <= 0) {
+    onProgress?.(1);
+    return new Uint8ClampedArray(0);
+  }
+
+  const dst = new Uint8ClampedArray(dstWidth * outRows * 4);
   const scales = computeTransformScales(srcWidth, srcHeight, dstWidth, dstHeight, fit, transform);
   const stepX = 1 / Math.max(1e-6, scales.scaleX);
   const stepY = 1 / Math.max(1e-6, scales.scaleY);
@@ -58,10 +70,11 @@ export function resampleRgbaWithTransform(opts: ResampleRgbaOptions): Uint8Clamp
   const minCropY = scales.crop.y;
   const maxCropY = scales.crop.y + scales.crop.h - 1;
 
-  for (let y = 0; y < dstHeight; y++) {
+  for (let y = yStartRow; y < yEndRow; y++) {
+    const outRow = y - yStartRow;
     for (let x = 0; x < dstWidth; x++) {
       const mapped = mapDstPixelToSrc(x, y, dstWidth, dstHeight, transform, scales);
-      const outIdx = (y * dstWidth + x) * 4;
+      const outIdx = (outRow * dstWidth + x) * 4;
 
       if (!mapped.inside) {
         dst[outIdx] = padRgba[0];
@@ -132,8 +145,8 @@ export function resampleRgbaWithTransform(opts: ResampleRgbaOptions): Uint8Clamp
       }
     }
 
-    if (onProgress && (y & 31) === 0) {
-      onProgress((y + 1) / dstHeight);
+    if (onProgress && (outRow & 31) === 0) {
+      onProgress((outRow + 1) / outRows);
     }
   }
 
@@ -150,6 +163,8 @@ export interface ResampleFloatOptions {
   fit: FitMode;
   transform: ImportTransform;
   padValue?: number;
+  dstYStart?: number;
+  dstYEnd?: number;
   onProgress?: (progress: number) => void;
 }
 
@@ -163,10 +178,20 @@ export function resampleFloatWithTransform(opts: ResampleFloatOptions): Float32A
     fit,
     transform,
     padValue = 0,
+    dstYStart = 0,
+    dstYEnd = dstHeight,
     onProgress,
   } = opts;
 
-  const dst = new Float32Array(dstWidth * dstHeight);
+  const yStartRow = Math.max(0, Math.min(dstHeight, Math.floor(dstYStart)));
+  const yEndRow = Math.max(yStartRow, Math.min(dstHeight, Math.floor(dstYEnd)));
+  const outRows = yEndRow - yStartRow;
+  if (outRows <= 0 || dstWidth <= 0) {
+    onProgress?.(1);
+    return new Float32Array(0);
+  }
+
+  const dst = new Float32Array(dstWidth * outRows);
   const scales = computeTransformScales(srcWidth, srcHeight, dstWidth, dstHeight, fit, transform);
   const stepX = 1 / Math.max(1e-6, scales.scaleX);
   const stepY = 1 / Math.max(1e-6, scales.scaleY);
@@ -179,10 +204,11 @@ export function resampleFloatWithTransform(opts: ResampleFloatOptions): Float32A
   const minCropY = scales.crop.y;
   const maxCropY = scales.crop.y + scales.crop.h - 1;
 
-  for (let y = 0; y < dstHeight; y++) {
+  for (let y = yStartRow; y < yEndRow; y++) {
+    const outRow = y - yStartRow;
     for (let x = 0; x < dstWidth; x++) {
       const mapped = mapDstPixelToSrc(x, y, dstWidth, dstHeight, transform, scales);
-      const outIdx = y * dstWidth + x;
+      const outIdx = outRow * dstWidth + x;
 
       if (!mapped.inside) {
         dst[outIdx] = padValue;
@@ -223,8 +249,8 @@ export function resampleFloatWithTransform(opts: ResampleFloatOptions): Float32A
       }
     }
 
-    if (onProgress && (y & 31) === 0) {
-      onProgress((y + 1) / dstHeight);
+    if (onProgress && (outRow & 31) === 0) {
+      onProgress((outRow + 1) / outRows);
     }
   }
 
@@ -238,7 +264,16 @@ export function resampleMaskUint8(
   srcHeight: number,
   dstWidth: number,
   dstHeight: number,
+  dstYStart = 0,
+  dstYEnd = dstHeight,
 ): Uint8Array {
+  const yStartRow = Math.max(0, Math.min(dstHeight, Math.floor(dstYStart)));
+  const yEndRow = Math.max(yStartRow, Math.min(dstHeight, Math.floor(dstYEnd)));
+  const outRows = yEndRow - yStartRow;
+  if (outRows <= 0 || dstWidth <= 0) {
+    return new Uint8Array(0);
+  }
+
   let hasNonZero = false;
   for (let i = 0; i < src.length; i++) {
     if ((src[i] ?? 0) !== 0) {
@@ -246,7 +281,7 @@ export function resampleMaskUint8(
       break;
     }
   }
-  const dst = new Uint8Array(dstWidth * dstHeight);
+  const dst = new Uint8Array(dstWidth * outRows);
   if (!hasNonZero) {
     return dst;
   }
@@ -263,6 +298,8 @@ export function resampleMaskUint8(
     dstHeight,
     fit: 'stretch',
     transform: createDefaultTransform(srcWidth, srcHeight),
+    dstYStart: yStartRow,
+    dstYEnd: yEndRow,
   });
   for (let i = 0; i < resampled.length; i++) {
     dst[i] = clampCoord(Math.round((resampled[i] ?? 0) * 255), 0, 255);

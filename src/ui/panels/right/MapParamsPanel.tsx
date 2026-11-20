@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { mapRegistry } from '@/core/maps/MapRegistry';
 import type { ColorAdjustments, HeightAdjustments, MapId, OpacityAdjustments } from '@/core/types';
+import { getVisibleImageRect } from '@/editor2d/viewTransform';
 import {
   computeFloatMapStats,
   recomputeEffectiveMap,
+  recomputeEffectiveMapLazy,
   smoothFloatMap,
 } from '@/services/adjustService';
 import { recordSettingsPatchHistory } from '@/services/historyService';
@@ -61,6 +64,23 @@ function recordAdjustmentDiff(
   }
 }
 
+function recomputeLazyForViewport(mapId: MapId): void {
+  const editor = useEditorStore.getState();
+  if (editor.layout === '3d') {
+    void recomputeEffectiveMap(mapId);
+    return;
+  }
+  const canvas = useProjectStore.getState().project.canvas;
+  const visibleRect = getVisibleImageRect(
+    editor.pane2D,
+    editor.pane2DViewport,
+    canvas.widthPx,
+    canvas.heightPx,
+    64,
+  );
+  recomputeEffectiveMapLazy(mapId, visibleRect);
+}
+
 export function MapParamsPanel() {
   const { t } = useI18n();
   const activeMap = useEditorStore((s) => s.activeMap);
@@ -94,7 +114,8 @@ export function MapParamsPanel() {
   const stats = useMemo(() => {
     void mapVersion;
     if (activeMap === 'color') return null;
-    return computeFloatMapStats(activeMap);
+    const hasPendingDirty = mapRegistry.dirtyTiles.hasDirty(activeMap);
+    return computeFloatMapStats(activeMap, !hasPendingDirty);
   }, [activeMap, mapVersion]);
 
   const handleSmooth = async () => {
@@ -142,7 +163,7 @@ export function MapParamsPanel() {
             updateProject((d) => {
               d.adjustments.color.brightness = v / 100;
             });
-            void recomputeEffectiveMap('color');
+            recomputeLazyForViewport('color');
           }}
           onValueCommit={() => commitPendingSnapshot('color')}
         />
@@ -158,7 +179,7 @@ export function MapParamsPanel() {
             updateProject((d) => {
               d.adjustments.color.contrast = v / 100;
             });
-            void recomputeEffectiveMap('color');
+            recomputeLazyForViewport('color');
           }}
           onValueCommit={() => commitPendingSnapshot('color')}
         />
@@ -174,7 +195,7 @@ export function MapParamsPanel() {
             updateProject((d) => {
               d.adjustments.color.saturation = v / 100;
             });
-            void recomputeEffectiveMap('color');
+            recomputeLazyForViewport('color');
           }}
           onValueCommit={() => commitPendingSnapshot('color')}
         />
@@ -238,7 +259,7 @@ export function MapParamsPanel() {
             updateProject((d) => {
               d.adjustments.height.contrast = v / 100;
             });
-            void recomputeEffectiveMap('height');
+            recomputeLazyForViewport('height');
           }}
           onValueCommit={() => commitPendingSnapshot('height')}
         />
@@ -255,7 +276,7 @@ export function MapParamsPanel() {
             updateProject((d) => {
               d.adjustments.height.gamma = v;
             });
-            void recomputeEffectiveMap('height');
+            recomputeLazyForViewport('height');
           }}
           onValueCommit={() => commitPendingSnapshot('height')}
         />
@@ -358,7 +379,7 @@ export function MapParamsPanel() {
           updateProject((d) => {
             d.adjustments.opacity.maxTransmissionPct = v;
           });
-          void recomputeEffectiveMap('opacity');
+          recomputeLazyForViewport('opacity');
         }}
         onValueCommit={() => commitPendingSnapshot('opacity')}
       />
@@ -375,7 +396,7 @@ export function MapParamsPanel() {
           updateProject((d) => {
             d.adjustments.opacity.maxOpacityPct = v;
           });
-          void recomputeEffectiveMap('opacity');
+          recomputeLazyForViewport('opacity');
         }}
         onValueCommit={() => commitPendingSnapshot('opacity')}
       />
@@ -392,7 +413,7 @@ export function MapParamsPanel() {
           updateProject((d) => {
             d.adjustments.opacity.contrast = v / 100;
           });
-          void recomputeEffectiveMap('opacity');
+          recomputeLazyForViewport('opacity');
         }}
         onValueCommit={() => commitPendingSnapshot('opacity')}
       />

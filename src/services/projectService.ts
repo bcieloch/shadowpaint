@@ -1,27 +1,16 @@
-import { proxy, transfer } from 'comlink';
 import { createDefaultProject, type CreateDefaultProjectOptions } from '@/core/constants';
-import {
-  applyColorAdjustments,
-  applyHeightAdjustments,
-  applyOpacityAdjustments,
-} from '@/core/maps/adjustments';
 import { MapMemoryError, MapRegistry, mapRegistry } from '@/core/maps/MapRegistry';
 import type { CanvasSettings, ProjectSettings } from '@/core/types';
 import { validateCanvasSettings, type CanvasValidationError } from '@/core/units/calibration';
-import {
-  resampleFloatWithTransform,
-  resampleMaskUint8,
-  resampleRgbaWithTransform,
-} from '@/imaging/resample';
-import { createDefaultTransform } from '@/imaging/transform';
-import { getMaxTextureSize } from '@/lib/webgl';
+import { selectDefaultQualityForGpu } from '@/core/units/gpuQuality';
+import { getMaxTextureSize, probeGpuCapabilities } from '@/lib/webgl';
 import { clearActiveFileHandle } from '@/persistence/fileAccess';
+import { cancelLazyEffectiveFlush } from '@/services/adjustService';
 import { clearHistory, recordSettingsPatchHistory } from '@/services/historyService';
 import { useEditorStore } from '@/state/editorStore';
 import { useHistoryStore } from '@/state/historyStore';
 import { useProjectStore } from '@/state/projectStore';
-import { getImageWorker } from '@/workers/client';
-import type { ResizeProjectMapsResult } from '@/workers/image.worker';
+import { resizeProjectMapsParallel } from '@/workers/pool';
 import { runTask } from '@/workers/tasks';
 import '@/state/mapsVersion';
 
@@ -36,7 +25,14 @@ export type ResizeProjectResult =
 export function createAndActivateProject(
   options: CreateDefaultProjectOptions = {},
 ): ProjectCreateResult {
+  cancelLazyEffectiveFlush();
   const settings = createDefaultProject(options);
+  const caps = probeGpuCapabilities();
+  if (caps.webgl2) {
+    const quality = selectDefaultQualityForGpu(caps);
+    settings.view3d.meshDetail = quality.meshDetail;
+    settings.lighting.front.shadowMapSize = quality.shadowMapSize;
+  }
   try {
     mapRegistry.allocate(settings.canvas.widthPx, settings.canvas.heightPx, {
       color: String(settings.maps.color.defaultValue),
@@ -107,124 +103,6 @@ export function updateCanvasWithoutResample(
   return { ok: true, resampled: false };
 }
 
-function resizeMapsSynchronously(params: {
-  srcWidth: number;
-  srcHeight: number;
-  dstWidth: number;
-  dstHeight: number;
-  colorBase: Uint8ClampedArray;
-  colorWorking: Uint8ClampedArray;
-  heightBase: Float32Array;
-  heightWorking: Float32Array;
-  opacityBase: Float32Array;
-  opacityWorking: Float32Array;
-  selection: Uint8Array;
-  adjustments: ProjectSettings['adjustments'];
-}): ResizeProjectMapsResult {
-  const transform = createDefaultTransform(params.srcWidth, params.srcHeight);
-
-  const colorBase = resampleRgbaWithTransform({
-    src: params.colorBase,
-    srcWidth: params.srcWidth,
-    srcHeight: params.srcHeight,
-    dstWidth: params.dstWidth,
-    dstHeight: params.dstHeight,
-    fit: 'stretch',
-    transform,
-  });
-  const colorWorking = resampleRgbaWithTransform({
-    src: params.colorWorking,
-    srcWidth: params.srcWidth,
-    srcHeight: params.srcHeight,
-    dstWidth: params.dstWidth,
-    dstHeight: params.dstHeight,
-    fit: 'stretch',
-    transform,
-  });
-  const heightBase = resampleFloatWithTransform({
-    src: params.heightBase,
-    srcWidth: params.srcWidth,
-    srcHeight: params.srcHeight,
-    dstWidth: params.dstWidth,
-    dstHeight: params.dstHeight,
-    fit: 'stretch',
-    transform,
-  });
-  const heightWorking = resampleFloatWithTransform({
-    src: params.heightWorking,
-    srcWidth: params.srcWidth,
-    srcHeight: params.srcHeight,
-    dstWidth: params.dstWidth,
-    dstHeight: params.dstHeight,
-    fit: 'stretch',
-    transform,
-  });
-  const opacityBase = resampleFloatWithTransform({
-    src: params.opacityBase,
-    srcWidth: params.srcWidth,
-    srcHeight: params.srcHeight,
-    dstWidth: params.dstWidth,
-    dstHeight: params.dstHeight,
-    fit: 'stretch',
-    transform,
-  });
-  const opacityWorking = resampleFloatWithTransform({
-    src: params.opacityWorking,
-    srcWidth: params.srcWidth,
-    srcHeight: params.srcHeight,
-    dstWidth: params.dstWidth,
-    dstHeight: params.dstHeight,
-    fit: 'stretch',
-    transform,
-  });
-  const selection = resampleMaskUint8(
-    params.selection,
-    params.srcWidth,
-    params.srcHeight,
-    params.dstWidth,
-    params.dstHeight,
-  );
-
-  const colorEffective = new Uint8ClampedArray(colorWorking.length);
-  const heightEffective = new Float32Array(heightWorking.length);
-  const opacityEffective = new Float32Array(opacityWorking.length);
-
-  applyColorAdjustments(
-    colorWorking,
-    colorEffective,
-    params.dstWidth,
-    params.dstHeight,
-    params.adjustments.color,
-  );
-  applyHeightAdjustments(
-    heightWorking,
-    heightEffective,
-    params.dstWidth,
-    params.dstHeight,
-    params.adjustments.height,
-  );
-  applyOpacityAdjustments(
-    opacityWorking,
-    opacityEffective,
-    params.dstWidth,
-    params.dstHeight,
-    params.adjustments.opacity,
-  );
-
-  return {
-    colorBase,
-    colorWorking,
-    colorEffective,
-    heightBase,
-    heightWorking,
-    heightEffective,
-    opacityBase,
-    opacityWorking,
-    opacityEffective,
-    selection,
-  };
-}
-
 export async function resizeProject(
   nextCanvas: CanvasSettings,
   maxTextureSize = typeof document !== 'undefined' ? getMaxTextureSize() : undefined,
@@ -240,6 +118,8 @@ export async function resizeProject(
   ) {
     return updateCanvasWithoutResample(nextCanvas, maxTextureSize);
   }
+
+  cancelLazyEffectiveFlush();
 
   const projectStore = useProjectStore.getState();
   const adjustments = structuredClone(projectStore.project.adjustments);
@@ -275,58 +155,27 @@ export async function resizeProject(
     throw err;
   }
 
-  let resized: ResizeProjectMapsResult;
-  if (typeof Worker !== 'undefined') {
-    const worker = getImageWorker();
-    resized = await runTask(
-      { labelKey: 'canvas.taskResizing', cancellable: false },
-      async (ctx) => {
-        return worker.resizeProjectMaps(
-          transfer(
-            {
-              srcWidth,
-              srcHeight,
-              dstWidth,
-              dstHeight,
-              colorBase: colorBaseCopy,
-              colorWorking: colorWorkingCopy,
-              heightBase: heightBaseCopy,
-              heightWorking: heightWorkingCopy,
-              opacityBase: opacityBaseCopy,
-              opacityWorking: opacityWorkingCopy,
-              selection: selectionCopy,
-              adjustments,
-            },
-            [
-              colorBaseCopy.buffer,
-              colorWorkingCopy.buffer,
-              heightBaseCopy.buffer,
-              heightWorkingCopy.buffer,
-              opacityBaseCopy.buffer,
-              opacityWorkingCopy.buffer,
-              selectionCopy.buffer,
-            ],
-          ),
-          proxy((p: number) => ctx.setProgress(p)),
-        );
-      },
-    );
-  } else {
-    resized = resizeMapsSynchronously({
-      srcWidth,
-      srcHeight,
-      dstWidth,
-      dstHeight,
-      colorBase: colorBaseCopy,
-      colorWorking: colorWorkingCopy,
-      heightBase: heightBaseCopy,
-      heightWorking: heightWorkingCopy,
-      opacityBase: opacityBaseCopy,
-      opacityWorking: opacityWorkingCopy,
-      selection: selectionCopy,
-      adjustments,
-    });
-  }
+  const resized = await runTask(
+    { labelKey: 'canvas.taskResizing', cancellable: false },
+    async (ctx) =>
+      resizeProjectMapsParallel(
+        {
+          srcWidth,
+          srcHeight,
+          dstWidth,
+          dstHeight,
+          colorBase: colorBaseCopy,
+          colorWorking: colorWorkingCopy,
+          heightBase: heightBaseCopy,
+          heightWorking: heightWorkingCopy,
+          opacityBase: opacityBaseCopy,
+          opacityWorking: opacityWorkingCopy,
+          selection: selectionCopy,
+          adjustments,
+        },
+        (p: number) => ctx.setProgress(p),
+      ),
+  );
 
   try {
     mapRegistry.replaceAll({

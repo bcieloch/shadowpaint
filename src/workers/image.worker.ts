@@ -42,6 +42,7 @@ import {
   resampleRgbaWithTransform,
 } from '@/imaging/resample';
 import { createMagicWandMask, featherSelectionMask } from '@/imaging/selectionOps';
+import { laplaceSmoothFloat32Region, laplaceSmoothRgba8Region } from '@/imaging/smooth';
 import { createDefaultTransform } from '@/imaging/transform';
 
 export type ProgressCallback = (progress: number) => void;
@@ -195,7 +196,7 @@ const imageWorkerApi = {
   fitAndResampleMap(
     params: {
       mapId: MapId;
-      rgba8: Uint8ClampedArray;
+      rgba8?: Uint8ClampedArray;
       gray16?: Float32Array;
       srcWidth: number;
       srcHeight: number;
@@ -205,10 +206,12 @@ const imageWorkerApi = {
       transform: ImportTransform;
       padRgba?: [number, number, number, number];
       padValue?: number;
+      dstYStart?: number;
+      dstYEnd?: number;
     },
     onProgress?: ProgressCallback,
   ): { rgba8?: Uint8ClampedArray; float32?: Float32Array } {
-    if (params.mapId === 'color') {
+    if (params.mapId === 'color' && params.rgba8) {
       const resampled = resampleRgbaWithTransform({
         src: params.rgba8,
         srcWidth: params.srcWidth,
@@ -218,12 +221,16 @@ const imageWorkerApi = {
         fit: params.fit,
         transform: params.transform,
         padRgba: params.padRgba ?? [244, 241, 234, 255],
+        dstYStart: params.dstYStart,
+        dstYEnd: params.dstYEnd,
         onProgress,
       });
       return transfer({ rgba8: resampled }, [resampled.buffer]);
     }
 
-    const srcFloat = params.gray16 ?? rgbaToGrayscaleFloat32(params.rgba8);
+    const srcFloat =
+      params.gray16 ??
+      (params.rgba8 ? rgbaToGrayscaleFloat32(params.rgba8) : new Float32Array(0));
     const resampled = resampleFloatWithTransform({
       src: srcFloat,
       srcWidth: params.srcWidth,
@@ -233,9 +240,32 @@ const imageWorkerApi = {
       fit: params.fit,
       transform: params.transform,
       padValue: params.padValue ?? 0,
+      dstYStart: params.dstYStart,
+      dstYEnd: params.dstYEnd,
       onProgress,
     });
     return transfer({ float32: resampled }, [resampled.buffer]);
+  },
+
+  resampleMaskStripe(params: {
+    selection: Uint8Array;
+    srcWidth: number;
+    srcHeight: number;
+    dstWidth: number;
+    dstHeight: number;
+    dstYStart?: number;
+    dstYEnd?: number;
+  }): Uint8Array {
+    const out = resampleMaskUint8(
+      params.selection,
+      params.srcWidth,
+      params.srcHeight,
+      params.dstWidth,
+      params.dstHeight,
+      params.dstYStart,
+      params.dstYEnd,
+    );
+    return transfer(out, [out.buffer]);
   },
 
   computeEffectiveColor(
@@ -243,8 +273,9 @@ const imageWorkerApi = {
     width: number,
     height: number,
     params: ColorAdjustments,
+    inPlace = false,
   ): Uint8ClampedArray {
-    const out = new Uint8ClampedArray(working.length);
+    const out = inPlace ? working : new Uint8ClampedArray(working.length);
     applyColorAdjustments(working, out, width, height, params);
     return transfer(out, [out.buffer]);
   },
@@ -254,8 +285,9 @@ const imageWorkerApi = {
     width: number,
     height: number,
     params: HeightAdjustments,
+    inPlace = false,
   ): Float32Array {
-    const out = new Float32Array(working.length);
+    const out = inPlace ? working : new Float32Array(working.length);
     applyHeightAdjustments(working, out, width, height, params);
     return transfer(out, [out.buffer]);
   },
@@ -265,8 +297,9 @@ const imageWorkerApi = {
     width: number,
     height: number,
     params: OpacityAdjustments,
+    inPlace = false,
   ): Float32Array {
-    const out = new Float32Array(working.length);
+    const out = inPlace ? working : new Float32Array(working.length);
     applyOpacityAdjustments(working, out, width, height, params);
     return transfer(out, [out.buffer]);
   },
@@ -311,6 +344,47 @@ const imageWorkerApi = {
         inner,
         params.radiusPx,
         onProgress,
+      );
+      return transfer({ scalar: out }, [out.buffer]);
+    }
+    return {};
+  },
+
+  smoothRegion(params: {
+    mapId: MapId;
+    patchW: number;
+    patchH: number;
+    innerX: number;
+    innerY: number;
+    innerW: number;
+    innerH: number;
+    iterations: number;
+    rgba8?: Uint8ClampedArray;
+    scalar?: Float32Array;
+  }): { rgba8?: Uint8ClampedArray; scalar?: Float32Array } {
+    const inner = {
+      x: params.innerX,
+      y: params.innerY,
+      w: params.innerW,
+      h: params.innerH,
+    };
+    if (params.mapId === 'color' && params.rgba8) {
+      const out = laplaceSmoothRgba8Region(
+        params.rgba8,
+        params.patchW,
+        params.patchH,
+        inner,
+        params.iterations,
+      );
+      return transfer({ rgba8: out }, [out.buffer]);
+    }
+    if (params.scalar) {
+      const out = laplaceSmoothFloat32Region(
+        params.scalar,
+        params.patchW,
+        params.patchH,
+        inner,
+        params.iterations,
       );
       return transfer({ scalar: out }, [out.buffer]);
     }

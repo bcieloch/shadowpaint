@@ -1,5 +1,6 @@
 import { DEFAULT_COLOR_HEX, DEFAULT_HEIGHT_VALUE, DEFAULT_OPACITY_VALUE } from '@/core/constants';
 import { TypedEmitter } from '@/core/events';
+import { DirtyTileTracker } from '@/core/maps/dirtyTiles';
 import { MapBuffer } from '@/core/maps/MapBuffer';
 import type { MapId, Rect } from '@/core/types';
 
@@ -74,6 +75,7 @@ export function computeHasSelection(mask: Uint8Array | null): boolean {
 
 export class MapRegistry {
   readonly events = new TypedEmitter<MapRegistryEvents>();
+  readonly dirtyTiles = new DirtyTileTracker();
 
   private _width = 0;
   private _height = 0;
@@ -159,6 +161,7 @@ export class MapRegistry {
       this._opacity = nextOpacity;
       this._selection = nextSelection;
       this._hasSelection = false;
+      this.dirtyTiles.reset(width, height);
     } catch (err) {
       throw new MapMemoryError(requiredBytes, err);
     }
@@ -202,6 +205,7 @@ export class MapRegistry {
       this._opacity = nextOpacity;
       this._selection = nextSelection;
       this._hasSelection = computeHasSelection(nextSelection);
+      this.dirtyTiles.reset(width, height);
     } catch (err) {
       if (err instanceof RangeError) {
         throw new MapMemoryError(requiredBytes, err);

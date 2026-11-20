@@ -32,9 +32,37 @@ export interface PaintMaterialUniforms {
   uGridColor: THREE.IUniform<THREE.Color>;
   uGridOpacity: THREE.IUniform<number>;
   uGridCanvasCm: THREE.IUniform<THREE.Vector2>;
+  uPcssRadiusScale: THREE.IUniform<number>;
+}
+
+export interface PaintPcssOptions {
+  enabled: boolean;
+  radiusScale: number;
 }
 
 const PAINT_UNIFORMS_KEY = 'paintUniforms';
+const PAINT_PCSS_ENABLED_KEY = 'paintPcssEnabled';
+
+const PCF_ORIGINAL_FIVE_TAP_REGEX =
+  /vec2 texelSize = vec2\(\s*1\.0\s*\)\s*\/\s*shadowMapSize;\s*vec2 radius = shadowRadius \* texelSize;[\s\S]*?shadow = \(\s*texture\( shadowMap,[\s\S]*?\)\s*\*\s*0\.2;/;
+
+const PCSS_VOGEL_SIXTEEN_TAP = `vec2 texelSize = vec2( 1.0 ) / shadowMapSize;
+				vec2 radius = shadowRadius * uPcssRadiusScale * texelSize;
+
+				float phi = interleavedGradientNoise( gl_FragCoord.xy ) * PI2;
+				shadow = 0.0;
+				for ( int pcssIdx = 0; pcssIdx < 16; pcssIdx ++ ) {
+					shadow += texture( shadowMap, vec3( shadowCoord.xy + vogelDiskSample( pcssIdx, 16, phi ) * radius, shadowCoord.z ) );
+				}
+				shadow *= 0.0625;`;
+
+function buildPcssShadowMapParsChunk(): string {
+  const baseChunk = THREE.ShaderChunk.shadowmap_pars_fragment;
+  if (!PCF_ORIGINAL_FIVE_TAP_REGEX.test(baseChunk)) {
+    return baseChunk;
+  }
+  return baseChunk.replace(PCF_ORIGINAL_FIVE_TAP_REGEX, PCSS_VOGEL_SIXTEEN_TAP);
+}
 
 export function createPaintMaterial(
   textures: MapTextures,
@@ -43,6 +71,7 @@ export function createPaintMaterial(
   view3d: View3DSettings,
   backParams?: BackLightShaderParams,
   grid?: GridSettings,
+  pcssOptions?: PaintPcssOptions,
 ): THREE.MeshStandardMaterial {
   const disp = computeDisplacementParams(
     canvas.minThicknessMm,
@@ -50,6 +79,7 @@ export function createPaintMaterial(
     view3d.reliefMultiplier,
   );
   const { pxPerCm } = getCalibrationMetrics(canvas);
+  const pcssEnabled = Boolean(pcssOptions?.enabled);
 
   const paintUniforms: PaintMaterialUniforms = {
     uHeight: { value: textures.heightTex },
@@ -79,6 +109,7 @@ export function createPaintMaterial(
     uGridColor: { value: new THREE.Color(grid?.color ?? '#f59e0b') },
     uGridOpacity: { value: grid?.opacity ?? 0.35 },
     uGridCanvasCm: { value: new THREE.Vector2(canvas.widthCm, canvas.heightCm) },
+    uPcssRadiusScale: { value: Math.max(0.5, pcssOptions?.radiusScale ?? 1) },
   };
 
   const material = new THREE.MeshStandardMaterial({
@@ -91,9 +122,14 @@ export function createPaintMaterial(
   });
 
   material.userData[PAINT_UNIFORMS_KEY] = paintUniforms;
-  material.customProgramCacheKey = () => 'shadowpaint-paint-v4';
+  material.userData[PAINT_PCSS_ENABLED_KEY] = pcssEnabled;
+  material.customProgramCacheKey = () =>
+    material.userData[PAINT_PCSS_ENABLED_KEY]
+      ? 'shadowpaint-paint-v4-pcss'
+      : 'shadowpaint-paint-v4';
 
   material.onBeforeCompile = (shader) => {
+    const compileWithPcss = Boolean(material.userData[PAINT_PCSS_ENABLED_KEY]);
     shader.uniforms.uHeight = paintUniforms.uHeight;
     shader.uniforms.uOpacity = paintUniforms.uOpacity;
     shader.uniforms.uTexelSize = paintUniforms.uTexelSize;
@@ -119,6 +155,7 @@ export function createPaintMaterial(
     shader.uniforms.uGridColor = paintUniforms.uGridColor;
     shader.uniforms.uGridOpacity = paintUniforms.uGridOpacity;
     shader.uniforms.uGridCanvasCm = paintUniforms.uGridCanvasCm;
+    shader.uniforms.uPcssRadiusScale = paintUniforms.uPcssRadiusScale;
 
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -132,13 +169,14 @@ varying vec3 vPaintWorldPos;`,
 vPaintWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
       );
 
-    shader.fragmentShader = shader.fragmentShader
+    let fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
         `#include <common>
 uniform vec2 uTexelSize;
 uniform vec2 uTexelCm;
 uniform float uDispScale;
+uniform float uPcssRadiusScale;
 ${backlightFragGlsl}
 ${gridFragGlsl}`,
       )
@@ -168,6 +206,15 @@ ${gridFragGlsl}`,
 #endif
 #include <opaque_fragment>`,
       );
+
+    if (compileWithPcss) {
+      fragmentShader = fragmentShader.replace(
+        '#include <shadowmap_pars_fragment>',
+        buildPcssShadowMapParsChunk(),
+      );
+    }
+
+    shader.fragmentShader = fragmentShader;
   };
 
   return material;
@@ -182,6 +229,7 @@ export function updatePaintMaterial(
   texturesHeight: number,
   backParams?: BackLightShaderParams,
   grid?: GridSettings,
+  pcssOptions?: PaintPcssOptions,
 ): void {
   const disp = computeDisplacementParams(
     canvas.minThicknessMm,
@@ -193,6 +241,13 @@ export function updatePaintMaterial(
   material.roughness = materialSettings.roughness;
   material.displacementScale = disp.displacementScale;
   material.displacementBias = disp.displacementBias;
+
+  const nextPcssEnabled = Boolean(pcssOptions?.enabled);
+  const prevPcssEnabled = Boolean(material.userData[PAINT_PCSS_ENABLED_KEY]);
+  if (prevPcssEnabled !== nextPcssEnabled) {
+    material.userData[PAINT_PCSS_ENABLED_KEY] = nextPcssEnabled;
+    material.needsUpdate = true;
+  }
 
   const paintUniforms = material.userData[PAINT_UNIFORMS_KEY] as PaintMaterialUniforms | undefined;
   if (paintUniforms) {
@@ -211,6 +266,7 @@ export function updatePaintMaterial(
     paintUniforms.uScatterRadiusTex.value =
       Math.max(0, materialSettings.scatterRadiusMm / 10) * pxPerCm;
     paintUniforms.uGridCanvasCm.value.set(canvas.widthCm, canvas.heightCm);
+    paintUniforms.uPcssRadiusScale.value = Math.max(0.5, pcssOptions?.radiusScale ?? 1);
 
     if (backParams) {
       paintUniforms.uKAtt.value = backParams.attenuation;

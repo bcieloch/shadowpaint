@@ -31,6 +31,7 @@ import {
 } from '@/core/units/lighting';
 import { getMaxTextureSize } from '@/lib/webgl';
 import { recordSettingsPatchHistory } from '@/services/historyService';
+import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
 import { Label } from '@/ui/components/ui/label';
 import {
@@ -57,6 +58,8 @@ export function LightPanel() {
   const canvas = useProjectStore((s) => s.project.canvas);
   const lighting = useProjectStore((s) => s.project.lighting);
   const updateProject = useProjectStore((s) => s.updateProject);
+  const pcssEnabled = useEditorStore((s) => s.pcssEnabled);
+  const setPcssEnabled = useEditorStore((s) => s.setPcssEnabled);
 
   const [coordMode, setCoordMode] = useState<CoordMode>('cartesian');
   const pendingBeforeRef = useRef<LightingSettings | null>(null);
@@ -625,6 +628,28 @@ export function LightPanel() {
             </SelectContent>
           </Select>
         </div>
+
+        {front.castShadows && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between pt-0.5">
+              <Label
+                htmlFor="front-pcss-enabled"
+                className="text-muted-foreground text-xs font-normal"
+              >
+                {t('light.pcssSoftShadows')}
+              </Label>
+              <Switch
+                id="front-pcss-enabled"
+                data-testid="front-pcss-enabled"
+                checked={pcssEnabled}
+                onCheckedChange={setPcssEnabled}
+              />
+            </div>
+            <p className="text-muted-foreground text-[10px] leading-snug">
+              {t('light.pcssSoftShadowsHint')}
+            </p>
+          </div>
+        )}
       </div>
 
       <Separator />

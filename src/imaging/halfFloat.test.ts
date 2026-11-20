@@ -5,6 +5,7 @@ import {
   float32ToHalfFloatArray,
   floatToHalf,
   halfToFloat,
+  updateHalfFloatRectInPlace,
 } from '@/imaging/halfFloat';
 
 describe('halfFloat', () => {
@@ -54,6 +55,24 @@ describe('halfFloat', () => {
       halfToFloat(floatToHalf(0.9)),
       halfToFloat(floatToHalf(1.0)),
     ]);
+  });
+
+  it('updates half-float sub-rectangle in place without altering outside pixels', () => {
+    const src = new Float32Array(4 * 3).fill(0.25);
+    const dst = float32ToHalfFloatArray(src);
+    src[1 * 4 + 1] = 0.75;
+    src[1 * 4 + 2] = 0.5;
+    src[2 * 4 + 1] = 1.0;
+    src[2 * 4 + 2] = 0.0;
+
+    updateHalfFloatRectInPlace(src, 4, { x: 1, y: 1, w: 2, h: 2 }, dst);
+
+    expect(halfToFloat(dst[0] ?? 0)).toBe(0.25);
+    expect(halfToFloat(dst[1 * 4 + 1] ?? 0)).toBe(0.75);
+    expect(halfToFloat(dst[1 * 4 + 2] ?? 0)).toBe(0.5);
+    expect(halfToFloat(dst[2 * 4 + 1] ?? 0)).toBe(1.0);
+    expect(halfToFloat(dst[2 * 4 + 2] ?? 0)).toBe(0.0);
+    expect(halfToFloat(dst[2 * 4 + 3] ?? 0)).toBe(0.25);
   });
 
   it('extracts RGBA8 sub-rectangles accurately', () => {

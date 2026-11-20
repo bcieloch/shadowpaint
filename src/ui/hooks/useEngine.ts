@@ -4,15 +4,27 @@ import { mapRegistry } from '@/core/maps/MapRegistry';
 import type { Vec2 } from '@/core/types';
 import { OverlayRenderer, type OverlayCursorState } from '@/editor2d/overlay/OverlayRenderer';
 import { computeSplitPanes } from '@/editor2d/splitLayout';
-import { fitToViewport, zoom100, type ViewportSize } from '@/editor2d/viewTransform';
+import {
+  fitToViewport,
+  getVisibleImageRect,
+  zoom100,
+  type ViewportSize,
+} from '@/editor2d/viewTransform';
 import { Engine } from '@/engine3d/Engine';
-import { detectWebGL2Support } from '@/lib/webgl';
+import { detectWebGL2Support, probeGpuCapabilities } from '@/lib/webgl';
+import { flushDirtyEffectiveTiles, flushVisibleEffectiveRect } from '@/services/adjustService';
+import { registerEnginePerformanceProvider } from '@/services/diagnosticsService';
 import { setExportPreviewRenderer } from '@/services/exportService';
 import { ensureInitialProjectAllocated } from '@/services/projectService';
 import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
 import { clearCursorReadout, refreshCursorReadout } from '@/state/readoutStore';
 import { useI18n } from '@/ui/hooks/useI18n';
+import {
+  computeEffectiveColorParallel,
+  getWorkerPoolStats,
+  warmUpImageWorkerPool,
+} from '@/workers/pool';
 
 export interface UseEngineResult {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -137,27 +149,52 @@ export function useEngine(): UseEngineResult {
 
   const syncEngineParams = useCallback(() => {
     const engine = engineRef.current;
-    if (!engine) return;
     const project = useProjectStore.getState().project;
     const editor = useEditorStore.getState();
-    engine.setRenderParams({
-      layout: editor.layout,
-      canvas: project.canvas,
-      material: project.material,
-      lighting: project.lighting,
-      view3d: project.view3d,
-      grid: project.grid,
-      viewMode2D: editor.viewMode2D,
-      view3DLighting: editor.view3DLighting,
-      splitRatio: editor.splitRatio,
-      heightDisplay: editor.heightDisplay,
-      contourStepMm: editor.heightContourStepMm,
-      showLampGizmos: editor.showLampGizmos,
-      showMaskOverlay: editor.showMaskOverlay,
-      pane2D: editor.pane2D,
-      crossSectionLine: editor.crossSectionLine,
-      crossSectionHoverT: editor.crossSectionHoverT,
-    });
+
+    const paneVp = resolvePane2DSize(viewportSizeRef.current);
+    if (
+      editor.pane2DViewport.width !== paneVp.width ||
+      editor.pane2DViewport.height !== paneVp.height
+    ) {
+      editor.setPane2DViewport(paneVp);
+    }
+
+    if (editor.layout !== '3d' && mapRegistry.isAllocated && mapRegistry.dirtyTiles.hasDirty()) {
+      const visibleRect = getVisibleImageRect(
+        editor.pane2D,
+        paneVp,
+        project.canvas.widthPx,
+        project.canvas.heightPx,
+        64,
+      );
+      if (visibleRect) {
+        flushVisibleEffectiveRect(visibleRect);
+      }
+    }
+
+    if (engine) {
+      engine.setRenderParams({
+        layout: editor.layout,
+        canvas: project.canvas,
+        material: project.material,
+        lighting: project.lighting,
+        view3d: project.view3d,
+        grid: project.grid,
+        adjustments: project.adjustments,
+        viewMode2D: editor.viewMode2D,
+        view3DLighting: editor.view3DLighting,
+        splitRatio: editor.splitRatio,
+        heightDisplay: editor.heightDisplay,
+        contourStepMm: editor.heightContourStepMm,
+        showLampGizmos: editor.showLampGizmos,
+        pcssEnabled: editor.pcssEnabled,
+        showMaskOverlay: editor.showMaskOverlay,
+        pane2D: editor.pane2D,
+        crossSectionLine: editor.crossSectionLine,
+        crossSectionHoverT: editor.crossSectionHoverT,
+      });
+    }
     renderOverlay();
     syncAntsAnimation();
   }, [renderOverlay, syncAntsAnimation]);
@@ -204,6 +241,7 @@ export function useEngine(): UseEngineResult {
     if (!container || !webglCanvas || !overlayCanvas) return;
 
     ensureInitialProjectAllocated();
+    void warmUpImageWorkerPool().catch(() => {});
 
     const overlay = new OverlayRenderer(overlayCanvas);
     overlayRef.current = overlay;
@@ -222,12 +260,46 @@ export function useEngine(): UseEngineResult {
         },
       });
       engineRef.current = engine;
+      registerEnginePerformanceProvider(() => engine?.getPerformanceSnapshot() ?? {
+        lastFrameMs: 0,
+        avgFrameMs: 0,
+        lastTextureUploadMs: 0,
+        renderCount: 0,
+        memory: { geometries: 0, textures: 0, programs: 0 },
+        render: { calls: 0, triangles: 0, points: 0, lines: 0 },
+      });
       setExportPreviewRenderer(
         (mode, longestSide) => engine?.renderPreview(mode, longestSide) ?? null,
       );
 
       window.__shadowpaintDebug = {
         getMemoryInfo: () => engine?.getMemoryInfo() ?? { geometries: 0, textures: 0, programs: 0 },
+        getPerformanceSnapshot: () => engine?.getPerformanceSnapshot() ?? null,
+        getWorkerPoolStats: () => getWorkerPoolStats(),
+        getGpuCapabilities: () => probeGpuCapabilities(),
+        flushDirtyEffectiveTiles: (mapId, emitDirty) => flushDirtyEffectiveTiles(mapId, emitDirty),
+        benchmarkComputeEffectiveColor: async (adjustments) => {
+          await warmUpImageWorkerPool();
+          const width = mapRegistry.isAllocated ? mapRegistry.width : 3000;
+          const height = mapRegistry.isAllocated ? mapRegistry.height : 4200;
+          const working = mapRegistry.isAllocated
+            ? mapRegistry.color.working
+            : new Uint8ClampedArray(width * height * 4);
+          const adj = adjustments ?? { brightness: 0.12, contrast: 0.18, saturation: 0.15 };
+          const dst = mapRegistry.isAllocated
+            ? mapRegistry.color.effective
+            : new Uint8ClampedArray(width * height * 4);
+          const t0 = performance.now();
+          await computeEffectiveColorParallel(working, width, height, adj, dst);
+          const durationMs = performance.now() - t0;
+          const poolStats = getWorkerPoolStats();
+          return {
+            durationMs,
+            width,
+            height,
+            activeWorkers: poolStats.activeWorkers,
+          };
+        },
         getBuiltDimensions: () =>
           engine?.getBuiltDimensions() ?? { widthPx: 0, heightPx: 0, widthCm: 0, heightCm: 0 },
         get3DStats: () => engine?.get3DStats() ?? null,
@@ -404,6 +476,7 @@ export function useEngine(): UseEngineResult {
       unsubMapDirty();
       unsubMapReplaced();
       unsubSelectionChanged();
+      registerEnginePerformanceProvider(null);
       if (window.__shadowpaintDebug) {
         delete window.__shadowpaintDebug;
       }

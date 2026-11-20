@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { ensureEffectiveRect } from '@/core/maps/dirtyTiles';
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import { type CursorReadout, sampleCursorReadout } from '@/core/optics/cursorReadout';
 import type { Vec2 } from '@/core/types';
@@ -25,6 +26,16 @@ function computeAndApply(imagePos: Vec2 | null): void {
     return;
   }
   const project = useProjectStore.getState().project;
+  if (mapRegistry.dirtyTiles.hasDirty()) {
+    const px = Math.floor(imagePos.x);
+    const py = Math.floor(imagePos.y);
+    if (px >= 0 && py >= 0 && px < mapRegistry.width && py < mapRegistry.height) {
+      const rect = { x: px, y: py, w: 1, h: 1 };
+      ensureEffectiveRect(mapRegistry, 'color', rect, project.adjustments);
+      ensureEffectiveRect(mapRegistry, 'height', rect, project.adjustments);
+      ensureEffectiveRect(mapRegistry, 'opacity', rect, project.adjustments);
+    }
+  }
   const readout = sampleCursorReadout({
     imageX: imagePos.x,
     imageY: imagePos.y,

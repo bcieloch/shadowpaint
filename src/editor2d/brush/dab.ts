@@ -71,6 +71,19 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
   const singlePxX = Math.floor(config.cx);
   const singlePxY = Math.floor(config.cy);
   const maskCfg = config.mask;
+  const hasMask = Boolean(maskCfg?.active);
+  const maskData = maskCfg?.data;
+  const maskMode = maskCfg?.mode ?? 'protect';
+
+  const cx = config.cx;
+  const cy = config.cy;
+  const h = Math.max(0, Math.min(1, config.hardness));
+  const hardPlateau = h >= 0.999;
+  const radiusSq = radius * radius;
+  const innerRadius = radius * h;
+  const innerRadiusSq = innerRadius * innerRadius;
+  const invRadius = 1 / radius;
+  const invOneMinusH = hardPlateau ? 1 : 1 / (1 - h);
 
   if (config.mapId === 'color') {
     const buf = registry.color;
@@ -80,54 +93,104 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
     const tr = target[0];
     const tg = target[1];
     const tb = target[2];
+    const isEraser = config.kind === 'eraser';
+
+    if (isSinglePixelBrush) {
+      if (singlePxX >= x0 && singlePxX < x1 && singlePxY >= y0 && singlePxY < y1) {
+        const pxIdx = singlePxY * width + singlePxX;
+        const maskWeight =
+          hasMask && maskData ? getSelectionMaskWeight(maskData, pxIdx, maskMode, true) : 1;
+        if (maskWeight > 0) {
+          const alpha = Math.min(1, flow * maskWeight);
+          const idx = pxIdx * 4;
+          if (isEraser) {
+            const br = base[idx] as number;
+            const bg = base[idx + 1] as number;
+            const bb = base[idx + 2] as number;
+            const ba = base[idx + 3] as number;
+            working[idx] = Math.round((working[idx] as number) + (br - (working[idx] as number)) * alpha);
+            working[idx + 1] = Math.round(
+              (working[idx + 1] as number) + (bg - (working[idx + 1] as number)) * alpha,
+            );
+            working[idx + 2] = Math.round(
+              (working[idx + 2] as number) + (bb - (working[idx + 2] as number)) * alpha,
+            );
+            working[idx + 3] = Math.round(
+              (working[idx + 3] as number) + (ba - (working[idx + 3] as number)) * alpha,
+            );
+          } else {
+            working[idx] = Math.round((working[idx] as number) + (tr - (working[idx] as number)) * alpha);
+            working[idx + 1] = Math.round(
+              (working[idx + 1] as number) + (tg - (working[idx + 1] as number)) * alpha,
+            );
+            working[idx + 2] = Math.round(
+              (working[idx + 2] as number) + (tb - (working[idx + 2] as number)) * alpha,
+            );
+            working[idx + 3] = 255;
+          }
+        }
+      }
+      return bounds;
+    }
 
     for (let y = y0; y < y1; y++) {
+      const dy = y + 0.5 - cy;
+      const dySq = dy * dy;
+      if (dySq >= radiusSq) continue;
+      const maxDx = Math.sqrt(radiusSq - dySq);
+      const rowX0 = Math.max(x0, Math.floor(cx - maxDx - 0.5));
+      const rowX1 = Math.min(x1, Math.ceil(cx + maxDx - 0.5) + 1);
       const rowOffset = y * width;
-      for (let x = x0; x < x1; x++) {
+
+      for (let x = rowX0; x < rowX1; x++) {
+        const dx = x + 0.5 - cx;
+        const distSq = dx * dx + dySq;
+        if (distSq >= radiusSq) continue;
+
         let falloff: number;
-        if (isSinglePixelBrush) {
-          falloff = x === singlePxX && y === singlePxY ? 1 : 0;
+        if (hardPlateau || distSq <= innerRadiusSq) {
+          falloff = 1;
         } else {
-          const dx = x + 0.5 - config.cx;
-          const dy = y + 0.5 - config.cy;
-          const dist = Math.hypot(dx, dy);
-          falloff = computeBrushFalloff(dist, radius, config.hardness);
+          const dist = Math.sqrt(distSq);
+          const t = (dist * invRadius - h) * invOneMinusH;
+          falloff = 1 - t * t * (3 - 2 * t);
         }
         if (falloff <= 0) continue;
 
         const pxIdx = rowOffset + x;
-        const maskWeight = maskCfg?.active
-          ? getSelectionMaskWeight(maskCfg.data, pxIdx, maskCfg.mode, true)
-          : 1;
+        const maskWeight =
+          hasMask && maskData ? getSelectionMaskWeight(maskData, pxIdx, maskMode, true) : 1;
         if (maskWeight <= 0) continue;
 
-        const alpha = Math.min(1, falloff * flow * maskWeight);
+        const alpha = falloff * flow * maskWeight;
         if (alpha <= 0) continue;
 
         const idx = pxIdx * 4;
-        if (config.kind === 'eraser') {
-          const br = base[idx] ?? 0;
-          const bg = base[idx + 1] ?? 0;
-          const bb = base[idx + 2] ?? 0;
-          const ba = base[idx + 3] ?? 255;
-          working[idx] = Math.round((working[idx] ?? 0) + (br - (working[idx] ?? 0)) * alpha);
-          working[idx + 1] = Math.round(
-            (working[idx + 1] ?? 0) + (bg - (working[idx + 1] ?? 0)) * alpha,
-          );
-          working[idx + 2] = Math.round(
-            (working[idx + 2] ?? 0) + (bb - (working[idx + 2] ?? 0)) * alpha,
-          );
-          working[idx + 3] = Math.round(
-            (working[idx + 3] ?? 255) + (ba - (working[idx + 3] ?? 255)) * alpha,
-          );
+        if (isEraser) {
+          const br = base[idx] as number;
+          const bg = base[idx + 1] as number;
+          const bb = base[idx + 2] as number;
+          const ba = base[idx + 3] as number;
+          const wr = working[idx] as number;
+          const wg = working[idx + 1] as number;
+          const wb = working[idx + 2] as number;
+          const wa = working[idx + 3] as number;
+          working[idx] = Math.round(wr + (br - wr) * alpha);
+          working[idx + 1] = Math.round(wg + (bg - wg) * alpha);
+          working[idx + 2] = Math.round(wb + (bb - wb) * alpha);
+          working[idx + 3] = Math.round(wa + (ba - wa) * alpha);
+        } else if (alpha >= 1) {
+          working[idx] = tr;
+          working[idx + 1] = tg;
+          working[idx + 2] = tb;
+          working[idx + 3] = 255;
         } else {
-          working[idx] = Math.round((working[idx] ?? 0) + (tr - (working[idx] ?? 0)) * alpha);
-          working[idx + 1] = Math.round(
-            (working[idx + 1] ?? 0) + (tg - (working[idx + 1] ?? 0)) * alpha,
-          );
-          working[idx + 2] = Math.round(
-            (working[idx + 2] ?? 0) + (tb - (working[idx + 2] ?? 0)) * alpha,
-          );
+          const wr = working[idx] as number;
+          const wg = working[idx + 1] as number;
+          const wb = working[idx + 2] as number;
+          working[idx] = Math.round(wr + (tr - wr) * alpha);
+          working[idx + 1] = Math.round(wg + (tg - wg) * alpha);
+          working[idx + 2] = Math.round(wb + (tb - wb) * alpha);
           working[idx + 3] = 255;
         }
       }
@@ -141,42 +204,75 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
   const base = buf.base as Float32Array;
   const targetVal = clamp01(config.targetValue ?? 0);
   const step = config.raiseLowerStep ?? DEFAULT_RAISE_LOWER_STEP;
+  const isEraser = config.kind === 'eraser';
+  const mode = config.mode;
+
+  if (isSinglePixelBrush) {
+    if (singlePxX >= x0 && singlePxX < x1 && singlePxY >= y0 && singlePxY < y1) {
+      const idx = singlePxY * width + singlePxX;
+      const maskWeight =
+        hasMask && maskData ? getSelectionMaskWeight(maskData, idx, maskMode, true) : 1;
+      if (maskWeight > 0) {
+        const alpha = Math.min(1, flow * maskWeight);
+        const cur = working[idx] as number;
+        if (isEraser) {
+          working[idx] = clamp01(cur + ((base[idx] as number) - cur) * alpha);
+        } else if (mode === 'raise') {
+          working[idx] = clamp01(cur + alpha * step);
+        } else if (mode === 'lower') {
+          working[idx] = clamp01(cur - alpha * step);
+        } else {
+          working[idx] = clamp01(cur + (targetVal - cur) * alpha);
+        }
+      }
+    }
+    return bounds;
+  }
 
   for (let y = y0; y < y1; y++) {
+    const dy = y + 0.5 - cy;
+    const dySq = dy * dy;
+    if (dySq >= radiusSq) continue;
+    const maxDx = Math.sqrt(radiusSq - dySq);
+    const rowX0 = Math.max(x0, Math.floor(cx - maxDx - 0.5));
+    const rowX1 = Math.min(x1, Math.ceil(cx + maxDx - 0.5) + 1);
     const rowOffset = y * width;
-    for (let x = x0; x < x1; x++) {
+
+    for (let x = rowX0; x < rowX1; x++) {
+      const dx = x + 0.5 - cx;
+      const distSq = dx * dx + dySq;
+      if (distSq >= radiusSq) continue;
+
       let falloff: number;
-      if (isSinglePixelBrush) {
-        falloff = x === singlePxX && y === singlePxY ? 1 : 0;
+      if (hardPlateau || distSq <= innerRadiusSq) {
+        falloff = 1;
       } else {
-        const dx = x + 0.5 - config.cx;
-        const dy = y + 0.5 - config.cy;
-        const dist = Math.hypot(dx, dy);
-        falloff = computeBrushFalloff(dist, radius, config.hardness);
+        const dist = Math.sqrt(distSq);
+        const t = (dist * invRadius - h) * invOneMinusH;
+        falloff = 1 - t * t * (3 - 2 * t);
       }
       if (falloff <= 0) continue;
 
       const idx = rowOffset + x;
-      const maskWeight = maskCfg?.active
-        ? getSelectionMaskWeight(maskCfg.data, idx, maskCfg.mode, true)
-        : 1;
+      const maskWeight =
+        hasMask && maskData ? getSelectionMaskWeight(maskData, idx, maskMode, true) : 1;
       if (maskWeight <= 0) continue;
 
-      const alpha = Math.min(1, falloff * flow * maskWeight);
+      const alpha = falloff * flow * maskWeight;
       if (alpha <= 0) continue;
 
-      const cur = working[idx] ?? 0;
-
-      if (config.kind === 'eraser') {
-        const b = base[idx] ?? 0;
-        working[idx] = clamp01(cur + (b - cur) * alpha);
-      } else if (config.mode === 'raise') {
-        working[idx] = clamp01(cur + alpha * step);
-      } else if (config.mode === 'lower') {
-        working[idx] = clamp01(cur - alpha * step);
+      const cur = working[idx] as number;
+      let nextVal: number;
+      if (isEraser) {
+        nextVal = cur + ((base[idx] as number) - cur) * alpha;
+      } else if (mode === 'raise') {
+        nextVal = cur + alpha * step;
+      } else if (mode === 'lower') {
+        nextVal = cur - alpha * step;
       } else {
-        working[idx] = clamp01(cur + (targetVal - cur) * alpha);
+        nextVal = alpha >= 1 ? targetVal : cur + (targetVal - cur) * alpha;
       }
+      working[idx] = nextVal < 0 ? 0 : nextVal > 1 ? 1 : nextVal;
     }
   }
 

@@ -1,3 +1,4 @@
+import { ensureEffectiveRect } from '@/core/maps/dirtyTiles';
 import { valueToMm } from '@/core/units/calibration';
 import { rgb01ToHex } from '@/core/units/colorTemperature';
 import type { Tool, ToolContext, ToolPointerEvent } from '@/editor2d/tools/Tool';
@@ -35,7 +36,11 @@ export class EyedropperTool implements Tool {
     }
 
     const { activeMap } = ctx.getEditor();
-    const { canvas } = ctx.getProject();
+    const { canvas, adjustments } = ctx.getProject();
+
+    if (registry.dirtyTiles.hasDirty(activeMap)) {
+      ensureEffectiveRect(registry, activeMap, { x: px, y: py, w: 1, h: 1 }, adjustments);
+    }
 
     if (activeMap === 'color') {
       const idx = (py * registry.width + px) * 4;

@@ -7,6 +7,7 @@ import {
 } from '@/core/layout';
 import type { LightingMode, LineSegment, MapId, SelectionCombineMode } from '@/core/types';
 import { clampSplitRatio, SPLIT_DEFAULT_RATIO } from '@/editor2d/splitLayout';
+import type { ViewportSize } from '@/editor2d/viewTransform';
 import type { GradientKind } from '@/imaging/gradient';
 
 export type { LineSegment };
@@ -108,7 +109,9 @@ export interface EditorState {
   heightDisplay: HeightDisplayMode;
   heightContourStepMm: number;
   showLampGizmos: boolean;
+  pcssEnabled: boolean;
   pane2D: Pane2DState;
+  pane2DViewport: ViewportSize;
   splitRatio: number;
   rulerLine: LineSegment | null;
   crossSectionLine: LineSegment | null;
@@ -143,7 +146,9 @@ export interface EditorState {
   setHeightDisplay: (mode: HeightDisplayMode) => void;
   setHeightContourStepMm: (stepMm: number) => void;
   setShowLampGizmos: (show: boolean) => void;
+  setPcssEnabled: (enabled: boolean) => void;
   setPane2D: (pane: Partial<Pane2DState>) => void;
+  setPane2DViewport: (vp: ViewportSize) => void;
   setSplitRatio: (ratio: number) => void;
   setRulerLine: (line: LineSegment | null) => void;
   setCrossSectionLine: (line: LineSegment | null) => void;
@@ -206,7 +211,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   heightDisplay: 'gray',
   heightContourStepMm: 0.5,
   showLampGizmos: true,
+  pcssEnabled: false,
   pane2D: { zoom: 1, panX: 0, panY: 0 },
+  pane2DViewport: { width: 1, height: 1 },
   splitRatio: SPLIT_DEFAULT_RATIO,
   rulerLine: null,
   crossSectionLine: null,
@@ -262,7 +269,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   setHeightDisplay: (heightDisplay) => set({ heightDisplay }),
   setHeightContourStepMm: (heightContourStepMm) => set({ heightContourStepMm }),
   setShowLampGizmos: (showLampGizmos) => set({ showLampGizmos }),
+  setPcssEnabled: (pcssEnabled) => set({ pcssEnabled }),
   setPane2D: (pane) => set((s) => ({ pane2D: { ...s.pane2D, ...pane } })),
+  setPane2DViewport: (pane2DViewport) => set({ pane2DViewport }),
   setSplitRatio: (splitRatio) => set({ splitRatio: clampSplitRatio(splitRatio) }),
   setRulerLine: (rulerLine) => set({ rulerLine }),
   setCrossSectionLine: (crossSectionLine) =>

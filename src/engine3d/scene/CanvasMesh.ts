@@ -16,7 +16,11 @@ import {
   createPaintDepthMaterial,
   updatePaintDepthMaterial,
 } from '@/engine3d/materials/paintDepthMaterial';
-import { createPaintMaterial, updatePaintMaterial } from '@/engine3d/materials/paintMaterial';
+import {
+  createPaintMaterial,
+  type PaintPcssOptions,
+  updatePaintMaterial,
+} from '@/engine3d/materials/paintMaterial';
 import type { MapTextures } from '@/engine3d/textures/MapTextures';
 
 export interface CanvasMeshGeometryResult {
@@ -129,6 +133,7 @@ export class CanvasMesh {
     view3d: View3DSettings,
     backParams?: BackLightShaderParams,
     grid?: GridSettings,
+    pcssOptions?: PaintPcssOptions,
   ) {
     this.group = new THREE.Group();
     this.group.name = 'CanvasRoot';
@@ -160,6 +165,7 @@ export class CanvasMesh {
       view3d,
       backParams,
       grid,
+      pcssOptions,
     );
     this.paintDepthMaterial = createPaintDepthMaterial(
       textures.heightTex,
@@ -207,6 +213,7 @@ export class CanvasMesh {
     view3d: View3DSettings,
     backParams?: BackLightShaderParams,
     grid?: GridSettings,
+    pcssOptions?: PaintPcssOptions,
   ): void {
     if (this.disposed) return;
 
@@ -235,6 +242,7 @@ export class CanvasMesh {
       textures.height,
       backParams,
       grid,
+      pcssOptions,
     );
     updatePaintDepthMaterial(
       this.paintDepthMaterial,

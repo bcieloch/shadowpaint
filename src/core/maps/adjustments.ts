@@ -14,6 +14,50 @@ function contrastFactor(c: number): number {
   return clamped >= 0 ? 1 / (1 - 0.99 * clamped) : 1 + clamped;
 }
 
+function copyRgbaRect(
+  src: Uint8ClampedArray,
+  dst: Uint8ClampedArray,
+  width: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  fullWidth: number,
+  fullHeight: number,
+): void {
+  if (x0 === 0 && y0 === 0 && x1 === fullWidth && y1 === fullHeight && src.length === dst.length) {
+    dst.set(src);
+    return;
+  }
+  const rowBytes = (x1 - x0) * 4;
+  for (let y = y0; y < y1; y++) {
+    const start = (y * width + x0) * 4;
+    dst.set(src.subarray(start, start + rowBytes), start);
+  }
+}
+
+function copyFloatRect(
+  src: Float32Array,
+  dst: Float32Array,
+  width: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  fullWidth: number,
+  fullHeight: number,
+): void {
+  if (x0 === 0 && y0 === 0 && x1 === fullWidth && y1 === fullHeight && src.length === dst.length) {
+    dst.set(src);
+    return;
+  }
+  const span = x1 - x0;
+  for (let y = y0; y < y1; y++) {
+    const start = y * width + x0;
+    dst.set(src.subarray(start, start + span), start);
+  }
+}
+
 export function applyColorAdjustments(
   src: Uint8ClampedArray,
   dst: Uint8ClampedArray,
@@ -30,27 +74,55 @@ export function applyColorAdjustments(
   const y0 = rect ? Math.max(0, rect.y) : 0;
   const x1 = rect ? Math.min(width, rect.x + rect.w) : width;
   const y1 = rect ? Math.min(height, rect.y + rect.h) : height;
+  if (x0 >= x1 || y0 >= y1) return;
+
+  if (b === 0 && params.contrast === 0 && params.saturation === 0) {
+    copyRgbaRect(src, dst, width, x0, y0, x1, y1, width, height);
+    return;
+  }
+
+  if (params.saturation === 0) {
+    const lut = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) {
+      const c = (i / 255 + b - 0.5) * k + 0.5;
+      lut[i] = Math.round(clamp01(c) * 255);
+    }
+
+    for (let y = y0; y < y1; y++) {
+      let idx = (y * width + x0) * 4;
+      for (let x = x0; x < x1; x++) {
+        dst[idx] = lut[src[idx] as number] as number;
+        dst[idx + 1] = lut[src[idx + 1] as number] as number;
+        dst[idx + 2] = lut[src[idx + 2] as number] as number;
+        dst[idx + 3] = src[idx + 3] as number;
+        idx += 4;
+      }
+    }
+    return;
+  }
+
+  const lut = new Float64Array(256);
+  for (let i = 0; i < 256; i++) {
+    lut[i] = (i / 255 + b - 0.5) * k + 0.5;
+  }
+  const oneMinusSat = 1 - satMult;
 
   for (let y = y0; y < y1; y++) {
     let idx = (y * width + x0) * 4;
     for (let x = x0; x < x1; x++) {
-      let r = (src[idx] ?? 0) / 255 + b;
-      let g = (src[idx + 1] ?? 0) / 255 + b;
-      let bl = (src[idx + 2] ?? 0) / 255 + b;
+      const r = lut[src[idx] as number] as number;
+      const g = lut[src[idx + 1] as number] as number;
+      const bl = lut[src[idx + 2] as number] as number;
 
-      r = (r - 0.5) * k + 0.5;
-      g = (g - 0.5) * k + 0.5;
-      bl = (bl - 0.5) * k + 0.5;
+      const lumTerm = (0.2126 * r + 0.7152 * g + 0.0722 * bl) * oneMinusSat;
+      const rr = lumTerm + r * satMult;
+      const gg = lumTerm + g * satMult;
+      const bb = lumTerm + bl * satMult;
 
-      const lum = 0.2126 * r + 0.7152 * g + 0.0722 * bl;
-      r = clamp01(lum + (r - lum) * satMult);
-      g = clamp01(lum + (g - lum) * satMult);
-      bl = clamp01(lum + (bl - lum) * satMult);
-
-      dst[idx] = Math.round(r * 255);
-      dst[idx + 1] = Math.round(g * 255);
-      dst[idx + 2] = Math.round(bl * 255);
-      dst[idx + 3] = src[idx + 3] ?? 255;
+      dst[idx] = rr <= 0 ? 0 : rr >= 1 ? 255 : (rr * 255 + 0.5) | 0;
+      dst[idx + 1] = gg <= 0 ? 0 : gg >= 1 ? 255 : (gg * 255 + 0.5) | 0;
+      dst[idx + 2] = bb <= 0 ? 0 : bb >= 1 ? 255 : (bb * 255 + 0.5) | 0;
+      dst[idx + 3] = src[idx + 3] as number;
       idx += 4;
     }
   }
@@ -73,14 +145,25 @@ export function applyHeightAdjustments(
   const y0 = rect ? Math.max(0, rect.y) : 0;
   const x1 = rect ? Math.min(width, rect.x + rect.w) : width;
   const y1 = rect ? Math.min(height, rect.y + rect.h) : height;
+  if (x0 >= x1 || y0 >= y1) return;
 
+  if (!invert && params.contrast === 0 && gamma === 1) {
+    copyFloatRect(src, dst, width, x0, y0, x1, y1, width, height);
+    return;
+  }
+
+  const useGamma = gamma !== 1;
   for (let y = y0; y < y1; y++) {
     let idx = y * width + x0;
     for (let x = x0; x < x1; x++) {
-      let v = src[idx] ?? 0;
+      let v = src[idx] as number;
       if (invert) v = 1 - v;
-      v = clamp01((v - 0.5) * k + 0.5);
-      if (gamma !== 1) {
+      v = (v - 0.5) * k + 0.5;
+      if (v <= 0) {
+        v = 0;
+      } else if (v >= 1) {
+        v = 1;
+      } else if (useGamma) {
         v = Math.pow(v, invGamma);
       }
       dst[idx] = v;
@@ -108,13 +191,21 @@ export function applyOpacityAdjustments(
   const y0 = rect ? Math.max(0, rect.y) : 0;
   const x1 = rect ? Math.min(width, rect.x + rect.w) : width;
   const y1 = rect ? Math.min(height, rect.y + rect.h) : height;
+  if (x0 >= x1 || y0 >= y1) return;
+
+  if (!invert && params.contrast === 0 && tMin === 0 && span === 1) {
+    copyFloatRect(src, dst, width, x0, y0, x1, y1, width, height);
+    return;
+  }
 
   for (let y = y0; y < y1; y++) {
     let idx = y * width + x0;
     for (let x = x0; x < x1; x++) {
-      let o = src[idx] ?? 0;
+      let o = src[idx] as number;
       if (invert) o = 1 - o;
-      o = clamp01((o - 0.5) * k + 0.5);
+      o = (o - 0.5) * k + 0.5;
+      if (o <= 0) o = 0;
+      else if (o >= 1) o = 1;
       dst[idx] = tMin + o * span;
       idx++;
     }
