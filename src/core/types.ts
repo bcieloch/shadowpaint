@@ -25,6 +25,11 @@ export interface Vec2 {
   y: number;
 }
 
+export interface LineSegment {
+  p0: Vec2;
+  p1: Vec2;
+}
+
 export interface Rect {
   x: number;
   y: number;

@@ -1,6 +1,6 @@
 import type { NewHistoryEntry, TilesMapHistoryEntry } from '@/core/history/commands';
 import type { MapRegistry } from '@/core/maps/MapRegistry';
-import type { MapId, ProjectSettings, Vec2 } from '@/core/types';
+import type { LineSegment, MapId, ProjectSettings, Vec2 } from '@/core/types';
 import type { SelectionDraftPreview } from '@/editor2d/overlay/OverlayRenderer';
 import type { BrushOptions, EditorState, ToolId } from '@/state/editorStore';
 
@@ -18,7 +18,9 @@ export interface ToolContext {
   registry: MapRegistry;
   getProject: () => ProjectSettings;
   getEditor: () => EditorState;
+  getZoom?: () => number;
   setBrushOption: <K extends keyof BrushOptions>(key: K, value: BrushOptions[K]) => void;
+  setRulerLine?: (line: LineSegment | null) => void;
   onLockedMapAttempt: (mapId: MapId) => void;
   recordMapTileEntry?: (entry: NewHistoryEntry<TilesMapHistoryEntry>) => void;
 }

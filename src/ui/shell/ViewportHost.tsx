@@ -142,8 +142,12 @@ export function ViewportHost() {
         registry: mapRegistry,
         getProject: () => useProjectStore.getState().project,
         getEditor: () => useEditorStore.getState(),
+        getZoom: () => useEditorStore.getState().pane2D.zoom,
         setBrushOption: (key, value) => {
           useEditorStore.getState().setBrushOption(key, value);
+        },
+        setRulerLine: (line) => {
+          useEditorStore.getState().setRulerLine(line);
         },
         onLockedMapAttempt: (mapId) => {
           useUiStore.getState().setStatusMessage({ key: getLockedWarningKey(mapId) });
@@ -392,6 +396,8 @@ export function ViewportHost() {
         editor.setTool('eyedropper');
       } else if (lower === 'h') {
         editor.setTool('pan');
+      } else if (lower === 'u') {
+        editor.setTool('ruler');
       } else if (lower === 'm') {
         editor.setTool('selectRect');
       } else if (lower === 'l') {
@@ -400,6 +406,8 @@ export function ViewportHost() {
         editor.setTool('magicWand');
       } else if (lower === 'q') {
         editor.setTool('maskBrush');
+      } else if (e.key === 'Escape' && editor.tool === 'ruler' && editor.rulerLine) {
+        editor.setRulerLine(null);
       } else if (e.key === '[') {
         e.preventDefault();
         adjustBrushSize(1 / 1.18);

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ArrowLeftRight } from 'lucide-react';
+import { ArrowLeftRight, Trash2 } from 'lucide-react';
+import { measureRulerLine } from '@/core/geometry/ruler';
 import { brushSizeToPx, getCalibrationMetrics } from '@/core/units/calibration';
 import { BLUR_REALTIME_MAX_RADIUS_PX } from '@/editor2d/tools/BlurTool';
 import { applyFillSelectionToActiveMap } from '@/services/filterService';
@@ -81,12 +82,14 @@ export function ToolOptions() {
   const blurTool = useEditorStore((s) => s.blurTool);
   const gradientTool = useEditorStore((s) => s.gradientTool);
   const fillTool = useEditorStore((s) => s.fillTool);
+  const rulerLine = useEditorStore((s) => s.rulerLine);
   const hasSelection = useEditorStore((s) => s.hasSelection);
   const setBrushOption = useEditorStore((s) => s.setBrushOption);
   const setSmoothToolOption = useEditorStore((s) => s.setSmoothToolOption);
   const setBlurToolOption = useEditorStore((s) => s.setBlurToolOption);
   const setGradientToolOption = useEditorStore((s) => s.setGradientToolOption);
   const setFillToolOption = useEditorStore((s) => s.setFillToolOption);
+  const setRulerLine = useEditorStore((s) => s.setRulerLine);
   const canvas = useProjectStore((s) => s.project.canvas);
   const activeMapLocked = useProjectStore((s) => s.project.maps[activeMap].locked);
 
@@ -157,6 +160,7 @@ export function ToolOptions() {
     tool === 'maskBrush';
 
   const blurKernelRadiusPx = brushSizeToPx(blurTool.radiusValue, blurTool.radiusUnit, pxPerCm);
+  const rulerMeasurement = rulerLine ? measureRulerLine(rulerLine, canvas) : null;
 
   return (
     <section className="space-y-3 p-3">
@@ -649,6 +653,75 @@ export function ToolOptions() {
 
       {tool === 'pan' && (
         <p className="text-muted-foreground text-xs leading-relaxed">{t('toolOptions.panHint')}</p>
+      )}
+
+      {tool === 'ruler' && (
+        <div className="space-y-2.5" data-testid="ruler-options">
+          <p className="text-muted-foreground text-[11px] leading-relaxed">
+            {t('toolOptions.rulerHint')}
+          </p>
+
+          {rulerMeasurement ? (
+            <div
+              data-testid="ruler-readout"
+              className="border-border bg-background/60 space-y-1.5 rounded-md border p-2.5 font-mono text-[11px]"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground font-sans text-xs">
+                  {t('toolOptions.rulerLength')}
+                </span>
+                <span className="text-foreground font-semibold" data-testid="ruler-length-cm">
+                  {rulerMeasurement.lengthCm.toFixed(2)} cm
+                </span>
+              </div>
+              <div className="text-muted-foreground flex items-center justify-between text-[10px]">
+                <span data-testid="ruler-length-mm">{rulerMeasurement.lengthMm.toFixed(1)} mm</span>
+                <span data-testid="ruler-length-px">
+                  {Math.round(rulerMeasurement.lengthPx)} px
+                </span>
+              </div>
+              <div className="border-border/70 flex items-center justify-between border-t pt-1.5 text-[11px]">
+                <span className="text-muted-foreground font-sans">
+                  {t('toolOptions.rulerDeltaX')}
+                </span>
+                <span data-testid="ruler-dx">
+                  {rulerMeasurement.dxCm.toFixed(2)} cm ({Math.round(rulerMeasurement.dxPx)} px)
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground font-sans">
+                  {t('toolOptions.rulerDeltaY')}
+                </span>
+                <span data-testid="ruler-dy">
+                  {rulerMeasurement.dyCm.toFixed(2)} cm ({Math.round(rulerMeasurement.dyPx)} px)
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground font-sans">
+                  {t('toolOptions.rulerAngle')}
+                </span>
+                <span data-testid="ruler-angle">{rulerMeasurement.angleDeg.toFixed(1)}°</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-xs" data-testid="ruler-empty">
+              {t('toolOptions.rulerEmpty')}
+            </p>
+          )}
+
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            data-testid="btn-ruler-clear"
+            disabled={!rulerLine}
+            onClick={() => setRulerLine(null)}
+            className="h-7 w-full gap-1.5 text-xs"
+          >
+            <Trash2 className="size-3.5" />
+            {t('toolOptions.rulerClear')}
+          </Button>
+        </div>
       )}
 
       <SelectionOptions />

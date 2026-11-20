@@ -55,7 +55,10 @@ export function createAndActivateProject(
 
   useHistoryStore.getState().clearAll();
   useProjectStore.getState().setProject(settings, false);
-  useEditorStore.getState().setHasSelection(mapRegistry.hasSelection);
+  const editor = useEditorStore.getState();
+  editor.setHasSelection(mapRegistry.hasSelection);
+  editor.setRulerLine(null);
+  editor.setCrossSectionLine(null);
   return { ok: true, project: settings };
 }
 

@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { DEFAULT_COLOR_HEX } from '@/core/constants';
-import type { LightingMode, MapId, SelectionCombineMode, Vec2 } from '@/core/types';
+import type { LightingMode, LineSegment, MapId, SelectionCombineMode } from '@/core/types';
 import type { GradientKind } from '@/imaging/gradient';
+
+export type { LineSegment };
 
 export type ToolId =
   | 'brush'
@@ -76,11 +78,6 @@ export interface Pane2DState {
   zoom: number;
   panX: number;
   panY: number;
-}
-
-export interface LineSegment {
-  p0: Vec2;
-  p1: Vec2;
 }
 
 export interface EditorState {
