@@ -5,6 +5,11 @@ import {
   DESKTOP_PANEL_BOUNDS,
   type UiLayoutPreference,
 } from '@/core/layout';
+import {
+  type CustomShortcutBindings,
+  sanitizeCustomShortcutBindings,
+  type ShortcutItemId,
+} from '@/core/shortcuts';
 import type { LightingMode, LineSegment, MapId, SelectionCombineMode } from '@/core/types';
 import { clampSplitRatio, SPLIT_DEFAULT_RATIO } from '@/editor2d/splitLayout';
 import type { ViewportSize } from '@/editor2d/viewTransform';
@@ -103,6 +108,7 @@ export interface EditorState {
   leftPanelSize: number;
   rightPanelSize: number;
   uiLayoutHydrated: boolean;
+  customShortcuts: CustomShortcutBindings;
   layout: LayoutMode;
   viewMode2D: ViewMode2D;
   view3DLighting: LightingMode;
@@ -140,6 +146,10 @@ export interface EditorState {
   togglePanelsHidden: () => void;
   setPanelSizes: (sizes: { leftPanelSize?: number; rightPanelSize?: number }) => void;
   hydrateUiLayout: (pref: UiLayoutPreference) => void;
+  setCustomShortcut: (id: ShortcutItemId, keys: readonly string[]) => void;
+  resetCustomShortcut: (id: ShortcutItemId) => void;
+  resetAllCustomShortcuts: () => void;
+  hydrateCustomShortcuts: (bindings: CustomShortcutBindings) => void;
   setLayout: (layout: LayoutMode) => void;
   setViewMode2D: (mode: ViewMode2D) => void;
   setView3DLighting: (mode: LightingMode) => void;
@@ -205,6 +215,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   leftPanelSize: DESKTOP_PANEL_BOUNDS.leftDefault,
   rightPanelSize: DESKTOP_PANEL_BOUNDS.rightDefault,
   uiLayoutHydrated: false,
+  customShortcuts: {},
   layout: '2d',
   viewMode2D: 'color',
   view3DLighting: 'combined',
@@ -263,6 +274,22 @@ export const useEditorStore = create<EditorState>((set) => ({
         uiLayoutHydrated: true,
       };
     }),
+  setCustomShortcut: (id, keys) =>
+    set((s) => ({
+      customShortcuts: sanitizeCustomShortcutBindings({
+        ...s.customShortcuts,
+        [id]: [...keys],
+      }),
+    })),
+  resetCustomShortcut: (id) =>
+    set((s) => ({
+      customShortcuts: sanitizeCustomShortcutBindings(
+        Object.fromEntries(Object.entries(s.customShortcuts).filter(([key]) => key !== id)),
+      ),
+    })),
+  resetAllCustomShortcuts: () => set({ customShortcuts: {} }),
+  hydrateCustomShortcuts: (bindings) =>
+    set({ customShortcuts: sanitizeCustomShortcutBindings(bindings) }),
   setLayout: (layout) => set({ layout }),
   setViewMode2D: (viewMode2D) => set({ viewMode2D }),
   setView3DLighting: (view3DLighting) => set({ view3DLighting }),

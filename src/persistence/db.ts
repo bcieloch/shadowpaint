@@ -4,10 +4,14 @@ import {
   isRightTabId,
   type UiLayoutPreference,
 } from '@/core/layout';
+import {
+  sanitizeCustomShortcutBindings,
+  type CustomShortcutBindings,
+} from '@/core/shortcuts';
 import type { ProjectSettings } from '@/core/types';
 import { clampSplitRatio } from '@/editor2d/splitLayout';
 
-export type { UiLayoutPreference };
+export type { UiLayoutPreference, CustomShortcutBindings };
 
 export type BlobKey =
   | 'color.base'
@@ -50,7 +54,12 @@ export interface BlobRecord {
   updatedAt: string;
 }
 
-export type MetaKey = 'lastProjectId' | 'historyLimitMb' | 'uiLayout' | 'locale';
+export type MetaKey =
+  | 'lastProjectId'
+  | 'historyLimitMb'
+  | 'uiLayout'
+  | 'locale'
+  | 'customShortcuts';
 
 export interface MetaRecord {
   key: MetaKey;
@@ -215,6 +224,34 @@ export async function saveUiLayout(
     return merged;
   } catch {
     return cleanPatch;
+  }
+}
+
+export async function getCustomShortcuts(
+  database: ShadowPaintDb = db,
+): Promise<CustomShortcutBindings> {
+  if (typeof indexedDB === 'undefined') return {};
+  try {
+    const stored = await getMetaValue<unknown>('customShortcuts', database);
+    return sanitizeCustomShortcutBindings(stored);
+  } catch {
+    return {};
+  }
+}
+
+export async function saveCustomShortcuts(
+  bindings: CustomShortcutBindings,
+  database: ShadowPaintDb = db,
+): Promise<CustomShortcutBindings> {
+  const clean = sanitizeCustomShortcutBindings(bindings);
+  if (typeof indexedDB === 'undefined') {
+    return clean;
+  }
+  try {
+    await setMetaValue('customShortcuts', clean, database);
+    return clean;
+  } catch {
+    return clean;
   }
 }
 
