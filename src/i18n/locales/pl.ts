@@ -833,6 +833,12 @@ export const pl: TranslationDictionary = {
     optimizedToast:
       'Zastosowano jakość dobraną do GPU: siatka {meshDetail} · cień {shadowSize}×{shadowSize}.',
   },
+  pwa: {
+    updateTitle: 'Dostępna nowa wersja',
+    updateDescription: 'Odśwież aplikację, aby wczytać najnowszą aktualizację offline.',
+    reloadButton: 'Odśwież',
+    offlineReady: 'Aplikacja ShadowPaint jest gotowa do pracy offline.',
+  },
   tasks: {
     cancel: 'Anuluj zadanie',
   },

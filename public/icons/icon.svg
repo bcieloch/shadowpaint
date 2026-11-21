@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#141418" />
+      <stop offset="100%" stop-color="#0b0b0d" />
+    </linearGradient>
+    <radialGradient id="backglow" cx="56%" cy="54%" r="48%">
+      <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.95" />
+      <stop offset="45%" stop-color="#f97316" stop-opacity="0.55" />
+      <stop offset="80%" stop-color="#38bdf8" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#0b0b0d" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="relief" x1="0.2" y1="0.15" x2="0.85" y2="0.85">
+      <stop offset="0%" stop-color="#f8f5ef" />
+      <stop offset="55%" stop-color="#d6c8b4" />
+      <stop offset="100%" stop-color="#4b4540" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="url(#bg)" />
+  <rect x="64" y="64" width="384" height="384" rx="52" fill="#18181f" stroke="#2f2f3b" stroke-width="8" />
+  <circle cx="272" cy="264" r="176" fill="url(#backglow)" />
+  <circle cx="236" cy="236" r="120" fill="url(#relief)" />
+  <path d="M172 308 C220 354, 308 352, 348 286 C302 318, 224 316, 172 308 Z" fill="#0b0b0d" fill-opacity="0.45" />
+  <circle cx="294" cy="222" r="46" fill="#fef3c7" fill-opacity="0.82" />
+</svg>

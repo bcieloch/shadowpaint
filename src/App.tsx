@@ -9,6 +9,7 @@ import { useProjectStore } from '@/state/projectStore';
 import { useUiStore } from '@/state/uiStore';
 import { Toaster } from '@/ui/components/ui/sonner';
 import { TooltipProvider } from '@/ui/components/ui/tooltip';
+import { PwaUpdater } from '@/ui/shell/PwaUpdater';
 import { StudioShell } from '@/ui/shell/StudioShell';
 import { WebGL2Gate } from '@/ui/shell/WebGL2Gate';
 
@@ -52,6 +53,7 @@ export function App() {
       <WebGL2Gate>
         <StudioShell />
       </WebGL2Gate>
+      <PwaUpdater />
       <Toaster />
     </TooltipProvider>
   );
