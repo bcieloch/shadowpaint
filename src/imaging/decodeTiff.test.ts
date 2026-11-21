@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import UTIF from 'utif';
-import { decodeTiffBuffer, ImageDecodeError } from '@/imaging/decodeTiff';
+import {
+  decodeTiffBuffer,
+  extractImageDecodeErrorCode,
+  ImageDecodeError,
+  validateDecodedDimensions,
+} from '@/imaging/decodeTiff';
 import { detectImageFormat } from '@/imaging/detectFormat';
 import { rgbaToGrayscaleFloat32 } from '@/imaging/grayscale';
 
@@ -58,7 +63,9 @@ function build16BitGrayscaleTiff(width: number, height: number, values: number[]
 
 describe('detectImageFormat and decodeTiffBuffer', () => {
   it('detects PNG, JPEG, and TIFF magic bytes', () => {
-    expect(detectImageFormat(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe('png');
+    expect(
+      detectImageFormat(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+    ).toBe('png');
     expect(detectImageFormat(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe('jpeg');
     expect(detectImageFormat(new Uint8Array([0x49, 0x49, 0x2a, 0x00]))).toBe('tiff');
     expect(detectImageFormat(new Uint8Array([0x4d, 0x4d, 0x00, 0x2a]))).toBe('tiff');
@@ -67,10 +74,7 @@ describe('detectImageFormat and decodeTiffBuffer', () => {
 
   it('decodes 8-bit RGB TIFF encoded with UTIF', () => {
     const rgba = new Uint8Array([
-      255, 0, 0, 255,
-      0, 255, 0, 255,
-      0, 0, 255, 255,
-      255, 255, 255, 255,
+      255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
     ]);
     const tiff = UTIF.encodeImage(rgba, 2, 2);
     const decoded = decodeTiffBuffer(tiff);
@@ -96,17 +100,26 @@ describe('detectImageFormat and decodeTiffBuffer', () => {
     expect(decoded.gray16?.[3]).toBeCloseTo(16384 / 65535, 5);
   });
 
-  it('throws ImageDecodeError for corrupted TIFF bytes', () => {
+  it('throws ImageDecodeError for corrupted TIFF bytes and extracts code across worker boundary', () => {
     const bad = new Uint8Array([0x49, 0x49, 0x2a, 0x00, 0xff, 0xff, 0xff, 0xff]).buffer;
     expect(() => decodeTiffBuffer(bad)).toThrow(ImageDecodeError);
+
+    const unsupportedErr = new ImageDecodeError('unsupportedFormat', 'Not supported');
+    // Simulate structured clone across worker boundary where custom properties are stripped
+    const clonedError = new Error(unsupportedErr.message);
+    expect(extractImageDecodeErrorCode(clonedError)).toBe('unsupportedFormat');
+
+    let tooLargeErr: unknown;
+    try {
+      validateDecodedDimensions(20000, 100);
+    } catch (e) {
+      tooLargeErr = new Error((e as Error).message);
+    }
+    expect(extractImageDecodeErrorCode(tooLargeErr)).toBe('imageTooLarge');
   });
 
   it('converts RGBA to Rec.709 grayscale with alpha composited over black', () => {
-    const rgba = new Uint8ClampedArray([
-      255, 255, 255, 255,
-      255, 0, 0, 255,
-      255, 255, 255, 0,
-    ]);
+    const rgba = new Uint8ClampedArray([255, 255, 255, 255, 255, 0, 0, 255, 255, 255, 255, 0]);
     const gray = rgbaToGrayscaleFloat32(rgba);
     expect(gray[0]).toBeCloseTo(1, 5);
     expect(gray[1]).toBeCloseTo(0.2126, 4);
