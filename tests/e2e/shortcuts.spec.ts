@@ -87,7 +87,10 @@ test('keyboard shortcuts reference dialog, actions, editable guard, and EN/PL i1
   await expect(page.getByTestId('tool-eraser')).toHaveAttribute('aria-pressed', 'true');
 
   // 2D zoom +/- shortcuts
-  const zoomBefore = parseInt((await page.getByTestId('viewport-zoom-pct').textContent()) ?? '0', 10);
+  const zoomBefore = parseInt(
+    (await page.getByTestId('viewport-zoom-pct').textContent()) ?? '0',
+    10,
+  );
   await page.keyboard.press('Equal');
   const zoomIn = parseInt((await page.getByTestId('viewport-zoom-pct').textContent()) ?? '0', 10);
   expect(zoomIn).toBeGreaterThan(zoomBefore);
@@ -136,7 +139,7 @@ test('interactive tutorial & feature guide (F4) and customizable keyboard shortc
   await page.getByTestId('tutorial-pill-lightingAndOptics').click();
   await expect(page.getByTestId('tutorial-active-step')).toContainText('4.');
 
-  // Switch to All Features Reference tab and verify all 6 feature sections
+  // Switch to All Features Reference tab and verify all 6 feature sections and vertical scrolling
   await page.getByTestId('guide-tab-features').click();
   for (const sectionId of [
     'mapsAndImport',
@@ -149,6 +152,19 @@ test('interactive tutorial & feature guide (F4) and customizable keyboard shortc
     await expect(page.getByTestId(`feature-section-${sectionId}`)).toBeVisible();
   }
   await expect(page.getByTestId('feature-shortcut-toolBrush')).toContainText('B');
+
+  const tutorialScrollMetrics = await tutorialDialog
+    .locator('[data-slot="scroll-area-viewport"]')
+    .evaluate((el) => {
+      el.scrollTop = 120;
+      return {
+        clientHeight: el.clientHeight,
+        scrollHeight: el.scrollHeight,
+        scrollTop: el.scrollTop,
+      };
+    });
+  expect(tutorialScrollMetrics.scrollHeight).toBeGreaterThan(tutorialScrollMetrics.clientHeight);
+  expect(tutorialScrollMetrics.scrollTop).toBeGreaterThan(0);
 
   // Switch back to Tutorial tab and click "Switch to Split 2D | 3D & Light Tab"
   await page.getByTestId('guide-tab-tutorial').click();
@@ -167,6 +183,20 @@ test('interactive tutorial & feature guide (F4) and customizable keyboard shortc
   await expect(tutorialDialog).not.toBeVisible();
   const shortcutsDialog = page.getByTestId('shortcuts-dialog');
   await expect(shortcutsDialog).toBeVisible();
+
+  // Verify vertical scrolling inside Keyboard Shortcuts dialog
+  const shortcutsScrollMetrics = await shortcutsDialog
+    .locator('[data-slot="scroll-area-viewport"]')
+    .evaluate((el) => {
+      el.scrollTop = 100;
+      return {
+        clientHeight: el.clientHeight,
+        scrollHeight: el.scrollHeight,
+        scrollTop: el.scrollTop,
+      };
+    });
+  expect(shortcutsScrollMetrics.scrollHeight).toBeGreaterThan(shortcutsScrollMetrics.clientHeight);
+  expect(shortcutsScrollMetrics.scrollTop).toBeGreaterThan(0);
 
   // Switch back to EN for shortcut customization test
   await page.getByTestId('shortcuts-close').click();
