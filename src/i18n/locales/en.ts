@@ -828,6 +828,12 @@ export const en = {
     optimizedToast:
       'Applied GPU-calibrated quality: mesh {meshDetail} · shadow {shadowSize}×{shadowSize}.',
   },
+  pwa: {
+    updateTitle: 'New version available',
+    updateDescription: 'Reload to apply the latest offline update.',
+    reloadButton: 'Reload',
+    offlineReady: 'ShadowPaint is ready for offline use.',
+  },
   tasks: {
     cancel: 'Cancel task',
   },
