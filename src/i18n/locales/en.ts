@@ -78,8 +78,10 @@ export const en = {
     togglePanelsHide: 'Hide panels',
     togglePanelsShow: 'Show panels',
     togglePanelsTooltip: 'Toggle side panels visibility (Tab)',
+    guide: 'Guide',
+    guideTooltip: 'Interactive Tutorial & Complete Feature Guide (F4)',
     shortcuts: 'Shortcuts',
-    shortcutsTooltip: 'Keyboard shortcuts reference (?)',
+    shortcutsTooltip: 'Keyboard shortcuts & custom keybindings (?)',
     about: 'Credits',
     aboutTooltip: 'Authors, idea & AGPL-3.0 license',
     aboutTitle: 'About {name}',
@@ -646,7 +648,17 @@ export const en = {
   shortcuts: {
     dialogTitle: 'Keyboard Shortcuts',
     dialogDescription:
-      'Shortcuts are automatically disabled while typing in text or numeric fields. On macOS, Cmd replaces Ctrl.',
+      'Click any shortcut badge to record a custom keybinding. Shortcuts are disabled while typing in input fields. On macOS, Cmd replaces Ctrl.',
+    customizeHint: 'Click a keybinding to rebind it · Press Esc while recording to cancel',
+    recordButton: 'Change shortcut for {action}',
+    pressKeys: 'Press keys…',
+    resetItem: 'Reset to default',
+    resetAll: 'Reset all to defaults',
+    customizedBadge: 'Custom',
+    fixedBadge: 'Fixed',
+    conflictError: '"{combo}" is already assigned to "{action}". Choose another key or reset it first.',
+    updatedToast: 'Bound "{action}" to {combo}',
+    resetAllToast: 'All keyboard shortcuts restored to default bindings.',
     categories: {
       tools: 'Tools',
       brush: 'Brush & Stroke',
@@ -672,11 +684,15 @@ export const en = {
       toolRuler: 'Measurement ruler',
       toolCrossSection: 'Cross-section profile cut',
       toolPanHold: 'Temporary pan (hold)',
-      brushSize: 'Decrease / increase brush size',
-      brushHardness: 'Decrease / increase brush hardness',
+      brushSize: 'Decrease brush size',
+      brushSizeIncrease: 'Increase brush size',
+      brushHardness: 'Decrease brush hardness',
+      brushHardnessIncrease: 'Increase brush hardness',
       brushFlowHigh: 'Brush flow 40%–90% / 100%',
       brushFlowLow: 'Brush flow 10%–30%',
-      activeMap: 'Active map (Color / Height / Opacity)',
+      activeMap: 'Activate Color map',
+      activeMapHeight: 'Activate Height map',
+      activeMapOpacity: 'Activate Opacity map',
       selectAll: 'Select all',
       clearSelection: 'Clear selection',
       invertSelection: 'Invert selection',
@@ -695,13 +711,158 @@ export const en = {
       viewModes: '2D view modes (Color..Combined / 3D)',
       zoomFit: 'Fit canvas to viewport',
       zoom100: 'Zoom 100% (1:1)',
-      zoomStep: 'Zoom in / out',
+      zoomStep: 'Zoom in 2D view',
+      zoomOut: 'Zoom out 2D view',
       reset3d: 'Reset 3D camera',
       toggleRulers: 'Toggle 2D edge rulers',
       toggleGrid: 'Toggle measurement grid',
       togglePanels: 'Show / hide side panels',
       openShortcuts: 'Show keyboard shortcuts',
+      openGuide: 'Open Tutorial & Feature Guide',
       cancelOperation: 'Clear ruler / section line or close dialog',
+    },
+  },
+  guide: {
+    dialogTitle: 'Interactive Tutorial & Complete Feature Guide',
+    dialogDescription:
+      'Step-by-step walkthrough of the relief & backlit painting workflow and complete reference of all ShadowPaint features.',
+    tabTutorial: 'Quick Tutorial (6 Steps)',
+    tabFeatures: 'All Features Reference',
+    stepBadge: 'Step {step} of {total}',
+    prevStep: 'Previous step',
+    nextStep: 'Next step',
+    proTipLabel: 'Studio Tip',
+    shortcutLabel: 'Shortcut:',
+    customizeShortcutsButton: 'Customize Keyboard Shortcuts',
+    steps: {
+      canvasAndImport: {
+        title: '1. Physical Canvas Calibration & Reference Import',
+        summary:
+          'Define physical canvas dimensions in centimeters (cm), pixel density (px/cm or DPI), and paint thickness range in millimeters (mm), or import existing images.',
+        details:
+          'Every project in ShadowPaint is calibrated to real physical dimensions. You can start with a blank canvas in New Project (Ctrl+Alt+N) or load up to 3 reference images (Color, Height, Opacity) in the Import Wizard (Ctrl+I) with Fit, Fill, Stretch, crop/offset controls, and side-by-side or difference alignment comparison.',
+        tip: 'You can change physical canvas cm at any time in the Canvas tab without resampling pixels — only px/cm and 3D geometry scale update.',
+        tryAction: 'Open Import Wizard',
+      },
+      mapsAndPainting: {
+        title: '2. Three Coupled Maps & Physical Brush Sculpting',
+        summary:
+          'Paint simultaneously or independently across Color (sRGB), Height (physical thickness in mm), and Opacity (linear transmission %).',
+        details:
+          'Switch the active map with keys 1 (Color), 2 (Height), or 3 (Opacity), or lock maps to protect them. The Brush (B) works in physical mm on the Height map (with Set, Raise, and Lower impasto modes) and in linear % on the Opacity map. Use Smooth (S) for Laplace surface relaxation, Blur (R) for Gaussian transitions, Gradient (G), Flood Fill (F), or Eraser (E) to restore toward the imported base layer.',
+        tip: 'Switch the 2D viewport to Height Heatmap (Turbo) or Topographic contours to inspect millimeter thickness variations while sculpting.',
+        tryAction: 'Activate Brush on Height Map',
+      },
+      selectionAndAdjustments: {
+        title: '3. Selection Masks & Non-Destructive Map Adjustments',
+        summary:
+          'Isolate regions with Rectangle, Ellipse, Lasso, Magic Wand, or Mask Brush, and tune non-destructive parametric filters per map.',
+        details:
+          'Selections can operate in two modes: "Edit inside" (standard mask) or "Protect mask" (shielding masked areas from edits). Combine selections with Replace, Add, Subtract, or Intersect, and soften edges with Feather (px). In the Map inspector tab, adjust Brightness, Contrast, Saturation, Gamma, Invert, or Max Transmission non-destructively at any time.',
+        tip: 'Hold Alt while painting with the Protection Mask Brush (Q) to temporarily erase the red mask overlay.',
+        tryAction: 'Open Map Inspector & Mask Brush',
+      },
+      lightingAndOptics: {
+        title: '4. 3D Relief Geometry, Front Shadows & Beer-Lambert Backlight',
+        summary:
+          'Simulate directional front lighting (raking impasto shadows) and rear illumination transmitted through paint thickness in real time.',
+        details:
+          'Switch to Split View (F3) or 3D View (F2) to inspect the displaced relief mesh. In the Light tab, position the Front SpotLight in Cartesian (cm) or Polar (incidence/azimuth) coordinates with optional 16-tap Vogel PCSS soft shadows, and configure the Back Light (Point lamp or Uniform panel). In the Material tab, select optical presets (Acrylic, Glaze, Oil Impasto, Clear Gel, Modeling Paste) and inspect the live Beer-Lambert transmission curve T(d).',
+        tip: 'Drag the Front ↔ Back balance slider in Combined mode to preview how the painting transforms as room lighting dims and rear illumination takes over.',
+        tryAction: 'Switch to Split 2D | 3D & Light Tab',
+      },
+      measurementAndSection: {
+        title: '5. Centimeter Grid, Ruler & Cross-Section Profile Cut',
+        summary:
+          'Measure physical distances in cm and slice a 2D/3D cross-section profile showing thickness (mm) and backlit transmission (%).',
+        details:
+          'Enable the calibrated cm Grid (Ctrl+\') and edge Rulers (Ctrl+R) to align physical features. Use the Ruler tool (U) for point-to-point distance, Δx/Δy, and angle readouts. Select the Cross-Section tool (X) and drag across the canvas to plot an interactive millimeter profile and Beer-Lambert transmission curve in the Section tab, with synchronized 2D/3D hover markers and CSV export.',
+        tip: 'Hold Shift while dragging the Ruler (U), Cross-Section (X), or Gradient (G) tool to snap the angle in 15° increments.',
+        tryAction: 'Activate Cross-Section & Section Tab',
+      },
+      persistenceAndExport: {
+        title: '6. Autosave, .relief Archives & Production ZIP / PDF Export',
+        summary:
+          'Work safely with automatic IndexedDB session snapshots, lossless .relief project archives, and full production packages.',
+        details:
+          'ShadowPaint automatically saves your working session locally in IndexedDB and lets you manage saved snapshots in Recent Projects. Save or share lossless .relief archives (Ctrl+S) containing raw base/working Float32 layers and history state. When ready to paint physically, export a Production Package ZIP (Ctrl+E) containing 8-bit PNG maps, project_settings.json, 3D renders, and a multi-page PDF production sheet with height conversion tables, reference grids, and optional 1:1 printable tiles.',
+        tip: 'Enable "Include 1:1 printable tiles in PDF" in the Export tab to generate full-scale templates with 1 cm overlap seams and a 10 cm calibration ruler.',
+        tryAction: 'Open Export Inspector Tab',
+      },
+    },
+    features: {
+      mapsAndImport: {
+        title: 'Three Maps & Reference Import Wizard',
+        subtitle: 'Non-destructive base + working layers calibrated to physical units',
+        bullet1:
+          'Color Map (sRGB), Height Map (physical relief thickness in mm, 0–50 mm), and Opacity Map (linear backlit transmission 0%–100%).',
+        bullet2:
+          'Each map maintains a separate imported Base layer, painted Working layer, per-map Lock toggle, and independent per-map Undo (Ctrl+Alt+Z) alongside Global Undo/Redo (Ctrl+Z / Ctrl+Y).',
+        bullet3:
+          'Import Wizard (Ctrl+I) supports PNG, JPG/JPEG, and 8/16-bit TIFF with Fit, Fill, Stretch, 90° rotation, H/V flip, interactive zoom/pan framing, and side-by-side or difference overlay comparison.',
+        bullet4:
+          '2D viewport modes (Shift+1..6) preview Color, Height (Grayscale, Turbo Heatmap, or Topographic contour lines), Opacity, or orthographic Front, Back, and Combined lighting.',
+      },
+      paintingAndMasking: {
+        title: 'Painting, Sculpting & Selection Masking',
+        subtitle: '15 specialized tools with WebPointer pressure and worker acceleration',
+        bullet1:
+          'Brush (B) with px or physical cm sizing, hardness, flow, spacing, stylus pressure, and Height impasto modes: Set (target mm), Raise (+mm), and Lower (−mm).',
+        bullet2:
+          'Eraser (E) restores toward the imported base layer; Smooth Brush (S) applies 4-neighbor Laplace surface relaxation; Blur Brush (R) applies local Gaussian smoothing (worker-accelerated for large radii).',
+        bullet3:
+          'Linear & Radial Gradient tool (G) and Flood Fill / Paint Bucket (F) with tolerance and contiguous toggles, plus Eyedropper (I) sampling effective Color, mm thickness, or % transmission.',
+        bullet4:
+          'Selection tools: Rectangle (M), Ellipse (Shift+M), Freehand Lasso (L), Magic Wand (W), and Protection Mask Brush (Q) with Protect vs. Edit-Inside modes, boolean combine modes, and Gaussian Feather.',
+      },
+      lightingAndOptics: {
+        title: '3D Relief Engine, PCSS Shadows & Beer-Lambert Optics',
+        subtitle: 'Real-time WebGL2 displacement mesh and physical light transmission',
+        bullet1:
+          'Front SpotLight configurable in Cartesian (X, Height, Distance in cm) or Polar (incidence, azimuth) coordinates, with Kelvin (1800K–10000K) or RGB color, cone/penumbra, and 16-tap Vogel PCSS soft shadows.',
+        bullet2:
+          'Back Light supports Point lamp (inverse-square falloff) or Uniform LED panel behind the canvas, with global transmission and attenuation controls.',
+        bullet3:
+          'Channel-wise Beer-Lambert transmission T_rgb(d) = G · τ_canvas · exp(−(μa + μs) · d) · mix(1, C_rgb, k_tint) combined with 12-tap Poisson-disk lateral scattering through thickness d (mm).',
+        bullet4:
+          '5 calibrated material presets (Acrylic Opaque, Acrylic Glaze, Oil Impasto, Clear Gel, Modeling Paste) plus interactive Transmission Curve T(d) preview and wooden stretcher frame.',
+      },
+      measurementAndSection: {
+        title: 'Physical Calibration, Grid, Ruler & Cross-Section',
+        subtitle: 'Sub-millimeter inspection across 2D and 3D workspaces',
+        bullet1:
+          'Bidirectional physical calibration between centimeters (cm), pixel resolution (px), scale (px/cm), and DPI, including non-destructive cm rescaling and atomic multi-layer pixel resampling.',
+        bullet2:
+          'Synchronized 2D overlay grid and anti-aliased 3D shader grid (Ctrl+\') with configurable cm spacing, subdivisions, labels, and 2D centimeter edge rulers (Ctrl+R).',
+        bullet3:
+          'Measurement Ruler tool (U) with draggable endpoints, 15° Shift-snapping, and live distance (cm & px), Δx, Δy, and angle readouts.',
+        bullet4:
+          'Cross-Section Profile Cut (X) plotting relief thickness (mm) and backlit transmission (%) along any cut line, with True 1:1 or Fit scaling, synchronized 2D/3D hover markers, and CSV export.',
+      },
+      workspaceAndShortcuts: {
+        title: 'Workspace Layouts, Diagnostics & Custom Shortcuts',
+        subtitle: 'Tailorable studio interface with live GPU telemetry',
+        bullet1:
+          'Instant switching between 2D Editor (F1), 3D Relief Viewport (F2), and resizable Split 2D | 3D View (F3), plus Tab to hide/show side panels and Spacebar hold-to-pan.',
+        bullet2:
+          'Status bar live cursor readout displaying x/y coordinates in px and cm, sRGB hex color, physical thickness in mm (with 8-bit level conversion), and local transmission %.',
+        bullet3:
+          'Fully customizable keyboard shortcuts (?): click any shortcut to record a new key or Ctrl/Alt/Shift combination, with automatic conflict detection, IndexedDB persistence, and per-item or full reset.',
+        bullet4:
+          'GPU & Performance Diagnostics popover inspecting WebGL2 renderer capabilities, geometry/texture memory, frame & texture upload timings, worker pool concurrency, and one-click GPU quality optimization.',
+      },
+      persistenceAndExport: {
+        title: 'IndexedDB Autosave, .relief Files & Production Export',
+        subtitle: 'Complete studio-to-workshop physical production pipeline',
+        bullet1:
+          'Debounced IndexedDB autosave with session restore prompt on startup and Recent Projects manager showing browser storage quota usage.',
+        bullet2:
+          'Native .relief project archive (ZIP container) storing lossless Float32 base & working buffers, selection mask, project settings, and PNG previews via File System Access API or browser download.',
+        bullet3:
+          'Production Package ZIP export (Ctrl+E) bundling 8-bit sRGB color_map.png, linear grayscale height_map.png and opacity_map.png, project_settings.json, orthographic 3D renders, and documentation.pdf.',
+        bullet4:
+          'Multi-page vector PDF Production Sheet (A4/A3/Letter, Portrait/Landscape) featuring project specs, 0–255 → mm height conversion table, Beer-Lambert parameters, cm reference grids, and optional 1:1 printable tiles.',
+      },
     },
   },
   pdf: {

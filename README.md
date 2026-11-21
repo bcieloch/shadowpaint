@@ -42,12 +42,14 @@ ShadowPaint transforms reference images and manual brushwork into calibrated phy
 - **Selection & Protection Mask**: `Rectangle` (`M`), `Ellipse` (`Shift+M`), `Lasso` (`L`), `Magic Wand` (`W`), and `Mask Brush` (`Q`) with `Replace` / `Add` / `Subtract` / `Intersect` modes, Gaussian feathering, marching ants + red mask overlay, and **Protect selected** vs **Edit only inside** modes.
 - **Tile-Based Undo / Redo**: `256×256` tile snapshot history (`512 MB` / `200` steps limit) with both **Global Undo/Redo** (`Ctrl+Z` / `Ctrl+Shift+Z`) and **Per-Map Undo** (`Ctrl+Alt+Z`).
 
-### Persistence, Offline PWA & Production Export
+### Persistence, Guide, Custom Shortcuts & Production Export
 
+- **Interactive Tutorial & Complete Feature Guide (`F4`)**: Built-in 6-step interactive tutorial with one-click studio actions plus a comprehensive 6-category feature reference showing live effective keyboard shortcuts.
+- **Customizable Keyboard Shortcuts (`?`)**: Rebind any tool, brush adjustment, map selector, file operation, or layout shortcut directly in the Keyboard Shortcuts dialog with automatic conflict detection, IndexedDB persistence (`meta.customShortcuts`), and per-item or full reset.
 - **IndexedDB Autosave**: Debounced background compression (`fflate` in `io.worker`) into Dexie (`shadowpaint` database), session restore dialog on startup, and Recent Projects manager with storage quota estimation.
 - **Lossless `.relief` / `.zip` Project Archives**: Full `Float32` and `RGBA8` `base`/`working` buffers with `CRC32` verification, PNG preview fallback, and File System Access API integration (`Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O`).
 - **Offline PWA**: Service Worker precaching (`vite-plugin-pwa` + `workbox-window`) with installable standalone manifest and localized update prompt.
-- **Bilingual UI & PDF (`EN` / `PL`)**: Complete English and Polish localization across all panels, dialogs, shortcuts, error messages, and exported PDF documentation.
+- **Bilingual UI & PDF (`EN` / `PL`)**: Complete English and Polish localization across all panels, dialogs, tutorial guide, shortcuts, error messages, and exported PDF documentation.
 
 ---
 
@@ -55,7 +57,7 @@ ShadowPaint transforms reference images and manual brushwork into calibrated phy
 
 ```text
 ┌──────────────────────────────────────────────────── TopBar ─────────────────────────────────────────────────────┐
-│ ◆ ShadowPaint │ New │ Open │ Save ▾ │ Export Package │ ↶ ↷ │ [2D | 3D | Split] │ ● Saved │ Diagnostics │ EN/PL │
+│ ◆ ShadowPaint │ New │ Open │ Save ▾ │ Export Package │ ↶ ↷ │ [2D | 3D | Split] │ ● Saved │ Guide │ Shortcuts │ EN/PL │
 ├─ LeftPanel (Import · Maps · Tools · Options) ─┬─────── Viewport (2D / 3D / Split) ───────┬─ RightPanel (Tabs) ──┤
 │ • Import slots (Color / Height / Opacity)     │ Mode Bar: COLOR · HEIGHT (Gray/Heat/Topo)│ • Map                │
 │ • Map layers (active, lock 🔒, per-map undo)  │           OPACITY · FRONT · BACK         │ • Canvas             │
@@ -72,9 +74,9 @@ ShadowPaint transforms reference images and manual brushwork into calibrated phy
 
 ## Keyboard Shortcuts
 
-Press `?` anywhere in the studio to open the Keyboard Shortcuts reference dialog (on macOS, `Cmd` replaces `Ctrl`).
+Press `?` anywhere in the studio to open the Keyboard Shortcuts dialog and customize keybindings, or press `F4` to open the Interactive Tutorial & Feature Guide (on macOS, `Cmd` replaces `Ctrl`).
 
-| Shortcut                             | Action                                                                                |
+| Default Shortcut                     | Action                                                                                |
 | ------------------------------------ | ------------------------------------------------------------------------------------- |
 | `B` / `E` / `S` / `R`                | Brush / Eraser / Smooth brush / Blur brush                                            |
 | `G` / `F` / `I` / `H`                | Gradient / Flood fill / Eyedropper / Pan tool                                         |
@@ -90,7 +92,7 @@ Press `?` anywhere in the studio to open the Keyboard Shortcuts reference dialog
 | `Ctrl+Alt+Z`                         | Undo active map edit                                                                  |
 | `Ctrl+Alt+N` / `Ctrl+O` / `Ctrl+I`   | New project / Open `.relief` or `.zip` / Open Import Wizard                           |
 | `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+E` | Save project / Save project as… / Export production package (ZIP)                     |
-| `F1` / `F2` / `F3`                   | `2D` layout / `3D` layout / `Split 2D \| 3D` layout                                   |
+| `F1` / `F2` / `F3` / `F4`            | `2D` layout / `3D` layout / `Split 2D \| 3D` layout / Tutorial & Feature Guide        |
 | `Shift+1`…`Shift+7`                  | Switch view mode (`Color`, `Height`, `Opacity`, `Front`, `Back`, `Combined`, `3D`)    |
 | `Ctrl+0` / `Ctrl+1` / `+` / `-`      | Fit canvas to viewport / Zoom `100% (1:1)` / Zoom in & out                            |
 | `Home`                               | Reset 3D camera                                                                       |

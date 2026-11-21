@@ -2,10 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   adjustBrushHardnessValue,
   adjustBrushSizeValue,
+  eventToShortcutTokens,
+  findConflictingShortcutId,
+  formatShortcutDisplay,
   formatShortcutKeys,
+  getEffectiveShortcutKeys,
   isEditableTargetElement,
   isMacPlatform,
+  isShortcutCustomized,
+  matchesShortcutItem,
   parseBrushFlowShortcut,
+  sanitizeCustomShortcutBindings,
   SHORTCUT_GROUPS,
 } from '@/core/shortcuts';
 
@@ -24,6 +31,7 @@ describe('core/shortcuts', () => {
     expect(ids.has('fileNew')).toBe(true);
     expect(ids.has('fileImport')).toBe(true);
     expect(ids.has('openShortcuts')).toBe(true);
+    expect(ids.has('openGuide')).toBe(true);
     expect(ids.has('togglePanels')).toBe(true);
   });
 
@@ -32,6 +40,70 @@ describe('core/shortcuts', () => {
     expect(isMacPlatform('Linux x86_64')).toBe(false);
     expect(formatShortcutKeys(['Ctrl', 'Alt', 'N'], true)).toEqual(['Cmd', 'Opt', 'N']);
     expect(formatShortcutKeys(['Ctrl', 'Shift', 'S'], false)).toEqual(['Ctrl', 'Shift', 'S']);
+    expect(formatShortcutDisplay('fileSave', undefined, true)).toBe('Cmd+S');
+  });
+
+  it('normalizes keyboard events, detects conflicts, and matches custom shortcut bindings', () => {
+    expect(
+      eventToShortcutTokens({
+        key: 'K',
+        code: 'KeyK',
+        ctrlKey: false,
+        metaKey: false,
+        altKey: false,
+        shiftKey: true,
+      }),
+    ).toEqual(['Shift', 'K']);
+
+    expect(
+      eventToShortcutTokens({
+        key: '?',
+        code: 'Slash',
+        ctrlKey: false,
+        metaKey: false,
+        altKey: false,
+        shiftKey: true,
+      }),
+    ).toEqual(['?']);
+
+    expect(
+      eventToShortcutTokens({
+        key: 'Escape',
+        code: 'Escape',
+        ctrlKey: false,
+        metaKey: false,
+        altKey: false,
+        shiftKey: false,
+      }),
+    ).toBeNull();
+
+    const bindings = sanitizeCustomShortcutBindings({
+      toolBrush: ['K'],
+      toolEraser: ['E'], // matches default -> stripped
+      invalidId: ['Z'],
+    });
+    expect(bindings).toEqual({ toolBrush: ['K'] });
+    expect(isShortcutCustomized('toolBrush', bindings)).toBe(true);
+    expect(isShortcutCustomized('toolEraser', bindings)).toBe(false);
+    expect(getEffectiveShortcutKeys('toolBrush', bindings)).toEqual(['K']);
+
+    expect(findConflictingShortcutId('toolEraser', ['K'], bindings)).toBe('toolBrush');
+    expect(findConflictingShortcutId('toolEraser', ['F'], bindings)).toBe('toolFill');
+
+    expect(
+      matchesShortcutItem(
+        {
+          key: 'k',
+          code: 'KeyK',
+          ctrlKey: false,
+          metaKey: false,
+          altKey: false,
+          shiftKey: false,
+        },
+        'toolBrush',
+        bindings,
+      ),
+    ).toBe(true);
   });
 
   it('detects editable targets properly', () => {

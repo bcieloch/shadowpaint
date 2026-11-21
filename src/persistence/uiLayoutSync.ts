@@ -1,5 +1,11 @@
 import { isRightTabId, type UiLayoutPreference } from '@/core/layout';
-import { getUiLayout, saveUiLayout, type ShadowPaintDb } from '@/persistence/db';
+import {
+  getCustomShortcuts,
+  getUiLayout,
+  saveCustomShortcuts,
+  saveUiLayout,
+  type ShadowPaintDb,
+} from '@/persistence/db';
 import { useEditorStore } from '@/state/editorStore';
 import { useUiStore } from '@/state/uiStore';
 
@@ -51,6 +57,16 @@ export function startUiLayoutSync(database?: ShadowPaintDb): () => void {
     }
   });
 
+  void getCustomShortcuts(database).then((bindings) => {
+    if (stopped) return;
+    applyingHydration = true;
+    try {
+      useEditorStore.getState().hydrateCustomShortcuts(bindings);
+    } finally {
+      applyingHydration = false;
+    }
+  });
+
   const unsubEditor = useEditorStore.subscribe((state, prev) => {
     if (
       state.leftPanelSize !== prev.leftPanelSize ||
@@ -64,6 +80,9 @@ export function startUiLayoutSync(database?: ShadowPaintDb): () => void {
         panelsHidden: state.panelsHidden,
         splitRatio: state.splitRatio,
       });
+    }
+    if (!applyingHydration && !stopped && state.customShortcuts !== prev.customShortcuts) {
+      void saveCustomShortcuts(state.customShortcuts, database);
     }
   });
 

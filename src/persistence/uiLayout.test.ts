@@ -1,10 +1,16 @@
 import { indexedDB as fakeIndexedDB, IDBKeyRange as FakeIDBKeyRange } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getUiLayout, saveUiLayout, ShadowPaintDb } from '@/persistence/db';
+import {
+  getCustomShortcuts,
+  getUiLayout,
+  saveCustomShortcuts,
+  saveUiLayout,
+  ShadowPaintDb,
+} from '@/persistence/db';
 
 let testDbCounter = 0;
 
-describe('persistence/db meta.uiLayout', () => {
+describe('persistence/db meta.uiLayout & meta.customShortcuts', () => {
   let testDb: ShadowPaintDb;
 
   beforeEach(() => {
@@ -58,6 +64,25 @@ describe('persistence/db meta.uiLayout', () => {
       panelsHidden: false,
       splitRatio: 0.2,
       rightTab: 'light',
+    });
+  });
+
+  it('persists and sanitizes meta.customShortcuts in IndexedDB', async () => {
+    expect(await getCustomShortcuts(testDb)).toEqual({});
+
+    await saveCustomShortcuts(
+      {
+        toolBrush: ['K'],
+        fileImport: ['Ctrl', 'Alt', 'I'],
+        toolEraser: ['E'], // matches default -> stripped
+      },
+      testDb,
+    );
+
+    const loaded = await getCustomShortcuts(testDb);
+    expect(loaded).toEqual({
+      toolBrush: ['K'],
+      fileImport: ['Ctrl', 'Alt', 'I'],
     });
   });
 });

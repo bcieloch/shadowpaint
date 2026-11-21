@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import {
   Archive,
+  BookOpen,
   Box,
   ChevronDown,
   Columns2,
@@ -437,6 +438,24 @@ export function TopBar() {
             <TooltipContent>{t('topbar.togglePanelsTooltip')}</TooltipContent>
           </Tooltip>
         )}
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              className="gap-1 px-2"
+              aria-label={t('topbar.guideTooltip')}
+              onClick={() => setDialogOpen('guideOpen', true)}
+              data-testid="btn-guide"
+            >
+              <BookOpen className="size-3.5" />
+              <span className="hidden 2xl:inline">{t('topbar.guide')}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('topbar.guideTooltip')}</TooltipContent>
+        </Tooltip>
 
         <Tooltip>
           <TooltipTrigger asChild>

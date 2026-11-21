@@ -3,7 +3,9 @@ import {
   adjustBrushHardnessValue,
   adjustBrushSizeValue,
   isEditableTargetElement,
+  matchesShortcutItem,
   parseBrushFlowShortcut,
+  type ShortcutItemId,
 } from '@/core/shortcuts';
 import type { LightingMode } from '@/core/types';
 import { getCalibrationMetrics } from '@/core/units/calibration';
@@ -115,42 +117,250 @@ export function useShortcuts({
       if (modalOpen) return;
 
       const editor = useEditorStore.getState();
-      const mod = e.ctrlKey || e.metaKey;
+      const custom = editor.customShortcuts;
+      const match = (id: ShortcutItemId) => matchesShortcutItem(e, id, custom);
 
-      if (e.key === 'F1') {
+      // 1. Check all customizable shortcuts first (honoring user rebindings)
+      if (match('layout2d')) {
         e.preventDefault();
         editor.setLayout('2d');
         return;
       }
-      if (e.key === 'F2') {
+      if (match('layout3d')) {
         e.preventDefault();
         editor.setLayout('3d');
         return;
       }
-      if (e.key === 'F3') {
+      if (match('layoutSplit')) {
         e.preventDefault();
         editor.setLayout('split');
         return;
       }
-      if (e.key === 'Home' && !mod && !e.altKey) {
+      if (match('reset3d')) {
         if (editor.layout === '3d' || editor.layout === 'split') {
           e.preventDefault();
           resetView3D();
         }
         return;
       }
-
-      if (e.key === 'Tab' && !mod && !e.altKey && !e.shiftKey) {
+      if (match('togglePanels')) {
         e.preventDefault();
         editor.togglePanelsHidden();
         return;
       }
-
-      if ((e.key === '?' || (e.shiftKey && e.code === 'Slash')) && !mod && !e.altKey) {
+      if (match('openShortcuts')) {
         e.preventDefault();
         uiState.setDialogOpen('shortcutsOpen', true);
         return;
       }
+      if (match('openGuide')) {
+        e.preventDefault();
+        uiState.setDialogOpen('guideOpen', true);
+        return;
+      }
+      if (match('fileNew')) {
+        e.preventDefault();
+        uiState.setDialogOpen('newProjectOpen', true);
+        return;
+      }
+      if (match('historyUndoMap')) {
+        e.preventDefault();
+        undoActiveMap();
+        return;
+      }
+      if (match('historyRedo')) {
+        e.preventDefault();
+        redoGlobal();
+        return;
+      }
+      if (match('historyUndo')) {
+        e.preventDefault();
+        undoGlobal();
+        return;
+      }
+      if (match('zoomFit')) {
+        e.preventDefault();
+        fitView();
+        return;
+      }
+      if (match('zoom100')) {
+        e.preventDefault();
+        setZoom100();
+        return;
+      }
+      if (match('fileImport')) {
+        e.preventDefault();
+        uiState.setDialogOpen('importWizardOpen', true);
+        return;
+      }
+      if (match('fileOpen')) {
+        e.preventDefault();
+        triggerOpenProjectDialog();
+        return;
+      }
+      if (match('fileSaveAs')) {
+        e.preventDefault();
+        void saveProjectRelief({ saveAs: true });
+        return;
+      }
+      if (match('fileSave')) {
+        e.preventDefault();
+        void saveProjectRelief();
+        return;
+      }
+      if (match('fileExport')) {
+        e.preventDefault();
+        void exportPackage();
+        return;
+      }
+      if (match('selectAll')) {
+        e.preventDefault();
+        selectAllSelection();
+        return;
+      }
+      if (match('clearSelection')) {
+        e.preventDefault();
+        clearSelection();
+        return;
+      }
+      if (match('invertSelection')) {
+        e.preventDefault();
+        invertSelection();
+        return;
+      }
+      if (match('toggleRulers')) {
+        e.preventDefault();
+        editor.setShowRulers(!editor.showRulers);
+        return;
+      }
+      if (match('toggleGrid')) {
+        e.preventDefault();
+        toggleGridVisibilityWithHistory(editor.layout === '3d' ? '3d' : '2d');
+        return;
+      }
+      if (match('toolBrush')) {
+        e.preventDefault();
+        editor.setTool('brush');
+        return;
+      }
+      if (match('toolEraser')) {
+        e.preventDefault();
+        editor.setTool('eraser');
+        return;
+      }
+      if (match('toolSmooth')) {
+        e.preventDefault();
+        editor.setTool('smooth');
+        return;
+      }
+      if (match('toolBlur')) {
+        e.preventDefault();
+        editor.setTool('blur');
+        return;
+      }
+      if (match('toolGradient')) {
+        e.preventDefault();
+        editor.setTool('gradient');
+        return;
+      }
+      if (match('toolFill')) {
+        e.preventDefault();
+        editor.setTool('fill');
+        return;
+      }
+      if (match('toolEyedropper')) {
+        e.preventDefault();
+        editor.setTool('eyedropper');
+        return;
+      }
+      if (match('toolPan')) {
+        e.preventDefault();
+        editor.setTool('pan');
+        return;
+      }
+      if (match('toolRuler')) {
+        e.preventDefault();
+        editor.setTool('ruler');
+        return;
+      }
+      if (match('toolCrossSection')) {
+        e.preventDefault();
+        editor.setTool('crossSection');
+        return;
+      }
+      if (match('toolSelectRect')) {
+        e.preventDefault();
+        editor.setTool('selectRect');
+        return;
+      }
+      if (match('toolSelectEllipse')) {
+        e.preventDefault();
+        editor.setTool('selectEllipse');
+        return;
+      }
+      if (match('toolSelectLasso')) {
+        e.preventDefault();
+        editor.setTool('selectLasso');
+        return;
+      }
+      if (match('toolMagicWand')) {
+        e.preventDefault();
+        editor.setTool('magicWand');
+        return;
+      }
+      if (match('toolMaskBrush')) {
+        e.preventDefault();
+        editor.setTool('maskBrush');
+        return;
+      }
+      if (match('brushSize')) {
+        e.preventDefault();
+        adjustBrushSize(1 / 1.18);
+        return;
+      }
+      if (match('brushSizeIncrease')) {
+        e.preventDefault();
+        adjustBrushSize(1.18);
+        return;
+      }
+      if (match('brushHardness')) {
+        e.preventDefault();
+        adjustHardness(-0.05);
+        return;
+      }
+      if (match('brushHardnessIncrease')) {
+        e.preventDefault();
+        adjustHardness(0.05);
+        return;
+      }
+      if (match('zoomStep')) {
+        e.preventDefault();
+        zoomStep2D(1.25);
+        return;
+      }
+      if (match('zoomOut')) {
+        e.preventDefault();
+        zoomStep2D(1 / 1.25);
+        return;
+      }
+      if (match('activeMap')) {
+        e.preventDefault();
+        editor.setActiveMap('color');
+        return;
+      }
+      if (match('activeMapHeight')) {
+        e.preventDefault();
+        editor.setActiveMap('height');
+        return;
+      }
+      if (match('activeMapOpacity')) {
+        e.preventDefault();
+        editor.setActiveMap('opacity');
+        return;
+      }
+
+      // 2. Non-customizable special bindings (Space hold to pan, Escape, view mode ranges, flow digits)
+      const mod = e.ctrlKey || e.metaKey;
 
       if (e.code === 'Space' && !e.repeat && !mod && !e.altKey) {
         if (editor.layout === '3d') return;
@@ -161,62 +371,7 @@ export function useShortcuts({
         return;
       }
 
-      if (mod) {
-        const lower = e.key.toLowerCase();
-        if (e.altKey && !e.shiftKey && lower === 'n') {
-          e.preventDefault();
-          uiState.setDialogOpen('newProjectOpen', true);
-        } else if (e.altKey && !e.shiftKey && lower === 'z') {
-          e.preventDefault();
-          undoActiveMap();
-        } else if (!e.altKey && e.shiftKey && lower === 'z') {
-          e.preventDefault();
-          redoGlobal();
-        } else if (!e.altKey && !e.shiftKey && lower === 'y') {
-          e.preventDefault();
-          redoGlobal();
-        } else if (!e.altKey && !e.shiftKey && lower === 'z') {
-          e.preventDefault();
-          undoGlobal();
-        } else if (!e.altKey && !e.shiftKey && e.key === '0') {
-          e.preventDefault();
-          fitView();
-        } else if (!e.altKey && !e.shiftKey && e.key === '1') {
-          e.preventDefault();
-          setZoom100();
-        } else if (!e.altKey && !e.shiftKey && lower === 'i') {
-          e.preventDefault();
-          uiState.setDialogOpen('importWizardOpen', true);
-        } else if (!e.altKey && !e.shiftKey && lower === 'o') {
-          e.preventDefault();
-          triggerOpenProjectDialog();
-        } else if (!e.altKey && e.shiftKey && lower === 's') {
-          e.preventDefault();
-          void saveProjectRelief({ saveAs: true });
-        } else if (!e.altKey && !e.shiftKey && lower === 's') {
-          e.preventDefault();
-          void saveProjectRelief();
-        } else if (!e.altKey && !e.shiftKey && lower === 'e') {
-          e.preventDefault();
-          void exportPackage();
-        } else if (!e.altKey && !e.shiftKey && lower === 'a') {
-          e.preventDefault();
-          selectAllSelection();
-        } else if (!e.altKey && !e.shiftKey && lower === 'd') {
-          e.preventDefault();
-          clearSelection();
-        } else if (!e.altKey && e.shiftKey && lower === 'i') {
-          e.preventDefault();
-          invertSelection();
-        } else if (!e.altKey && !e.shiftKey && lower === 'r') {
-          e.preventDefault();
-          editor.setShowRulers(!editor.showRulers);
-        } else if (!e.altKey && !e.shiftKey && (e.code === 'Quote' || e.key === "'")) {
-          e.preventDefault();
-          toggleGridVisibilityWithHistory(editor.layout === '3d' ? '3d' : '2d');
-        }
-        return;
-      }
+      if (mod) return;
 
       if (e.altKey) {
         if (!e.shiftKey) {
@@ -232,7 +387,6 @@ export function useShortcuts({
       }
 
       if (e.shiftKey) {
-        const lower = e.key.toLowerCase();
         if (e.code === 'Digit1') {
           e.preventDefault();
           editor.setViewMode2D('color');
@@ -266,52 +420,11 @@ export function useShortcuts({
         } else if (e.code === 'Digit7') {
           e.preventDefault();
           editor.setLayout('3d');
-        } else if (lower === 'm') {
-          e.preventDefault();
-          editor.setTool('selectEllipse');
-        } else if (e.code === 'BracketLeft' || e.key === '{') {
-          e.preventDefault();
-          adjustHardness(-0.05);
-        } else if (e.code === 'BracketRight' || e.key === '}') {
-          e.preventDefault();
-          adjustHardness(0.05);
-        } else if (e.key === '+' || e.code === 'NumpadAdd') {
-          e.preventDefault();
-          zoomStep2D(1.25);
         }
         return;
       }
 
-      const lower = e.key.toLowerCase();
-      if (lower === 'b') {
-        editor.setTool('brush');
-      } else if (lower === 'e') {
-        editor.setTool('eraser');
-      } else if (lower === 's') {
-        editor.setTool('smooth');
-      } else if (lower === 'r') {
-        editor.setTool('blur');
-      } else if (lower === 'g') {
-        editor.setTool('gradient');
-      } else if (lower === 'f') {
-        editor.setTool('fill');
-      } else if (lower === 'i') {
-        editor.setTool('eyedropper');
-      } else if (lower === 'h') {
-        editor.setTool('pan');
-      } else if (lower === 'u') {
-        editor.setTool('ruler');
-      } else if (lower === 'x') {
-        editor.setTool('crossSection');
-      } else if (lower === 'm') {
-        editor.setTool('selectRect');
-      } else if (lower === 'l') {
-        editor.setTool('selectLasso');
-      } else if (lower === 'w') {
-        editor.setTool('magicWand');
-      } else if (lower === 'q') {
-        editor.setTool('maskBrush');
-      } else if (e.key === 'Escape') {
+      if (e.key === 'Escape') {
         if (uiState.leftDrawerOpen || uiState.rightDrawerOpen) {
           uiState.setLeftDrawerOpen(false);
           uiState.setRightDrawerOpen(false);
@@ -320,29 +433,6 @@ export function useShortcuts({
         } else if (editor.tool === 'crossSection' && editor.crossSectionLine) {
           editor.setCrossSectionLine(null);
         }
-      } else if (e.code === 'BracketLeft' || e.key === '[') {
-        e.preventDefault();
-        adjustBrushSize(1 / 1.18);
-      } else if (e.code === 'BracketRight' || e.key === ']') {
-        e.preventDefault();
-        adjustBrushSize(1.18);
-      } else if (
-        e.key === '+' ||
-        e.key === '=' ||
-        e.code === 'Equal' ||
-        e.code === 'NumpadAdd'
-      ) {
-        e.preventDefault();
-        zoomStep2D(1.25);
-      } else if (e.key === '-' || e.code === 'Minus' || e.code === 'NumpadSubtract') {
-        e.preventDefault();
-        zoomStep2D(1 / 1.25);
-      } else if (e.key === '1') {
-        editor.setActiveMap('color');
-      } else if (e.key === '2') {
-        editor.setActiveMap('height');
-      } else if (e.key === '3') {
-        editor.setActiveMap('opacity');
       } else if (/^[04-9]$/.test(e.key)) {
         const flow = parseBrushFlowShortcut(Number(e.key), false);
         if (flow !== null) {

@@ -80,8 +80,10 @@ export const pl: TranslationDictionary = {
     togglePanelsHide: 'Ukryj panele',
     togglePanelsShow: 'Pokaż panele',
     togglePanelsTooltip: 'Pokaż lub ukryj panele boczne (Tab)',
+    guide: 'Przewodnik',
+    guideTooltip: 'Interaktywny samouczek i pełny przewodnik po funkcjach (F4)',
     shortcuts: 'Skróty',
-    shortcutsTooltip: 'Lista skrótów klawiszowych (?)',
+    shortcutsTooltip: 'Skróty klawiszowe i własne przypisania (?)',
     about: 'Autorzy',
     aboutTooltip: 'Autorzy, pomysł i licencja AGPL-3.0',
     aboutTitle: 'O programie {name}',
@@ -265,7 +267,7 @@ export const pl: TranslationDictionary = {
     rulerAngle: 'Kąt',
     rulerClear: 'Wyczyść pomiar',
     crossSectionHint:
-      'Przeciągnij linię przez płótno, aby zbadać profil grubości i przepuszczalności (Shift = skok 15°).',
+      'Przeciągnij linię przez płótnie, aby zbadać profil grubości i przepuszczalności (Shift = skok 15°).',
     crossSectionEmpty: 'Brak aktywnej linii przekroju.',
     crossSectionOpenPanel: 'Otwórz panel Przekrój',
     crossSectionClear: 'Wyczyść linię przekroju',
@@ -651,7 +653,17 @@ export const pl: TranslationDictionary = {
   shortcuts: {
     dialogTitle: 'Skróty klawiszowe',
     dialogDescription:
-      'Skróty są automatycznie wyłączane podczas pisania w polach tekstowych i liczbowych. Na macOS klawisz Cmd zastępuje Ctrl.',
+      'Kliknij wybrany skrót, aby przypisać własną kombinację klawiszy. Skróty są wyłączane podczas pisania w polach tekstowych. Na macOS klawisz Cmd zastępuje Ctrl.',
+    customizeHint: 'Kliknij skrót, aby go zmienić · Naciśnij Esc podczas nagrywania, aby anulować',
+    recordButton: 'Zmień skrót dla: {action}',
+    pressKeys: 'Naciśnij klawisze…',
+    resetItem: 'Przywróć domyślny',
+    resetAll: 'Resetuj wszystkie do domyślnych',
+    customizedBadge: 'Własny',
+    fixedBadge: 'Stały',
+    conflictError: 'Skrót „{combo}” jest już przypisany do „{action}”. Wybierz inny klawisz lub najpierw go zresetuj.',
+    updatedToast: 'Przypisano „{action}” do {combo}',
+    resetAllToast: 'Przywrócono domyślne skróty klawiszowe.',
     categories: {
       tools: 'Narzędzia',
       brush: 'Pędzel i pociągnięcie',
@@ -677,11 +689,15 @@ export const pl: TranslationDictionary = {
       toolRuler: 'Linijka pomiarowa',
       toolCrossSection: 'Przekrój powierzchni',
       toolPanHold: 'Tymczasowe przesuwanie (przytrzymaj)',
-      brushSize: 'Zmniejsz / zwiększ rozmiar pędzla',
-      brushHardness: 'Zmniejsz / zwiększ twardość pędzla',
+      brushSize: 'Zmniejsz rozmiar pędzla',
+      brushSizeIncrease: 'Zwiększ rozmiar pędzla',
+      brushHardness: 'Zmniejsz twardość pędzla',
+      brushHardnessIncrease: 'Zwiększ twardość pędzla',
       brushFlowHigh: 'Przepływ pędzla 40%–90% / 100%',
       brushFlowLow: 'Przepływ pędzla 10%–30%',
-      activeMap: 'Aktywna mapa (Kolor / Wysokość / Przepuszcz.)',
+      activeMap: 'Aktywuj mapę koloru',
+      activeMapHeight: 'Aktywuj mapę wysokości',
+      activeMapOpacity: 'Aktywuj mapę przepuszczalności',
       selectAll: 'Zaznacz wszystko',
       clearSelection: 'Odznacz',
       invertSelection: 'Odwróć zaznaczenie',
@@ -700,13 +716,158 @@ export const pl: TranslationDictionary = {
       viewModes: 'Tryby widoku 2D (Kolor..Łączone / 3D)',
       zoomFit: 'Dopasuj płótno do widoku',
       zoom100: 'Powiększenie 100% (1:1)',
-      zoomStep: 'Przybliż / oddal',
+      zoomStep: 'Powiększ widok 2D',
+      zoomOut: 'Pomniejsz widok 2D',
       reset3d: 'Resetuj kamerę 3D',
       toggleRulers: 'Pokaż / ukryj linijki krawędziowe',
       toggleGrid: 'Pokaż / ukryj siatkę pomiarową',
       togglePanels: 'Pokaż / ukryj panele boczne',
       openShortcuts: 'Pokaż skróty klawiszowe',
+      openGuide: 'Otwórz samouczek i przewodnik po funkcjach',
       cancelOperation: 'Wyczyść linijkę / przekrój lub zamknij okno',
+    },
+  },
+  guide: {
+    dialogTitle: 'Interaktywny samouczek i przewodnik po funkcjach',
+    dialogDescription:
+      'Praktyczne wprowadzenie krok po kroku do projektowania obrazów reliefowych i podświetlanych oraz kompletny opis wszystkich funkcji ShadowPaint.',
+    tabTutorial: 'Szybki samouczek (6 kroków)',
+    tabFeatures: 'Opis wszystkich funkcji',
+    stepBadge: 'Krok {step} z {total}',
+    prevStep: 'Poprzedni krok',
+    nextStep: 'Następny krok',
+    proTipLabel: 'Wskazówka',
+    shortcutLabel: 'Skrót:',
+    customizeShortcutsButton: 'Dostosuj skróty klawiszowe',
+    steps: {
+      canvasAndImport: {
+        title: '1. Kalibracja fizycznego płótna i import referencji',
+        summary:
+          'Ustal fizyczne wymiary płótna w centymetrach (cm), gęstość pikseli (px/cm lub DPI) oraz zakres grubości farby w milimetrach (mm) lub zaimportuj obrazy bazowe.',
+        details:
+          'Każdy projekt w ShadowPaint jest skalibrowany w rzeczywistych jednostkach fizycznych. Możesz rozpocząć od czystego płótna w oknie Nowy projekt (Ctrl+Alt+N) albo wczytać do 3 obrazów referencyjnych (Kolor, Wysokość, Przepuszczalność) w Kreatorze importu (Ctrl+I) z kontrolą dopasowania (Dopasuj, Wypełnij, Rozciągnij), kadrowania oraz podglądem porównawczym.',
+        tip: 'Fizyczne wymiary płótna w cm możesz zmienić w każdej chwili w zakładce Płótno bez resamplingu pikseli — zaktualizuje się jedynie skala px/cm oraz geometria 3D.',
+        tryAction: 'Otwórz Kreator importu',
+      },
+      mapsAndPainting: {
+        title: '2. Trzy powiązane mapy i fizyczne rzeźbienie pędzlem',
+        summary:
+          'Maluj niezależnie na mapie Koloru (sRGB), Wysokości (fizyczna grubość w mm) oraz Przepuszczalności (liniowa transmisja światła %).',
+        details:
+          'Przełączaj aktywną mapę klawiszami 1 (Kolor), 2 (Wysokość) lub 3 (Przepuszczalność) albo blokuj wybrane mapy kłódką. Pędzel (B) operuje bezpośrednio w milimetrach na mapie Wysokości (w trybach Ustaw, Podnieś i Obniż impast) oraz w procentach na mapie Przepuszczalności. Użyj Wygładzania (S) do relaksacji Laplace’a, Rozmycia (R), Gradientu (G), Wypełnienia (F) lub Gumki (E) przywracającej bazę.',
+        tip: 'Przełącz widok 2D mapy wysokości na Mapę cieplną (Turbo) lub Izolinie topograficzne, aby precyzyjnie kontrolować milimetrowe różnice grubości.',
+        tryAction: 'Włącz Pędzel na mapie Wysokości',
+      },
+      selectionAndAdjustments: {
+        title: '3. Maski zaznaczenia i bezstratne korekty map',
+        summary:
+          'Izoluj obszary narzędziami Prostokąt, Elipsa, Lasso, Różdżka lub Pędzel maski i stosuj parametryczne korekty dla każdej mapy.',
+        details:
+          'Maska może działać w dwóch trybach: „Edytuj w środku” (klasyczne zaznaczenie) lub „Chroń maskę” (ochrona zamalowanego obszaru przed edycją). Łącz zaznaczenia w trybach Nowe, Dodaj, Odejmij i Przecięcie oraz zmiękczaj krawędzie funkcją Rozmyj (px). W zakładce Mapa w inspektorze możesz w dowolnym momencie bezstratnie zmieniać Jasność, Kontrast, Nasycenie, Gammę i Odwrócenie.',
+        tip: 'Przytrzymaj klawisz Alt podczas malowania Pędzlem maski ochrony (Q), aby tymczasowo wymazywać czerwoną maskę.',
+        tryAction: 'Otwórz zakładkę Mapa i Pędzel maski',
+      },
+      lightingAndOptics: {
+        title: '4. Geometria 3D reliefu, cienie przednie i podświetlenie Beera-Lamberta',
+        summary:
+          'Symuluj w czasie rzeczywistym kierunkowe światło przednie (cienie impastu) oraz światło tylne przenikające przez grubość farby.',
+        details:
+          'Przełącz na widok Podzielony (F3) lub 3D (F2), aby obejrzeć wypukłą siatkę reliefu. W zakładce Światło ustaw przedni reflektor SpotLight we współrzędnych kartezjańskich (cm) lub polarnych (kąt padania/azymut) z miękkim półcieniem PCSS (16 próbek Vogela) oraz skonfiguruj światło tylne (punktowe lub panel LED). W zakładce Materiał wybierz preset optyczny farby i sprawdź krzywą transmisji Beera-Lamberta T(d).',
+        tip: 'Przesuwaj suwak Balans Przód ↔ Tył w trybie Łączonym, aby zobaczyć jak obraz zmienia charakter po przygaszeniu światła w pokoju i włączeniu podświetlenia.',
+        tryAction: 'Włącz widok Podzielony 2D | 3D i Światło',
+      },
+      measurementAndSection: {
+        title: '5. Siatka centymetrowa, linijka i profil przekroju',
+        summary:
+          'Mierz fizyczne odległości w cm i wycinaj profil przekroju 2D/3D pokazujący grubość farby (mm) oraz transmisję światła (%).',
+        details:
+          'Włącz skalibrowaną siatkę cm (Ctrl+\') oraz linijki krawędziowe (Ctrl+R), aby precyzyjnie rozmieszczać elementy. Narzędzie Linijka (U) podaje długość odcinka w cm i px, Δx/Δy oraz kąt. Narzędzie Przekrój (X) pozwala przeciągnąć linię cięcia przez płótno i wyświetlić w zakładce Przekrój wykres grubości (mm) i przepuszczalności (%) ze zsynchronizowanym markerem 2D/3D oraz eksportem CSV.',
+        tip: 'Przytrzymaj Shift podczas przeciągania Linijki (U), Przekroju (X) lub Gradientu (G), aby przyciągać kąt co 15°.',
+        tryAction: 'Włącz narzędzie Przekrój i panel Przekrój',
+      },
+      persistenceAndExport: {
+        title: '6. Autozapis, archiwa .relief i eksport produkcyjny ZIP / PDF',
+        summary:
+          'Pracuj bezpiecznie dzięki autozapisowi w IndexedDB, bezstratnym plikom .relief oraz kompletnym paczkom produkcyjnym.',
+        details:
+          'ShadowPaint automatycznie zapisuje bieżącą sesję lokalnie w IndexedDB i pozwala zarządzać kopiami w oknie Ostatnie projekty. Zapisuj bezstratne archiwa .relief (Ctrl+S) zawierające surowe warstwy Float32. Gotowy projekt wyeksportuj jako paczkę produkcyjną ZIP (Ctrl+E) z mapami PNG 8-bit, plikiem project_settings.json, renderami 3D oraz wielostronicową dokumentacją PDF z tabelą konwersji wysokości, siatkami cm i kafelkami druku 1:1.',
+        tip: 'Zaznacz opcję „Dołącz kafelki druku 1:1 do PDF” w zakładce Eksport, aby wygenerować szablony w skali rzeczywistej z zakładkami 1 cm i linijką kontrolną 10 cm.',
+        tryAction: 'Otwórz zakładkę Eksport',
+      },
+    },
+    features: {
+      mapsAndImport: {
+        title: 'Trzy mapy i kreator importu referencji',
+        subtitle: 'Bezstratne warstwy bazowe i robocze skalibrowane w jednostkach fizycznych',
+        bullet1:
+          'Mapa kolorów (sRGB), Mapa wysokości (fizyczna grubość reliefu w mm, 0–50 mm) oraz Mapa przepuszczalności (liniowa transmisja tylnego światła 0%–100%).',
+        bullet2:
+          'Każda mapa posiada osobną warstwę bazową (z importu), warstwę roboczą (malowaną), blokadę edycji oraz niezależne Cofanie dla aktywnej mapy (Ctrl+Alt+Z) obok globalnego Cofnij/Ponów (Ctrl+Z / Ctrl+Y).',
+        bullet3:
+          'Kreator importu (Ctrl+I) obsługuje pliki PNG, JPG/JPEG oraz 8/16-bit TIFF z trybami Dopasuj, Wypełnij, Rozciągnij, obrotem o 90°, odbiciem H/V, interaktywnym kadrowaniem i porównaniem różnicowym.',
+        bullet4:
+          'Tryby widoku 2D (Shift+1..6) pozwalają podglądać Kolor, Wysokość (Skala szarości, Mapa cieplna Turbo, Izolinie topograficzne), Przepuszczalność oraz ortograficzne światło Przednie, Tylne i Łączone.',
+      },
+      paintingAndMasking: {
+        title: 'Narzędzia malarskie, rzeźbiarskie i maskowanie',
+        subtitle: '15 wyspecjalizowanych narzędzi z obsługą nacisku piórka i pulą Web Workerów',
+        bullet1:
+          'Pędzel (B) z rozmiarem w px lub fizycznych cm, twardością, przepływem, odstępem, naciskiem piórka oraz trybami impastu na mapie wysokości: Ustaw (mm), Podnieś (+mm) i Obniż (−mm).',
+        bullet2:
+          'Gumka (E) przywracająca warstwę bazową; Pędzel wygładzający (S) z relaksacją Laplace’a; Pędzel rozmycia (R) z lokalnym filtrem Gaussa (liczonym asynchronicznie w workerze dla dużych promieni).',
+        bullet3:
+          'Gradient liniowy i radialny (G) oraz Wypełnienie / Kubełek (F) z tolerancją i ciągłością obszaru, a także Zakraplacz (I) próbkujący kolor, grubość w mm lub przepuszczalność w %.',
+        bullet4:
+          'Narzędzia zaznaczania: Prostokąt (M), Elipsa (Shift+M), Lasso (L), Magiczna różdżka (W) oraz Pędzel maski ochrony (Q) z trybami Chroń maskę / Edytuj w środku, operacjami logicznymi i rozmyciem krawędzi.',
+      },
+      lightingAndOptics: {
+        title: 'Silnik 3D reliefu, cienie PCSS i optyka Beera-Lamberta',
+        subtitle: 'Renderowanie WebGL2 z przemieszczeniem siatki i fizyczną transmisją światła',
+        bullet1:
+          'Światło przednie (SpotLight) sterowane kartezjańsko (X, Wysokość, Odległość w cm) lub polarnie (kąt padania, azymut), z barwą w Kelwinach (1800K–10000K) lub RGB, stożkiem i miękkim cieniem PCSS.',
+        bullet2:
+          'Światło tylne obsługujące źródło punktowe (zanik odwrotnie kwadratowy) oraz równomierny panel LED za płótnem, z regulacją globalnej przepuszczalności i tłumienia.',
+        bullet3:
+          'Kanałowy model Beera-Lamberta T_rgb(d) = G · τ_canvas · exp(−(μa + μs) · d) · mix(1, C_rgb, k_tint) połączony z 12-próbkowym rozpraszaniem bocznym Poissona przez grubość d (mm).',
+        bullet4:
+          '5 skalibrowanych presetów materiałowych (Akryl kryjący, Laserunek akrylowy, Impast olejny, Transparentny żel, Pasta modelująca), interaktywny wykres krzywej T(d) oraz drewniana rama-krosno.',
+      },
+      measurementAndSection: {
+        title: 'Kalibracja fizyczna, siatka, linijka i przekrój',
+        subtitle: 'Kontrola wymiarów i profilu reliefu z dokładnością submilimetrową',
+        bullet1:
+          'Dwukierunkowe przeliczanie wymiarów w centymetrach (cm), rozdzielczości (px), skali (px/cm) oraz DPI — ze zmianą rozmiaru cm bez resamplingu oraz atomowym przeskalowaniem wszystkich warstw.',
+        bullet2:
+          'Zsynchronizowana siatka pomiarowa 2D i shaderowa siatka 3D (Ctrl+\') z regulacją kroku cm, podpodziałów i etykiet oraz krawędziowe linijki centymetrowe 2D (Ctrl+R).',
+        bullet3:
+          'Linijka pomiarowa (U) z przesuwanymi końcami, przyciąganiem kąta co 15° (Shift) oraz odczytem długości w cm i px, Δx, Δy i kąta nachylenia.',
+        bullet4:
+          'Przekrój powierzchni (X) rysujący wykres grubości reliefu (mm) i transmisji światła (%) wzdłuż linii cięcia, z trybem skali 1:1, zsynchronizowanym kursorem 2D/3D i eksportem do CSV.',
+      },
+      workspaceAndShortcuts: {
+        title: 'Układy widoku, diagnostyka GPU i własne skróty klawiszowe',
+        subtitle: 'Ergonomiczny interfejs studyjny z telemetrią wydajności na żywo',
+        bullet1:
+          'Błyskawiczne przełączanie między edytorem 2D (F1), widokiem 3D (F2) oraz dzielonym ekranem 2D | 3D (F3), ukrywanie paneli bocznych (Tab) i przesuwanie widoku ze Spacją.',
+        bullet2:
+          'Pasek statusu z odczytem pozycji kursora w px i cm, koloru sRGB hex, grubości w mm (z przeliczeniem na poziom 0–255) oraz lokalnej przepuszczalności światła %.',
+        bullet3:
+          'Pełna personalizacja skrótów klawiszowych (?): kliknij dowolny skrót, aby przypisać nowy klawisz lub kombinację z Ctrl/Alt/Shift, z wykrywaniem konfliktów, zapisem w IndexedDB i resetem.',
+        bullet4:
+          'Panel Diagnostyki GPU i wydajności pokazujący możliwości WebGL2, pamięć geometrii/tekstur, czasy klatek, obciążenie puli workerów oraz przycisk automatycznej optymalizacji pod GPU.',
+      },
+      persistenceAndExport: {
+        title: 'Autozapis IndexedDB, pliki .relief i eksport produkcyjny',
+        subtitle: 'Kompletny potok od projektu cyfrowego do realizacji fizycznego obrazu',
+        bullet1:
+          'Automatyczny zapis sesji w IndexedDB z pytaniem o przywrócenie przy starcie oraz menedżerem Ostatnich projektów pokazującym wykorzystanie limitu pamięci przeglądarki.',
+        bullet2:
+          'Natywne archiwum projektu .relief (kontener ZIP) przechowujące bezstratne bufory Float32 warstw bazowych i roboczych, maskę zaznaczenia, ustawienia oraz podglądy PNG.',
+        bullet3:
+          'Eksport paczki produkcyjnej ZIP (Ctrl+E) zawierającej mapy PNG 8-bit (color_map.png, height_map.png, opacity_map.png), project_settings.json, rzuty 3D oraz plik documentation.pdf.',
+        bullet4:
+          'Wielostronicowa karta produkcyjna PDF (A4/A3/Letter, pionowo/poziomo) ze specyfikacją projektu, tabelą konwersji 0–255 → mm, parametrami Beera-Lamberta, siatkami cm i kafelkami druku 1:1.',
+      },
     },
   },
   pdf: {

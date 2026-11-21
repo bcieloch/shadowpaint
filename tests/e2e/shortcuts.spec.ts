@@ -116,3 +116,106 @@ test('keyboard shortcuts reference dialog, actions, editable guard, and EN/PL i1
   await expect.poll(async () => (await leftPanel.boundingBox())?.width ?? 0).toBeGreaterThan(180);
   await expect.poll(async () => (await rightPanel.boundingBox())?.width ?? 0).toBeGreaterThan(200);
 });
+
+test('interactive tutorial & feature guide (F4) and customizable keyboard shortcuts with persistence', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(page.getByTestId('viewport-webgl-canvas')).toBeVisible();
+
+  // Open Interactive Tutorial & Feature Guide with F4
+  await page.keyboard.press('F4');
+  const tutorialDialog = page.getByTestId('tutorial-dialog');
+  await expect(tutorialDialog).toBeVisible();
+  await expect(tutorialDialog).toContainText('Interactive Tutorial & Complete Feature Guide');
+  await expect(page.getByTestId('tutorial-active-step')).toContainText('1.');
+
+  // Navigate tutorial steps and test "Try it" action on Step 4 (Split view + Light tab)
+  await page.getByTestId('tutorial-next-step').click();
+  await expect(page.getByTestId('tutorial-active-step')).toContainText('2.');
+  await page.getByTestId('tutorial-pill-lightingAndOptics').click();
+  await expect(page.getByTestId('tutorial-active-step')).toContainText('4.');
+
+  // Switch to All Features Reference tab and verify all 6 feature sections
+  await page.getByTestId('guide-tab-features').click();
+  for (const sectionId of [
+    'mapsAndImport',
+    'paintingAndMasking',
+    'lightingAndOptics',
+    'measurementAndSection',
+    'workspaceAndShortcuts',
+    'persistenceAndExport',
+  ]) {
+    await expect(page.getByTestId(`feature-section-${sectionId}`)).toBeVisible();
+  }
+  await expect(page.getByTestId('feature-shortcut-toolBrush')).toContainText('B');
+
+  // Switch back to Tutorial tab and click "Switch to Split 2D | 3D & Light Tab"
+  await page.getByTestId('guide-tab-tutorial').click();
+  await page.getByTestId('tutorial-try-lightingAndOptics').click();
+  await expect(tutorialDialog).not.toBeVisible();
+  await expect(page.getByTestId('layout-split')).toHaveAttribute('aria-pressed', 'true');
+
+  // Reopen guide via TopBar button in Polish and verify translation
+  await page.getByTestId('lang-pl').click();
+  await page.getByTestId('btn-guide').click();
+  await expect(tutorialDialog).toContainText('Interaktywny samouczek i przewodnik po funkcjach');
+  await expect(tutorialDialog).not.toContainText('guide.');
+
+  // Jump from Guide directly to Customize Keyboard Shortcuts
+  await page.getByTestId('guide-open-shortcuts').click();
+  await expect(tutorialDialog).not.toBeVisible();
+  const shortcutsDialog = page.getByTestId('shortcuts-dialog');
+  await expect(shortcutsDialog).toBeVisible();
+
+  // Switch back to EN for shortcut customization test
+  await page.getByTestId('shortcuts-close').click();
+  await page.getByTestId('lang-en').click();
+  await page.getByTestId('btn-shortcuts').click();
+  await expect(shortcutsDialog).toBeVisible();
+
+  // Conflict detection: try binding Brush ('B') to 'E' (already assigned to Eraser)
+  await page.getByTestId('shortcut-bind-toolBrush').click();
+  await expect(page.getByTestId('shortcut-bind-toolBrush')).toContainText('Press keys…');
+  await page.keyboard.press('e');
+  await expect(page.getByTestId('shortcut-conflict-alert')).toBeVisible();
+  await expect(page.getByTestId('shortcut-conflict-alert')).toContainText('Eraser tool');
+
+  // Bind Brush to 'K' (unused key)
+  await page.getByTestId('shortcut-bind-toolBrush').click();
+  await page.keyboard.press('k');
+  await expect(page.getByTestId('shortcut-bind-toolBrush')).toContainText('K');
+  await expect(page.getByTestId('shortcut-reset-toolBrush')).toBeVisible();
+  await page.getByTestId('shortcuts-close').click();
+
+  // Select Eraser with 'E', then activate Brush using the new custom shortcut 'K'
+  await page.keyboard.press('e');
+  await expect(page.getByTestId('tool-eraser')).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('k');
+  await expect(page.getByTestId('tool-brush')).toHaveAttribute('aria-pressed', 'true');
+
+  // Verify Tutorial & Feature Guide dynamically displays the custom 'K' binding
+  await page.getByTestId('btn-guide').click();
+  await page.getByTestId('guide-tab-features').click();
+  await expect(page.getByTestId('feature-shortcut-toolBrush')).toContainText('K');
+  await page.getByTestId('tutorial-close').click();
+
+  // Reload page to verify custom shortcut persists in IndexedDB (meta.customShortcuts)
+  await page.reload();
+  await expect(page.getByTestId('viewport-webgl-canvas')).toBeVisible();
+  const restoreCloseBtn = page.getByTestId('restore-start-new');
+  if (await restoreCloseBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+    await restoreCloseBtn.click();
+  }
+
+  await page.keyboard.press('e');
+  await expect(page.getByTestId('tool-eraser')).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('k');
+  await expect(page.getByTestId('tool-brush')).toHaveAttribute('aria-pressed', 'true');
+
+  // Reset all custom shortcuts to defaults
+  await page.getByTestId('btn-shortcuts').click();
+  await page.getByTestId('shortcuts-reset-all').click();
+  await expect(page.getByTestId('shortcut-bind-toolBrush')).toContainText('B');
+  await page.getByTestId('shortcuts-close').click();
+});

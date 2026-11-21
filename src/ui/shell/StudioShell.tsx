@@ -21,6 +21,7 @@ import { NewProjectDialog } from '@/ui/dialogs/NewProjectDialog';
 import { RecentProjectsDialog } from '@/ui/dialogs/RecentProjectsDialog';
 import { RestoreSessionDialog } from '@/ui/dialogs/RestoreSessionDialog';
 import { ShortcutsDialog } from '@/ui/dialogs/ShortcutsDialog';
+import { TutorialDialog } from '@/ui/dialogs/TutorialDialog';
 import { useI18n } from '@/ui/hooks/useI18n';
 import { useViewportBreakpoint } from '@/ui/hooks/useViewportBreakpoint';
 import { LeftPanel } from '@/ui/shell/LeftPanel';
@@ -200,6 +201,7 @@ export function StudioShell() {
       <RestoreSessionDialog />
       <ConfirmUnsavedDialog />
       <ShortcutsDialog />
+      <TutorialDialog />
       <WindowDropOverlay />
     </div>
   );
