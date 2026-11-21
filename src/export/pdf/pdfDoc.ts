@@ -5,6 +5,11 @@ import type { LightingMode, PdfOrientation, PdfPageSize, ProjectSettings } from 
 import { valueToMm } from '@/core/units/calibration';
 import { sampleTurboRgb01 } from '@/core/units/colormaps';
 import { frontLightToPolar, frontLightToWorld } from '@/core/units/lighting';
+import {
+  appendReferenceGridPages,
+  appendTiled1to1Pages,
+  type ExtendedPdfContext,
+} from '@/export/pdf/extendedPages';
 import type { PdfFontData } from '@/export/pdf/fontLoader';
 import {
   prepareColorPdfImage,
@@ -25,6 +30,9 @@ export interface PdfLabels {
   sectionHeightTitle: string;
   sectionOpacityTitle: string;
   sectionLightingTitle: string;
+  sectionGridColorTitle: string;
+  sectionGridHeightTitle: string;
+  sectionTile1to1Title: string; // expects {tileId}
   specProject: string;
   specCanvasSize: string;
   specResolution: string;
@@ -92,6 +100,12 @@ export interface PdfLabels {
   beerLambertFormula1: string;
   beerLambertFormula2: string;
   beerLambertNote: string;
+  gridSubtitle: string; // expects {spacing}, {lastCol}, {lastRow}
+  gridColorCaption: string;
+  gridHeightCaption: string; // expects {step}
+  tileMeta: string; // expects {tileId}, {col}, {cols}, {row}, {rows}, {x0}, {x1}, {y0}, {y1}
+  tileOverlapNote: string;
+  tileControlRulerLabel: string;
   yes: string;
   no: string;
 }
@@ -177,7 +191,7 @@ function drawPageHeader(doc: jsPDF, pageW: number, title: string, subtitle: stri
 
   doc.setFont(FONT_REGULAR, 'normal');
   doc.setFontSize(9);
-  doc.setTextColor(100, 100, 110);
+  doc.setTextColor(80, 80, 90);
   doc.text(subtitle, pageW - MARGIN_MM, MARGIN_MM + 5, { align: 'right' });
 
   doc.setDrawColor(210, 210, 218);
@@ -204,7 +218,7 @@ function drawFooter(
 
   doc.setFont(FONT_REGULAR, 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(110, 110, 120);
+  doc.setTextColor(82, 82, 92);
   doc.text(`${projectName} · ${dateStr}`, MARGIN_MM, yText);
   doc.text(labels.generatedBy, pageW / 2, yText, { align: 'center' });
   doc.text(formatTemplate(labels.pageOf, { page, total }), pageW - MARGIN_MM, yText, {
@@ -234,7 +248,7 @@ function drawKeyValueRows(
     doc.rect(x, curY, w, rowH, 'S');
 
     doc.setFont(FONT_REGULAR, 'bold');
-    doc.setTextColor(60, 60, 68);
+    doc.setTextColor(48, 48, 56);
     doc.text(row.label, x + 2, curY + rowH - 2);
 
     doc.setFont(FONT_REGULAR, 'normal');
@@ -369,7 +383,7 @@ export function buildDocumentationPdf(input: BuildDocumentationPdfInput): Uint8A
       addEmbeddedImage(doc, prepared, box.x, box.y, box.w, box.h);
       doc.setFont(FONT_REGULAR, 'normal');
       doc.setFontSize(8.5);
-      doc.setTextColor(60, 60, 68);
+      doc.setTextColor(48, 48, 56);
       doc.text(previewTitles[mode], cx + cardW / 2, box.y + box.h + 4.5, { align: 'center' });
     } else {
       const placeholderH = Math.min(availH, cardW * 0.75);
@@ -378,7 +392,7 @@ export function buildDocumentationPdf(input: BuildDocumentationPdfInput): Uint8A
       doc.rect(cx, y, cardW, placeholderH, 'FD');
       doc.setFont(FONT_REGULAR, 'normal');
       doc.setFontSize(8);
-      doc.setTextColor(120, 120, 128);
+      doc.setTextColor(80, 80, 90);
       doc.text(labels.previewUnavailable, cx + cardW / 2, y + placeholderH / 2, {
         align: 'center',
       });
@@ -386,7 +400,7 @@ export function buildDocumentationPdf(input: BuildDocumentationPdfInput): Uint8A
     }
   });
 
-  onProgress?.(0.2);
+  onProgress?.(0.16);
 
   // PAGE 2: COLOR MAP + 10 cm Scale Bar
   doc.addPage();
@@ -425,12 +439,12 @@ export function buildDocumentationPdf(input: BuildDocumentationPdfInput): Uint8A
 
   doc.setFont(FONT_REGULAR, 'normal');
   doc.setFontSize(8.5);
-  doc.setTextColor(90, 90, 98);
+  doc.setTextColor(70, 70, 80);
   doc.text(labels.colorCaption, pageW - MARGIN_MM, scaleY, { align: 'right' });
 
-  onProgress?.(0.4);
+  onProgress?.(0.32);
 
-  // PAGE 3: HEIGHT MAP (Gray + Heatmap + Legend + Conversion Table)
+  // PAGE 3: HEIGHT MAP (Gray + Heatmap + Legend + Expanded Conversion Table)
   doc.addPage();
   y = drawPageHeader(doc, pageW, labels.sectionHeightTitle, project.name);
 
@@ -491,7 +505,7 @@ export function buildDocumentationPdf(input: BuildDocumentationPdfInput): Uint8A
   doc.rect(MARGIN_MM, legendY, legendW, 4, 'S');
   doc.setFont(FONT_REGULAR, 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(60, 60, 68);
+  doc.setTextColor(48, 48, 56);
   doc.text(`${canvas.minThicknessMm.toFixed(2)} mm`, MARGIN_MM, legendY + 8);
   doc.text(labels.heightLegendTitle, MARGIN_MM + legendW / 2, legendY + 8, { align: 'center' });
   doc.text(`${canvas.maxThicknessMm.toFixed(2)} mm`, MARGIN_MM + legendW, legendY + 8, {
@@ -507,7 +521,7 @@ export function buildDocumentationPdf(input: BuildDocumentationPdfInput): Uint8A
     legendY + 13,
   );
 
-  // Level -> mm lookup table
+  // Expanded Level + Percentage -> mm lookup table (covers 0%..100% milestones & 8-bit steps 0, 32, ..., 255)
   const tableX = isPortrait ? MARGIN_MM : MARGIN_MM + legendW + 6;
   const tableY = isPortrait ? legendY + 18 : y;
   const tableW = isPortrait ? contentW : pageW - MARGIN_MM - tableX;
@@ -520,16 +534,19 @@ export function buildDocumentationPdf(input: BuildDocumentationPdfInput): Uint8A
   const tableHeaderY = tableY + 4.5;
   const colW = tableW / 3;
   doc.setFillColor(232, 232, 238);
-  doc.rect(tableX, tableHeaderY, tableW, 5.8, 'F');
+  doc.rect(tableX, tableHeaderY, tableW, 5.4, 'F');
   doc.setFontSize(8);
-  doc.text(labels.tablePct, tableX + 2, tableHeaderY + 4);
-  doc.text(labels.tableLevel8, tableX + colW + 2, tableHeaderY + 4);
-  doc.text(labels.tableThicknessMm, tableX + colW * 2 + 2, tableHeaderY + 4);
+  doc.text(labels.tablePct, tableX + 2, tableHeaderY + 3.8);
+  doc.text(labels.tableLevel8, tableX + colW + 2, tableHeaderY + 3.8);
+  doc.text(labels.tableThicknessMm, tableX + colW * 2 + 2, tableHeaderY + 3.8);
 
-  const sampleLevels = [0, 32, 64, 96, 128, 160, 191, 224, 255];
-  let rowY = tableHeaderY + 5.8;
-  const lookupRowH = 5.4;
+  const sampleLevels = [
+    0, 26, 32, 51, 64, 77, 96, 102, 128, 153, 160, 179, 191, 204, 224, 230, 255,
+  ];
+  let rowY = tableHeaderY + 5.4;
+  const lookupRowH = 4.6;
   doc.setFont(FONT_REGULAR, 'normal');
+  doc.setFontSize(8);
   sampleLevels.forEach((lvl, idx) => {
     if (idx % 2 === 1) {
       doc.setFillColor(247, 247, 250);
@@ -540,13 +557,13 @@ export function buildDocumentationPdf(input: BuildDocumentationPdfInput): Uint8A
     const v01 = lvl / 255;
     const mm = valueToMm(v01, canvas.minThicknessMm, canvas.maxThicknessMm);
     doc.setTextColor(24, 24, 27);
-    doc.text(`${Math.round(v01 * 100)}%`, tableX + 2, rowY + 3.8);
-    doc.text(String(lvl), tableX + colW + 2, rowY + 3.8);
-    doc.text(`${mm.toFixed(3)} mm`, tableX + colW * 2 + 2, rowY + 3.8);
+    doc.text(`${Math.round(v01 * 100)}%`, tableX + 2, rowY + 3.3);
+    doc.text(String(lvl), tableX + colW + 2, rowY + 3.3);
+    doc.text(`${mm.toFixed(3)} mm`, tableX + colW * 2 + 2, rowY + 3.3);
     rowY += lookupRowH;
   });
 
-  onProgress?.(0.6);
+  onProgress?.(0.48);
 
   // PAGE 4: OPACITY MAP
   doc.addPage();
@@ -578,7 +595,7 @@ export function buildDocumentationPdf(input: BuildDocumentationPdfInput): Uint8A
   doc.rect(MARGIN_MM, opLegendY, opBarW, 4, 'S');
   doc.setFont(FONT_REGULAR, 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(60, 60, 68);
+  doc.setTextColor(48, 48, 56);
   doc.text(`0% (${labels.opacityOpaqueLabel})`, MARGIN_MM, opLegendY + 8);
   doc.text(`100% (${labels.opacityTransmissiveLabel})`, MARGIN_MM + opBarW, opLegendY + 8, {
     align: 'right',
@@ -595,7 +612,7 @@ export function buildDocumentationPdf(input: BuildDocumentationPdfInput): Uint8A
   );
   doc.text(labels.opacityCaption, pageW - MARGIN_MM, opLegendY + 4, { align: 'right' });
 
-  onProgress?.(0.8);
+  onProgress?.(0.64);
 
   // PAGE 5: LIGHTING & MATERIAL + BEER-LAMBERT
   doc.addPage();
@@ -755,11 +772,36 @@ export function buildDocumentationPdf(input: BuildDocumentationPdfInput): Uint8A
   doc.text(labels.beerLambertTitle, MARGIN_MM + 3, blY + 4.5);
   doc.setFont(FONT_REGULAR, 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(55, 55, 64);
+  doc.setTextColor(48, 48, 56);
   doc.text(labels.beerLambertFormula1, MARGIN_MM + 3, blY + 9.5);
   doc.text(labels.beerLambertFormula2, MARGIN_MM + 3, blY + 13.8);
-  doc.setTextColor(95, 95, 105);
+  doc.setTextColor(70, 70, 80);
   doc.text(labels.beerLambertNote, MARGIN_MM + 3, blY + 18, { maxWidth: contentW - 6 });
+
+  onProgress?.(0.76);
+
+  // PAGES 6 & 7 (+ Optional 1:1 Tiles): Reference Grid & 1:1 Printing Sheets
+  const extCtx: ExtendedPdfContext = {
+    project,
+    colorEffective,
+    heightEffective,
+    pageW,
+    pageH,
+    contentW,
+    marginMm: MARGIN_MM,
+    footerReserveMm: footerReserve,
+    fontName: FONT_REGULAR,
+    labels,
+    drawPageHeader,
+    fitRectInBox,
+    addEmbeddedImage,
+    formatTemplate,
+    onProgress,
+  };
+  appendReferenceGridPages(doc, extCtx);
+  if (project.export.includeTiles1to1) {
+    appendTiled1to1Pages(doc, extCtx);
+  }
 
   const totalPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {

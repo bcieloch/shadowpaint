@@ -33,7 +33,7 @@ function loadTestFonts() {
 }
 
 describe('buildExportPackageZip', () => {
-  it('bundles valid PNGs, project_settings.json, 5-page PDF, and optional 3D previews', () => {
+  it('bundles valid PNGs, project_settings.json, 7-page PDF, and optional 3D previews', () => {
     const W = 16;
     const H = 20;
     const project = createDefaultProject({
@@ -130,6 +130,70 @@ describe('buildExportPackageZip', () => {
 
     const pdfLatin1 = new TextDecoder('latin1').decode(files['documentation.pdf'] as Uint8Array);
     expect(pdfLatin1.startsWith('%PDF-')).toBe(true);
-    expect((pdfLatin1.match(/\/Type\s*\/Page\b/g) ?? []).length).toBe(5);
+    expect((pdfLatin1.match(/\/Type\s*\/Page\b/g) ?? []).length).toBe(7);
+  });
+
+  it('supports colorPngAlpha (CT6), omitted previews, and includeTiles1to1 in ZIP', () => {
+    const W = 24;
+    const H = 18;
+    const project = createDefaultProject({
+      name: 'Extended Package Check',
+      canvas: {
+        widthCm: 40,
+        heightCm: 30,
+        widthPx: W,
+        heightPx: H,
+        minThicknessMm: 0.5,
+        maxThicknessMm: 6.5,
+      },
+      now: '2026-11-20T12:00:00.000Z',
+    });
+    project.export.colorPngAlpha = true;
+    project.export.includePreviews = false;
+    project.export.includeTiles1to1 = true;
+    project.export.gridSheetSpacingCm = 10;
+
+    const colorEffective = new Uint8Array(W * H * 4).fill(128);
+    const heightEffective = new Float32Array(W * H).fill(0.5);
+    const opacityEffective = new Float32Array(W * H).fill(0.75);
+
+    const zipBytes = buildExportPackageZip({
+      project,
+      colorEffective,
+      heightEffective,
+      opacityEffective,
+      fonts: loadTestFonts(),
+      pdfLabels: buildPdfLabels(createTranslator('pl')),
+      exportedAt: '2026-11-20T12:00:00.000Z',
+    });
+
+    const files = unzipSync(zipBytes);
+    expect(Object.keys(files).sort()).toEqual([
+      'color_map.png',
+      'documentation.pdf',
+      'height_map.png',
+      'opacity_map.png',
+      'project_settings.json',
+    ]);
+
+    expect(readPngIhdr(files['color_map.png'] as Uint8Array)).toEqual({
+      signatureOk: true,
+      width: W,
+      height: H,
+      bitDepth: 8,
+      colorType: 6,
+    });
+    expect(readPngIhdr(files['height_map.png'] as Uint8Array).width).toBe(W);
+    expect(readPngIhdr(files['opacity_map.png'] as Uint8Array).height).toBe(H);
+
+    const settings = JSON.parse(
+      new TextDecoder('utf-8').decode(files['project_settings.json'] as Uint8Array),
+    );
+    expect(settings.maps['color_map.png'].colorType).toBe(6);
+    expect(settings.project.export.includeTiles1to1).toBe(true);
+    expect(settings.project.export.gridSheetSpacingCm).toBe(10);
+
+    const pdfLatin1 = new TextDecoder('latin1').decode(files['documentation.pdf'] as Uint8Array);
+    expect((pdfLatin1.match(/\/Type\s*\/Page\b/g) ?? []).length).toBeGreaterThan(7);
   });
 });
