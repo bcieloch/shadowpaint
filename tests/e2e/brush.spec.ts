@@ -96,7 +96,7 @@ test('paints on color map, isolates height/opacity, enforces map lock, and erase
   // Switch back to EN and unlock
   await page.getByTestId('lang-en').click();
   await page.getByTestId('map-lock-color').click();
-  await expect(page.getByTestId('statusbar-message')).toHaveText('Ready');
+  await expect(page.getByTestId('statusbar-message')).toBeHidden();
 
   // Verify '[' and ']' resize brush and px/cm toggle works
   await page.keyboard.press(']');

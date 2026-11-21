@@ -320,7 +320,6 @@ test.describe('Stage 2 end-to-end verification (Task 2.10)', () => {
     await expect(page.getByTestId('right-tab-material')).toHaveText('Materiał');
     await expect(page.getByTestId('right-tab-section')).toHaveText('Przekrój');
     await expect(page.getByTestId('right-tab-export')).toHaveText('Eksport');
-    await expect(page.getByTestId('statusbar-message')).toHaveText('Gotowy');
 
     for (const tabId of [
       'right-tab-map',
@@ -337,17 +336,21 @@ test.describe('Stage 2 end-to-end verification (Task 2.10)', () => {
     await page.getByTestId('btn-recent-projects').click();
     await expect(page.getByTestId('recent-projects-dialog')).toContainText('Ostatnie projekty');
     await assertNoRawTranslationKeys(page);
-    await page.getByTestId('recent-projects-dialog').getByRole('button', { name: 'Zamknij' }).click();
+    await page
+      .getByTestId('recent-projects-dialog')
+      .getByRole('button', { name: 'Zamknij' })
+      .click();
 
     await fileInput.setInputFiles({
       name: 'broken-stage2.relief',
       mimeType: 'application/zip',
       buffer: Buffer.from(new TextEncoder().encode('corrupted-zip-data')),
     });
-    await expect(page.getByText('Plik projektu jest uszkodzony: broken-stage2.relief')).toBeVisible();
+    await expect(
+      page.getByText('Plik projektu jest uszkodzony: broken-stage2.relief'),
+    ).toBeVisible();
 
     await page.getByTestId('lang-en').click();
-    await expect(page.getByTestId('statusbar-message')).toHaveText('Ready');
     for (const tabId of [
       'right-tab-map',
       'right-tab-canvas',

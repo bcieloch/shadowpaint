@@ -247,7 +247,6 @@ test.describe('MVP end-to-end verification', () => {
     await expect(page.getByTestId('right-tab-light')).toHaveText('Światło');
     await expect(page.getByTestId('right-tab-material')).toHaveText('Materiał');
     await expect(page.getByTestId('right-tab-export')).toHaveText('Eksport');
-    await expect(page.getByTestId('statusbar-message')).toHaveText('Gotowy');
 
     for (const tabId of [
       'right-tab-map',
@@ -268,7 +267,6 @@ test.describe('MVP end-to-end verification', () => {
     await expect(page.getByTestId('right-tab-light')).toHaveText('Light');
     await expect(page.getByTestId('right-tab-material')).toHaveText('Material');
     await expect(page.getByTestId('right-tab-export')).toHaveText('Export');
-    await expect(page.getByTestId('statusbar-message')).toHaveText('Ready');
 
     for (const tabId of [
       'right-tab-map',

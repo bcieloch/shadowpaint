@@ -12,16 +12,9 @@ export function StatusBar() {
   return (
     <footer className="border-border bg-card text-muted-foreground flex h-[26px] shrink-0 items-center justify-between gap-3 overflow-hidden border-t px-3 font-mono text-[11px] select-none">
       <div className="flex min-w-0 items-center gap-3">
-        {statusMessage ? (
+        {statusMessage && (
           <span data-testid="statusbar-message" className="shrink-0 font-medium text-amber-400">
             {t(statusMessage.key, statusMessage.params)}
-          </span>
-        ) : (
-          <span
-            data-testid="statusbar-message"
-            className={readout ? 'sr-only' : 'text-muted-foreground shrink-0'}
-          >
-            {t('shell.statusBarReady')}
           </span>
         )}
 
@@ -77,10 +70,6 @@ export function StatusBar() {
             <span data-testid="statusbar-credits" className="hidden lg:inline">
               {t('app.creditsInline', { author: AUTHOR_NAME, idea: IDEA_AUTHOR_NAME })}
             </span>
-            <span className="text-border hidden xl:inline" aria-hidden="true">
-              ·
-            </span>
-            <span className="hidden xl:inline">{t('app.tagline')}</span>
           </div>
         )}
       </div>
