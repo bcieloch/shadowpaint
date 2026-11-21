@@ -9,14 +9,46 @@ export interface DecodedImageData {
   gray16?: Float32Array;
 }
 
-export class ImageDecodeError extends Error {
-  readonly code: 'unsupportedFormat' | 'corruptedFile' | 'imageTooLarge';
+export type ImageDecodeErrorCode = 'unsupportedFormat' | 'corruptedFile' | 'imageTooLarge';
 
-  constructor(code: 'unsupportedFormat' | 'corruptedFile' | 'imageTooLarge', message: string) {
-    super(message);
+const IMAGE_DECODE_ERROR_PREFIX = 'IMAGE_DECODE_ERROR:';
+
+export class ImageDecodeError extends Error {
+  readonly code: ImageDecodeErrorCode;
+
+  constructor(code: ImageDecodeErrorCode, message: string) {
+    super(`${IMAGE_DECODE_ERROR_PREFIX}${code}:${message}`);
     this.name = 'ImageDecodeError';
     this.code = code;
   }
+}
+
+export function extractImageDecodeErrorCode(err: unknown): ImageDecodeErrorCode | null {
+  if (err instanceof ImageDecodeError) {
+    return err.code;
+  }
+  if (err && typeof err === 'object') {
+    if ('code' in err) {
+      const code = (err as { code?: unknown }).code;
+      if (code === 'unsupportedFormat' || code === 'corruptedFile' || code === 'imageTooLarge') {
+        return code;
+      }
+    }
+    if ('message' in err && typeof (err as { message?: unknown }).message === 'string') {
+      const msg = (err as { message: string }).message;
+      if (msg.startsWith(IMAGE_DECODE_ERROR_PREFIX)) {
+        const rawCode = msg.slice(IMAGE_DECODE_ERROR_PREFIX.length).split(':')[0];
+        if (
+          rawCode === 'unsupportedFormat' ||
+          rawCode === 'corruptedFile' ||
+          rawCode === 'imageTooLarge'
+        ) {
+          return rawCode;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 export function validateDecodedDimensions(width: number, height: number): void {

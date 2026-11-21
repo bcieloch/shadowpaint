@@ -9,7 +9,7 @@ import { MapMemoryError, mapRegistry } from '@/core/maps/MapRegistry';
 import type { CanvasSettings, FitMode, ImportTransform, MapId } from '@/core/types';
 import { computeHeightFromWidthPx } from '@/core/units/calibration';
 import { hexToRgb01 } from '@/core/units/colorTemperature';
-import { ImageDecodeError } from '@/imaging/decodeTiff';
+import { extractImageDecodeErrorCode, type ImageDecodeErrorCode } from '@/imaging/decodeTiff';
 import { createDefaultTransform } from '@/imaging/transform';
 import { cancelLazyEffectiveFlush } from '@/services/adjustService';
 import { clearHistory, recordFullMapHistory } from '@/services/historyService';
@@ -97,19 +97,8 @@ export async function decodeFileToSlot(file: File, mapId: MapId): Promise<Import
   return draft;
 }
 
-export function classifyDecodeError(
-  err: unknown,
-): 'unsupportedFormat' | 'corruptedFile' | 'imageTooLarge' {
-  if (err instanceof ImageDecodeError) {
-    return err.code;
-  }
-  if (err && typeof err === 'object' && 'code' in err) {
-    const code = (err as { code?: unknown }).code;
-    if (code === 'unsupportedFormat' || code === 'corruptedFile' || code === 'imageTooLarge') {
-      return code;
-    }
-  }
-  return 'corruptedFile';
+export function classifyDecodeError(err: unknown): ImageDecodeErrorCode {
+  return extractImageDecodeErrorCode(err) ?? 'corruptedFile';
 }
 
 export interface ImportMismatchInfo {
