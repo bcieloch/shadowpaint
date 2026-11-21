@@ -59,10 +59,13 @@ test.describe('Split View (2D | 3D Scissor)', () => {
     expect(areaBox).not.toBeNull();
     if (!areaBox) throw new Error('Missing viewport-canvas-area box');
 
-    const rightBackPixel = await page.evaluate(
-      ({ x, y }) => window.__shadowpaintDebug?.sampleRenderedPixel(x, y) ?? [0, 0, 0, 0],
-      { x: Math.round(areaBox.width * 0.75), y: Math.round(areaBox.height * 0.5) },
-    );
+    const rightBackPixel = await page.evaluate<
+      [number, number, number, number],
+      { x: number; y: number }
+    >(({ x, y }) => window.__shadowpaintDebug?.sampleRenderedPixel(x, y) ?? [0, 0, 0, 0], {
+      x: Math.round(areaBox.width * 0.75),
+      y: Math.round(areaBox.height * 0.5),
+    });
 
     // Switch 2D pane back to Color and right 3D pane to Front light -> left is green 2D, right is bright front-lit 3D
     await page.getByTestId('mode-color').click();
@@ -70,18 +73,24 @@ test.describe('Split View (2D | 3D Scissor)', () => {
     await page.getByTestId('btn-zoom-fit').click();
     await page.waitForTimeout(100);
 
-    const leftPixel = await page.evaluate(
-      ({ x, y }) => window.__shadowpaintDebug?.sampleRenderedPixel(x, y) ?? [0, 0, 0, 0],
-      { x: Math.round(areaBox.width * 0.25), y: Math.round(areaBox.height * 0.5) },
-    );
+    const leftPixel = await page.evaluate<
+      [number, number, number, number],
+      { x: number; y: number }
+    >(({ x, y }) => window.__shadowpaintDebug?.sampleRenderedPixel(x, y) ?? [0, 0, 0, 0], {
+      x: Math.round(areaBox.width * 0.25),
+      y: Math.round(areaBox.height * 0.5),
+    });
     // Left pane displays solid green Color map (#14b446)
     expect(leftPixel[1]).toBeGreaterThan(150);
     expect(leftPixel[0]).toBeLessThan(60);
 
-    const rightFrontPixel = await page.evaluate(
-      ({ x, y }) => window.__shadowpaintDebug?.sampleRenderedPixel(x, y) ?? [0, 0, 0, 0],
-      { x: Math.round(areaBox.width * 0.75), y: Math.round(areaBox.height * 0.5) },
-    );
+    const rightFrontPixel = await page.evaluate<
+      [number, number, number, number],
+      { x: number; y: number }
+    >(({ x, y }) => window.__shadowpaintDebug?.sampleRenderedPixel(x, y) ?? [0, 0, 0, 0], {
+      x: Math.round(areaBox.width * 0.75),
+      y: Math.round(areaBox.height * 0.5),
+    });
     expect(rightFrontPixel[3]).toBe(255);
     expect(rightFrontPixel[1]).toBeGreaterThan(rightBackPixel[1] + 40);
 
@@ -125,7 +134,9 @@ test.describe('Split View (2D | 3D Scissor)', () => {
     await page.getByTestId('brush-color-hex').press('Enter');
 
     const newDivBox = await divider.boundingBox();
-    const leftPaneWidth = newDivBox ? newDivBox.x + newDivBox.width / 2 - areaBox.x : areaBox.width * 0.35;
+    const leftPaneWidth = newDivBox
+      ? newDivBox.x + newDivBox.width / 2 - areaBox.x
+      : areaBox.width * 0.35;
     await page.getByTestId('btn-zoom-fit').click();
     await page.waitForTimeout(60);
 
@@ -163,7 +174,9 @@ test.describe('Split View (2D | 3D Scissor)', () => {
     }
     await page.getByTestId('layout-split').click();
     await expect(page.getByTestId('viewport-canvas-area')).toHaveAttribute('data-layout', 'split');
-    const persistedRatio = Number(await page.getByTestId('split-divider').getAttribute('aria-valuenow'));
+    const persistedRatio = Number(
+      await page.getByTestId('split-divider').getAttribute('aria-valuenow'),
+    );
     expect(persistedRatio).toBeGreaterThanOrEqual(30);
     expect(persistedRatio).toBeLessThanOrEqual(40);
 

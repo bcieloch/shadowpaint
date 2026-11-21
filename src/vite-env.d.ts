@@ -44,6 +44,7 @@ export interface ShadowPaintDebugHandle {
     segY: number;
     vertices: number;
     frameVisible: boolean;
+    gridVisible: boolean;
   } | null;
   getFrontLightStats: () => {
     position: { x: number; y: number; z: number };
