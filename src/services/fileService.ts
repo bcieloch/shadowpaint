@@ -48,13 +48,13 @@ export async function buildActiveReliefBytes(
   const filename = `${sanitizeExportSlug(project.name)}.relief`;
 
   const colorBase = new Uint8Array(asUint8Array(mapRegistry.color.base));
-  const colorWorking = new Uint8Array(asUint8Array(mapRegistry.color.working));
+  const colorWorking = new Uint8Array(asUint8Array(mapRegistry.color.getCompositeBuffer()));
   const colorEffective = new Uint8Array(asUint8Array(mapRegistry.color.effective));
   const heightBase = new Float32Array(mapRegistry.heightMap.base);
-  const heightWorking = new Float32Array(mapRegistry.heightMap.working);
+  const heightWorking = new Float32Array(mapRegistry.heightMap.getCompositeBuffer());
   const heightEffective = new Float32Array(mapRegistry.heightMap.effective);
   const opacityBase = new Float32Array(mapRegistry.opacity.base);
-  const opacityWorking = new Float32Array(mapRegistry.opacity.working);
+  const opacityWorking = new Float32Array(mapRegistry.opacity.getCompositeBuffer());
   const opacityEffective = new Float32Array(mapRegistry.opacity.effective);
   const selection = new Uint8Array(mapRegistry.selection);
 

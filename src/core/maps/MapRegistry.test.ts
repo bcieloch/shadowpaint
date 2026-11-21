@@ -102,4 +102,48 @@ describe('MapRegistry', () => {
     expect(registry.width).toBe(4);
     expect(registry.height).toBe(4);
   });
+
+  it('supports multi-layer creation, compositing blend modes, visibility, opacity, merge down, and flatten', () => {
+    const registry = new MapRegistry();
+    registry.allocate(4, 4);
+
+    const heightBuf = registry.heightMap;
+    expect(heightBuf.layers.length).toBe(1);
+    heightBuf.working.fill(0.3);
+
+    // Add second layer with 'add' blend mode
+    const layer2 = heightBuf.addLayer({ name: 'Impasto Details', blendMode: 'add', opacity: 0.5 });
+    expect(heightBuf.layers.length).toBe(2);
+    expect(heightBuf.activeLayerId).toBe(layer2.id);
+
+    // Paint value 0.4 on pixel 0 of layer 2 with full mask coverage
+    heightBuf.working[0] = 0.4;
+    heightBuf.activeMask[0] = 255;
+
+    // Composite: base 0.3 + (0.3 + 0.4 - 0.3) * 0.5 = 0.5
+    const compAdd = heightBuf.getCompositeBuffer();
+    expect(compAdd[0]).toBeCloseTo(0.5, 5);
+    expect(compAdd[1]).toBeCloseTo(0.3, 5);
+
+    // Hide layer 2 -> composite falls back to 0.3
+    heightBuf.updateLayer(layer2.id, { visible: false });
+    expect(heightBuf.getCompositeBuffer()[0]).toBeCloseTo(0.3, 5);
+
+    // Show layer 2 and switch to 'max' blend mode at 100% opacity
+    heightBuf.updateLayer(layer2.id, { visible: true, blendMode: 'max', opacity: 1 });
+    expect(heightBuf.getCompositeBuffer()[0]).toBeCloseTo(0.4, 5);
+
+    // Duplicate layer 2 and merge down
+    const dup = heightBuf.duplicateLayer(layer2.id, 'Copy');
+    expect(dup).not.toBeNull();
+    expect(heightBuf.layers.length).toBe(3);
+
+    expect(heightBuf.mergeLayerDown(dup?.id)).toBe(true);
+    expect(heightBuf.layers.length).toBe(2);
+
+    // Flatten back to 1 layer
+    heightBuf.flattenLayers('Base');
+    expect(heightBuf.layers.length).toBe(1);
+    expect(heightBuf.working[0]).toBeCloseTo(0.4, 5);
+  });
 });

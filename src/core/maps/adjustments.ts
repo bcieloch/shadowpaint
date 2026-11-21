@@ -221,19 +221,14 @@ export function recomputeEffectiveRect(
   if (!registry.isAllocated) return;
   const { width, height } = registry;
   if (mapId === 'color') {
-    applyColorAdjustments(
-      registry.color.working,
-      registry.color.effective,
-      width,
-      height,
-      adjustments.color,
-      rect,
-    );
+    const src = registry.color.getCompositeBuffer(rect);
+    applyColorAdjustments(src, registry.color.effective, width, height, adjustments.color, rect);
     return;
   }
   if (mapId === 'height') {
+    const src = registry.heightMap.getCompositeBuffer(rect);
     applyHeightAdjustments(
-      registry.heightMap.working,
+      src,
       registry.heightMap.effective,
       width,
       height,
@@ -242,8 +237,9 @@ export function recomputeEffectiveRect(
     );
     return;
   }
+  const src = registry.opacity.getCompositeBuffer(rect);
   applyOpacityAdjustments(
-    registry.opacity.working,
+    src,
     registry.opacity.effective,
     width,
     height,

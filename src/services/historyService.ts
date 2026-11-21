@@ -11,6 +11,7 @@ import {
 } from '@/core/history/commands';
 import { applyFullMapHistoryEntry, applyTilesHistoryEntry } from '@/core/history/TileHistory';
 import { recomputeEffectiveRect } from '@/core/maps/adjustments';
+import type { SerializedMapLayer } from '@/core/maps/MapBuffer';
 import { mapRegistry } from '@/core/maps/MapRegistry';
 import type { MapId, MapSourceMeta } from '@/core/types';
 import { createTranslator, type TranslationKey, type TranslationParams } from '@/i18n';
@@ -68,6 +69,8 @@ export function formatHistoryMeta(meta: HistoryMeta, t: TranslateFn): string {
       return t('history.smoothMap', { map: mapName });
     case 'importMap':
       return t('history.importMap', { map: mapName });
+    case 'layerChange':
+      return t('history.layerChange', { map: mapName });
     case 'adjustment':
       return t('history.adjustment', { map: mapName });
     case 'resetAdjustments':
@@ -98,13 +101,17 @@ export function recordTileHistory(entry: NewHistoryEntry<TilesMapHistoryEntry>):
 
 export function recordFullMapHistory(params: {
   mapId: MapId;
-  action: 'smoothMap' | 'importMap';
+  action: 'smoothMap' | 'importMap' | 'layerChange';
   workingBefore: PixelTypedArray;
   workingAfter: PixelTypedArray;
   baseBefore?: PixelTypedArray;
   baseAfter?: PixelTypedArray;
   sourceBefore?: MapSourceMeta | null;
   sourceAfter?: MapSourceMeta | null;
+  layersBefore?: readonly SerializedMapLayer[];
+  layersAfter?: readonly SerializedMapLayer[];
+  activeLayerIdBefore?: string;
+  activeLayerIdAfter?: string;
 }): void {
   useHistoryStore.getState().pushMapEntry(params.mapId, {
     kind: 'full',
@@ -119,6 +126,10 @@ export function recordFullMapHistory(params: {
     baseAfter: params.baseAfter,
     sourceBefore: params.sourceBefore,
     sourceAfter: params.sourceAfter,
+    layersBefore: params.layersBefore,
+    layersAfter: params.layersAfter,
+    activeLayerIdBefore: params.activeLayerIdBefore,
+    activeLayerIdAfter: params.activeLayerIdAfter,
     byteSize: estimateFullMapEntryBytes(
       params.workingBefore,
       params.workingAfter,

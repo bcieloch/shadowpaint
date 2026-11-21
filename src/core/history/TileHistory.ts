@@ -48,7 +48,33 @@ export function writeTilePixels(
   }
 }
 
-export function arraysEqual(a: PixelTypedArray, b: PixelTypedArray): boolean {
+function extractMaskTilePixels(src: Uint8Array, width: number, rect: Rect): Uint8Array {
+  const out = new Uint8Array(rect.w * rect.h);
+  for (let row = 0; row < rect.h; row++) {
+    const srcStart = (rect.y + row) * width + rect.x;
+    const dstStart = row * rect.w;
+    out.set(src.subarray(srcStart, srcStart + rect.w), dstStart);
+  }
+  return out;
+}
+
+function writeMaskTilePixels(
+  dst: Uint8Array,
+  width: number,
+  rect: Rect,
+  tileMask: Uint8Array,
+): void {
+  for (let row = 0; row < rect.h; row++) {
+    const srcStart = row * rect.w;
+    const dstStart = (rect.y + row) * width + rect.x;
+    dst.set(tileMask.subarray(srcStart, srcStart + rect.w), dstStart);
+  }
+}
+
+export function arraysEqual(
+  a: PixelTypedArray | Uint8Array,
+  b: PixelTypedArray | Uint8Array,
+): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) return false;
@@ -64,11 +90,13 @@ interface CapturedTileBefore {
   w: number;
   h: number;
   before: PixelTypedArray;
+  maskBefore?: Uint8Array;
 }
 
 export class TileHistoryTransaction {
   readonly mapId: MapId;
   readonly layer: 'working' | 'base';
+  readonly targetLayerId: string;
   readonly action: HistoryActionKind;
   readonly tileSize: number;
 
@@ -87,7 +115,20 @@ export class TileHistoryTransaction {
     this.mapId = mapId;
     this.action = action;
     this.layer = layer;
+    this.targetLayerId = registry.isAllocated ? registry.getMap(mapId).activeLayerId : 'layer-1';
     this.tileSize = Math.max(1, Math.floor(tileSize));
+  }
+
+  private getTargetBuffers(): { data: PixelTypedArray; mask?: Uint8Array } {
+    const mapBuf = this.registry.getMap(this.mapId);
+    if (this.layer === 'base') {
+      return { data: mapBuf.base as PixelTypedArray };
+    }
+    const targetLayer = mapBuf.getLayerById(this.targetLayerId) ?? mapBuf.activeLayer;
+    return {
+      data: targetLayer.data as PixelTypedArray,
+      mask: targetLayer.mask,
+    };
   }
 
   ensureTilesForRect(rect: Rect): void {
@@ -100,7 +141,7 @@ export class TileHistoryTransaction {
     const width = this.registry.width;
     const height = this.registry.height;
     const channels: 1 | 4 = this.mapId === 'color' ? 4 : 1;
-    const buf = this.registry.getMap(this.mapId)[this.layer] as PixelTypedArray;
+    const { data: buf, mask } = this.getTargetBuffers();
 
     const tx0 = Math.floor(clamped.x / this.tileSize);
     const ty0 = Math.floor(clamped.y / this.tileSize);
@@ -117,7 +158,8 @@ export class TileHistoryTransaction {
         const w = Math.min(this.tileSize, width - x);
         const h = Math.min(this.tileSize, height - y);
         const before = extractTilePixels(buf, width, channels, { x, y, w, h }, this.mapId);
-        this.tilesBefore.set(key, { tx, ty, x, y, w, h, before });
+        const maskBefore = mask ? extractMaskTilePixels(mask, width, { x, y, w, h }) : undefined;
+        this.tilesBefore.set(key, { tx, ty, x, y, w, h, before, maskBefore });
       }
     }
   }
@@ -131,18 +173,18 @@ export class TileHistoryTransaction {
 
     const width = this.registry.width;
     const channels: 1 | 4 = this.mapId === 'color' ? 4 : 1;
-    const buf = this.registry.getMap(this.mapId)[this.layer] as PixelTypedArray;
+    const { data: buf, mask } = this.getTargetBuffers();
     const changedTiles: PixelTileSnapshot[] = [];
 
     for (const captured of this.tilesBefore.values()) {
-      const after = extractTilePixels(
-        buf,
-        width,
-        channels,
-        { x: captured.x, y: captured.y, w: captured.w, h: captured.h },
-        this.mapId,
-      );
-      if (arraysEqual(captured.before, after)) {
+      const tileRect = { x: captured.x, y: captured.y, w: captured.w, h: captured.h };
+      const after = extractTilePixels(buf, width, channels, tileRect, this.mapId);
+      const maskAfter =
+        mask && captured.maskBefore ? extractMaskTilePixels(mask, width, tileRect) : undefined;
+      const dataUnchanged = arraysEqual(captured.before, after);
+      const maskUnchanged =
+        !captured.maskBefore || !maskAfter || arraysEqual(captured.maskBefore, maskAfter);
+      if (dataUnchanged && maskUnchanged) {
         continue;
       }
       changedTiles.push({
@@ -154,6 +196,8 @@ export class TileHistoryTransaction {
         h: captured.h,
         before: captured.before,
         after,
+        maskBefore: captured.maskBefore,
+        maskAfter,
       });
     }
 
@@ -169,6 +213,7 @@ export class TileHistoryTransaction {
       kind: 'tiles',
       mapId: this.mapId,
       layer: this.layer,
+      targetLayerId: this.targetLayerId,
       meta: {
         action: this.action,
         mapId: this.mapId,
@@ -188,15 +233,13 @@ export class TileHistoryTransaction {
 
     const width = this.registry.width;
     const channels: 1 | 4 = this.mapId === 'color' ? 4 : 1;
-    const buf = this.registry.getMap(this.mapId)[this.layer] as PixelTypedArray;
+    const { data: buf, mask } = this.getTargetBuffers();
     for (const tile of this.tilesBefore.values()) {
-      writeTilePixels(
-        buf,
-        width,
-        channels,
-        { x: tile.x, y: tile.y, w: tile.w, h: tile.h },
-        tile.before,
-      );
+      const tileRect = { x: tile.x, y: tile.y, w: tile.w, h: tile.h };
+      writeTilePixels(buf, width, channels, tileRect, tile.before);
+      if (mask && tile.maskBefore) {
+        writeMaskTilePixels(mask, width, tileRect, tile.maskBefore);
+      }
     }
 
     const dirty = this.dirtyBounds
@@ -215,11 +258,22 @@ export function applyTilesHistoryEntry(
 ): Rect {
   const width = registry.width;
   const channels: 1 | 4 = entry.mapId === 'color' ? 4 : 1;
-  const target = registry.getMap(entry.mapId)[entry.layer] as PixelTypedArray;
+  const mapBuf = registry.getMap(entry.mapId);
+  const targetLayer =
+    entry.layer === 'working' && entry.targetLayerId
+      ? (mapBuf.getLayerById(entry.targetLayerId) ?? mapBuf.activeLayer)
+      : mapBuf.activeLayer;
+  const target = (entry.layer === 'base' ? mapBuf.base : targetLayer.data) as PixelTypedArray;
+  const targetMask = entry.layer === 'working' ? targetLayer.mask : undefined;
 
   for (const tile of entry.tiles) {
+    const tileRect = { x: tile.x, y: tile.y, w: tile.w, h: tile.h };
     const data = direction === 'undo' ? tile.before : tile.after;
-    writeTilePixels(target, width, channels, { x: tile.x, y: tile.y, w: tile.w, h: tile.h }, data);
+    writeTilePixels(target, width, channels, tileRect, data);
+    const maskData = direction === 'undo' ? tile.maskBefore : tile.maskAfter;
+    if (targetMask && maskData) {
+      writeMaskTilePixels(targetMask, width, tileRect, maskData);
+    }
   }
 
   return clampRect(entry.dirtyRect, registry.width, registry.height);
@@ -231,8 +285,18 @@ export function applyFullMapHistoryEntry(
   direction: 'undo' | 'redo',
 ): void {
   const mapBuffer = registry.getMap(entry.mapId);
-  const workingSrc = direction === 'undo' ? entry.workingBefore : entry.workingAfter;
-  mapBuffer.replaceWorking(workingSrc as never);
+  const layersSnap = direction === 'undo' ? entry.layersBefore : entry.layersAfter;
+  const activeLayerSnap =
+    direction === 'undo' ? entry.activeLayerIdBefore : entry.activeLayerIdAfter;
+  if (layersSnap && layersSnap.length > 0) {
+    mapBuffer.restoreLayers(layersSnap as never, activeLayerSnap);
+  } else {
+    const workingSrc = direction === 'undo' ? entry.workingBefore : entry.workingAfter;
+    const targetLayer = entry.targetLayerId
+      ? (mapBuffer.getLayerById(entry.targetLayerId) ?? mapBuffer.activeLayer)
+      : mapBuffer.activeLayer;
+    targetLayer.data.set(workingSrc as never);
+  }
 
   const baseSrc = direction === 'undo' ? entry.baseBefore : entry.baseAfter;
   if (baseSrc) {

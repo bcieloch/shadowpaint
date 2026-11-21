@@ -138,11 +138,11 @@ export async function resizeProject(
 
   try {
     colorBaseCopy = new Uint8ClampedArray(mapRegistry.color.base);
-    colorWorkingCopy = new Uint8ClampedArray(mapRegistry.color.working);
+    colorWorkingCopy = new Uint8ClampedArray(mapRegistry.color.getCompositeBuffer());
     heightBaseCopy = new Float32Array(mapRegistry.heightMap.base);
-    heightWorkingCopy = new Float32Array(mapRegistry.heightMap.working);
+    heightWorkingCopy = new Float32Array(mapRegistry.heightMap.getCompositeBuffer());
     opacityBaseCopy = new Float32Array(mapRegistry.opacity.base);
-    opacityWorkingCopy = new Float32Array(mapRegistry.opacity.working);
+    opacityWorkingCopy = new Float32Array(mapRegistry.opacity.getCompositeBuffer());
     selectionCopy = new Uint8Array(mapRegistry.selection);
   } catch (err) {
     if (err instanceof RangeError) {

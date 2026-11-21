@@ -180,7 +180,7 @@ export async function recomputeEffectiveMap(mapId: MapId): Promise<void> {
 
   if (mapId === 'color') {
     const out = await computeEffectiveColorParallel(
-      mapRegistry.color.working,
+      mapRegistry.color.getCompositeBuffer(),
       width,
       height,
       project.adjustments.color,
@@ -197,7 +197,7 @@ export async function recomputeEffectiveMap(mapId: MapId): Promise<void> {
 
   if (mapId === 'height') {
     const out = await computeEffectiveHeightParallel(
-      mapRegistry.heightMap.working,
+      mapRegistry.heightMap.getCompositeBuffer(),
       width,
       height,
       project.adjustments.height,
@@ -213,7 +213,7 @@ export async function recomputeEffectiveMap(mapId: MapId): Promise<void> {
   }
 
   const out = await computeEffectiveOpacityParallel(
-    mapRegistry.opacity.working,
+    mapRegistry.opacity.getCompositeBuffer(),
     width,
     height,
     project.adjustments.opacity,
@@ -283,11 +283,12 @@ export async function smoothFloatMap(mapId: 'height' | 'opacity', radiusPx: numb
   );
 
   const workingAfter = new Float32Array(smoothed);
-  buf.replaceWorking(smoothed);
+  buf.activeLayer.data.set(smoothed);
   mapRegistry.dirtyTiles.clearMap(mapId);
   useHistoryStore.getState().pushMapEntry(mapId, {
     kind: 'full',
     mapId,
+    targetLayerId: buf.activeLayerId,
     meta: { action: 'smoothMap', mapId },
     workingBefore,
     workingAfter,

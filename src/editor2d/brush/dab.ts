@@ -89,11 +89,69 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
     const buf = registry.color;
     const working = buf.working;
     const base = buf.base;
+    const layerMask = buf.activeMask;
+    const isOverlay = buf.isOverlayLayerActive;
     const target = config.targetColorRgb ?? [255, 255, 255];
     const tr = target[0];
     const tg = target[1];
     const tb = target[2];
     const isEraser = config.kind === 'eraser';
+
+    const applyColorPixel = (pxIdx: number, alpha: number) => {
+      const idx = pxIdx * 4;
+      if (isOverlay) {
+        if (isEraser) {
+          const prevM = layerMask[pxIdx] ?? 0;
+          if (prevM > 0) {
+            const nextM = Math.round(prevM * (1 - alpha));
+            layerMask[pxIdx] = nextM;
+            working[idx + 3] = nextM;
+          }
+          return;
+        }
+        const prevCov = (layerMask[pxIdx] ?? 0) / 255;
+        const nextCov = prevCov + alpha * (1 - prevCov);
+        const w = prevCov <= 0 ? 1 : Math.min(1, alpha / nextCov);
+        const wr = working[idx] as number;
+        const wg = working[idx + 1] as number;
+        const wb = working[idx + 2] as number;
+        working[idx] = Math.round(wr + (tr - wr) * w);
+        working[idx + 1] = Math.round(wg + (tg - wg) * w);
+        working[idx + 2] = Math.round(wb + (tb - wb) * w);
+        const nextM = Math.max(1, Math.min(255, Math.round(nextCov * 255)));
+        layerMask[pxIdx] = nextM;
+        working[idx + 3] = nextM;
+        return;
+      }
+
+      if (isEraser) {
+        const br = base[idx] as number;
+        const bg = base[idx + 1] as number;
+        const bb = base[idx + 2] as number;
+        const ba = base[idx + 3] as number;
+        const wr = working[idx] as number;
+        const wg = working[idx + 1] as number;
+        const wb = working[idx + 2] as number;
+        const wa = working[idx + 3] as number;
+        working[idx] = Math.round(wr + (br - wr) * alpha);
+        working[idx + 1] = Math.round(wg + (bg - wg) * alpha);
+        working[idx + 2] = Math.round(wb + (bb - wb) * alpha);
+        working[idx + 3] = Math.round(wa + (ba - wa) * alpha);
+      } else if (alpha >= 1) {
+        working[idx] = tr;
+        working[idx + 1] = tg;
+        working[idx + 2] = tb;
+        working[idx + 3] = 255;
+      } else {
+        const wr = working[idx] as number;
+        const wg = working[idx + 1] as number;
+        const wb = working[idx + 2] as number;
+        working[idx] = Math.round(wr + (tr - wr) * alpha);
+        working[idx + 1] = Math.round(wg + (tg - wg) * alpha);
+        working[idx + 2] = Math.round(wb + (tb - wb) * alpha);
+        working[idx + 3] = 255;
+      }
+    };
 
     if (isSinglePixelBrush) {
       if (singlePxX >= x0 && singlePxX < x1 && singlePxY >= y0 && singlePxY < y1) {
@@ -101,33 +159,7 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
         const maskWeight =
           hasMask && maskData ? getSelectionMaskWeight(maskData, pxIdx, maskMode, true) : 1;
         if (maskWeight > 0) {
-          const alpha = Math.min(1, flow * maskWeight);
-          const idx = pxIdx * 4;
-          if (isEraser) {
-            const br = base[idx] as number;
-            const bg = base[idx + 1] as number;
-            const bb = base[idx + 2] as number;
-            const ba = base[idx + 3] as number;
-            working[idx] = Math.round((working[idx] as number) + (br - (working[idx] as number)) * alpha);
-            working[idx + 1] = Math.round(
-              (working[idx + 1] as number) + (bg - (working[idx + 1] as number)) * alpha,
-            );
-            working[idx + 2] = Math.round(
-              (working[idx + 2] as number) + (bb - (working[idx + 2] as number)) * alpha,
-            );
-            working[idx + 3] = Math.round(
-              (working[idx + 3] as number) + (ba - (working[idx + 3] as number)) * alpha,
-            );
-          } else {
-            working[idx] = Math.round((working[idx] as number) + (tr - (working[idx] as number)) * alpha);
-            working[idx + 1] = Math.round(
-              (working[idx + 1] as number) + (tg - (working[idx + 1] as number)) * alpha,
-            );
-            working[idx + 2] = Math.round(
-              (working[idx + 2] as number) + (tb - (working[idx + 2] as number)) * alpha,
-            );
-            working[idx + 3] = 255;
-          }
+          applyColorPixel(pxIdx, Math.min(1, flow * maskWeight));
         }
       }
       return bounds;
@@ -165,34 +197,7 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
         const alpha = falloff * flow * maskWeight;
         if (alpha <= 0) continue;
 
-        const idx = pxIdx * 4;
-        if (isEraser) {
-          const br = base[idx] as number;
-          const bg = base[idx + 1] as number;
-          const bb = base[idx + 2] as number;
-          const ba = base[idx + 3] as number;
-          const wr = working[idx] as number;
-          const wg = working[idx + 1] as number;
-          const wb = working[idx + 2] as number;
-          const wa = working[idx + 3] as number;
-          working[idx] = Math.round(wr + (br - wr) * alpha);
-          working[idx + 1] = Math.round(wg + (bg - wg) * alpha);
-          working[idx + 2] = Math.round(wb + (bb - wb) * alpha);
-          working[idx + 3] = Math.round(wa + (ba - wa) * alpha);
-        } else if (alpha >= 1) {
-          working[idx] = tr;
-          working[idx + 1] = tg;
-          working[idx + 2] = tb;
-          working[idx + 3] = 255;
-        } else {
-          const wr = working[idx] as number;
-          const wg = working[idx + 1] as number;
-          const wb = working[idx + 2] as number;
-          working[idx] = Math.round(wr + (tr - wr) * alpha);
-          working[idx + 1] = Math.round(wg + (tg - wg) * alpha);
-          working[idx + 2] = Math.round(wb + (tb - wb) * alpha);
-          working[idx + 3] = 255;
-        }
+        applyColorPixel(pxIdx, alpha);
       }
     }
 
@@ -202,10 +207,54 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
   const buf = registry.getMap(config.mapId);
   const working = buf.working as Float32Array;
   const base = buf.base as Float32Array;
+  const layerMask = buf.activeMask;
+  const isOverlay = buf.isOverlayLayerActive;
   const targetVal = clamp01(config.targetValue ?? 0);
   const step = config.raiseLowerStep ?? DEFAULT_RAISE_LOWER_STEP;
   const isEraser = config.kind === 'eraser';
   const mode = config.mode;
+
+  const applyScalarPixel = (idx: number, alpha: number) => {
+    if (isOverlay) {
+      if (isEraser) {
+        const prevM = layerMask[idx] ?? 0;
+        if (prevM > 0) {
+          layerMask[idx] = Math.round(prevM * (1 - alpha));
+        }
+        return;
+      }
+      const prevCov = (layerMask[idx] ?? 0) / 255;
+      const nextCov = prevCov + alpha * (1 - prevCov);
+      const cur = prevCov > 0 ? (working[idx] as number) : buf.getUnderlyingValueAt(idx);
+      let nextVal: number;
+      if (mode === 'raise') {
+        nextVal = cur + alpha * step;
+        layerMask[idx] = 255;
+      } else if (mode === 'lower') {
+        nextVal = cur - alpha * step;
+        layerMask[idx] = 255;
+      } else {
+        const w = prevCov <= 0 ? 1 : Math.min(1, alpha / nextCov);
+        nextVal = cur + (targetVal - cur) * w;
+        layerMask[idx] = Math.max(1, Math.min(255, Math.round(nextCov * 255)));
+      }
+      working[idx] = nextVal < 0 ? 0 : nextVal > 1 ? 1 : nextVal;
+      return;
+    }
+
+    const cur = working[idx] as number;
+    let nextVal: number;
+    if (isEraser) {
+      nextVal = cur + ((base[idx] as number) - cur) * alpha;
+    } else if (mode === 'raise') {
+      nextVal = cur + alpha * step;
+    } else if (mode === 'lower') {
+      nextVal = cur - alpha * step;
+    } else {
+      nextVal = alpha >= 1 ? targetVal : cur + (targetVal - cur) * alpha;
+    }
+    working[idx] = nextVal < 0 ? 0 : nextVal > 1 ? 1 : nextVal;
+  };
 
   if (isSinglePixelBrush) {
     if (singlePxX >= x0 && singlePxX < x1 && singlePxY >= y0 && singlePxY < y1) {
@@ -213,17 +262,7 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
       const maskWeight =
         hasMask && maskData ? getSelectionMaskWeight(maskData, idx, maskMode, true) : 1;
       if (maskWeight > 0) {
-        const alpha = Math.min(1, flow * maskWeight);
-        const cur = working[idx] as number;
-        if (isEraser) {
-          working[idx] = clamp01(cur + ((base[idx] as number) - cur) * alpha);
-        } else if (mode === 'raise') {
-          working[idx] = clamp01(cur + alpha * step);
-        } else if (mode === 'lower') {
-          working[idx] = clamp01(cur - alpha * step);
-        } else {
-          working[idx] = clamp01(cur + (targetVal - cur) * alpha);
-        }
+        applyScalarPixel(idx, Math.min(1, flow * maskWeight));
       }
     }
     return bounds;
@@ -261,18 +300,7 @@ export function stampDab(registry: MapRegistry, config: BrushDabConfig): Rect | 
       const alpha = falloff * flow * maskWeight;
       if (alpha <= 0) continue;
 
-      const cur = working[idx] as number;
-      let nextVal: number;
-      if (isEraser) {
-        nextVal = cur + ((base[idx] as number) - cur) * alpha;
-      } else if (mode === 'raise') {
-        nextVal = cur + alpha * step;
-      } else if (mode === 'lower') {
-        nextVal = cur - alpha * step;
-      } else {
-        nextVal = alpha >= 1 ? targetVal : cur + (targetVal - cur) * alpha;
-      }
-      working[idx] = nextVal < 0 ? 0 : nextVal > 1 ? 1 : nextVal;
+      applyScalarPixel(idx, alpha);
     }
   }
 

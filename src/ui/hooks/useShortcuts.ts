@@ -13,7 +13,13 @@ import type { PointerRouter } from '@/editor2d/input/PointerRouter';
 import { zoomAtPoint, type ViewportSize } from '@/editor2d/viewTransform';
 import { exportPackage } from '@/services/exportService';
 import { saveProjectRelief, triggerOpenProjectDialog } from '@/services/fileService';
-import { recordSettingsPatchHistory, redoGlobal, undoActiveMap, undoGlobal } from '@/services/historyService';
+import {
+  recordSettingsPatchHistory,
+  redoGlobal,
+  undoActiveMap,
+  undoGlobal,
+} from '@/services/historyService';
+import { addLayerToMap, duplicateLayerOnMap, mergeLayerDownOnMap } from '@/services/layerService';
 import { clearSelection, invertSelection, selectAllSelection } from '@/services/selectionService';
 import { useEditorStore } from '@/state/editorStore';
 import { useProjectStore } from '@/state/projectStore';
@@ -226,6 +232,21 @@ export function useShortcuts({
       if (match('invertSelection')) {
         e.preventDefault();
         invertSelection();
+        return;
+      }
+      if (match('layerAdd')) {
+        e.preventDefault();
+        addLayerToMap(editor.activeMap);
+        return;
+      }
+      if (match('layerDuplicate')) {
+        e.preventDefault();
+        duplicateLayerOnMap(editor.activeMap);
+        return;
+      }
+      if (match('layerMergeDown')) {
+        e.preventDefault();
+        mergeLayerDownOnMap(editor.activeMap);
         return;
       }
       if (match('toggleRulers')) {

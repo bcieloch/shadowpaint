@@ -7,7 +7,10 @@ export class FillTool implements Tool {
   onDown(e: ToolPointerEvent, ctx: ToolContext): void {
     const project = ctx.getProject();
     const { activeMap } = ctx.getEditor();
-    if (project.maps[activeMap].locked) {
+    if (
+      project.maps[activeMap].locked ||
+      (ctx.registry.isAllocated && ctx.registry.getMap(activeMap).activeLayer.locked)
+    ) {
       ctx.onLockedMapAttempt(activeMap);
       return;
     }

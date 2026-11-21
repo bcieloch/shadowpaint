@@ -113,7 +113,15 @@ export const TUTORIAL_STEPS: readonly TutorialStepDef[] = [
 export const FEATURE_GUIDE_SECTIONS: readonly FeatureGuideSectionDef[] = [
   {
     id: 'mapsAndImport',
-    shortcutIds: ['fileImport', 'activeMap', 'activeMapHeight', 'activeMapOpacity'],
+    shortcutIds: [
+      'fileImport',
+      'activeMap',
+      'activeMapHeight',
+      'activeMapOpacity',
+      'layerAdd',
+      'layerDuplicate',
+      'layerMergeDown',
+    ],
   },
   {
     id: 'paintingAndMasking',

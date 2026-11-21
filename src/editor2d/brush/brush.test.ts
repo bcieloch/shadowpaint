@@ -227,6 +227,47 @@ describe('brush dab, stroke, and tools', () => {
     expect(registry.heightMap.effective[16 * 32 + 16]).toBeCloseTo(0.25, 5);
   });
 
+  it('paints and erases non-destructively on overlay layers via stampDab', () => {
+    const registry = new MapRegistry();
+    registry.allocate(8, 8);
+
+    const hBuf = registry.heightMap;
+    hBuf.working.fill(0.2);
+
+    const overlay = hBuf.addLayer({ name: 'Overlay' });
+    expect(hBuf.activeLayerId).toBe(overlay.id);
+
+    stampDab(registry, {
+      kind: 'brush',
+      mapId: 'height',
+      cx: 4,
+      cy: 4,
+      radiusPx: 2,
+      hardness: 1,
+      flow: 1,
+      mode: 'set',
+      targetValue: 0.8,
+    });
+
+    const centerIdx = 4 * 8 + 4;
+    expect(hBuf.activeMask[centerIdx]).toBe(255);
+    expect(hBuf.getCompositeBuffer()[centerIdx]).toBeCloseTo(0.8, 4);
+
+    stampDab(registry, {
+      kind: 'eraser',
+      mapId: 'height',
+      cx: 4,
+      cy: 4,
+      radiusPx: 2,
+      hardness: 1,
+      flow: 1,
+      mode: 'set',
+    });
+
+    expect(hBuf.activeMask[centerIdx]).toBe(0);
+    expect(hBuf.getCompositeBuffer()[centerIdx]).toBeCloseTo(0.2, 4);
+  });
+
   it('does not edit a locked map and invokes onLockedMapAttempt', () => {
     const registry = new MapRegistry();
     registry.allocate(32, 32, { height: 0.1 });
