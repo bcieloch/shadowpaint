@@ -1,10 +1,5 @@
 export type ShortcutCategoryId =
-  | 'tools'
-  | 'brush'
-  | 'mapsAndSelection'
-  | 'view'
-  | 'files'
-  | 'history';
+  'tools' | 'brush' | 'mapsAndSelection' | 'view' | 'files' | 'history';
 
 export type ShortcutItemId =
   | 'toolBrush'
@@ -32,6 +27,9 @@ export type ShortcutItemId =
   | 'activeMap'
   | 'activeMapHeight'
   | 'activeMapOpacity'
+  | 'layerAdd'
+  | 'layerDuplicate'
+  | 'layerMergeDown'
   | 'selectAll'
   | 'clearSelection'
   | 'invertSelection'
@@ -113,6 +111,9 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroupDef[] = [
       { id: 'activeMap', keys: ['1'], customizable: true },
       { id: 'activeMapHeight', keys: ['2'], customizable: true },
       { id: 'activeMapOpacity', keys: ['3'], customizable: true },
+      { id: 'layerAdd', keys: ['Alt', 'Shift', 'N'], customizable: true },
+      { id: 'layerDuplicate', keys: ['Alt', 'Shift', 'D'], customizable: true },
+      { id: 'layerMergeDown', keys: ['Alt', 'Shift', 'E'], customizable: true },
       { id: 'selectAll', keys: ['Ctrl', 'A'], customizable: true },
       { id: 'clearSelection', keys: ['Ctrl', 'D'], customizable: true },
       { id: 'invertSelection', keys: ['Ctrl', 'Shift', 'I'], customizable: true },
@@ -122,7 +123,12 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroupDef[] = [
     id: 'history',
     items: [
       { id: 'historyUndo', keys: ['Ctrl', 'Z'], customizable: true },
-      { id: 'historyRedo', keys: ['Ctrl', 'Shift', 'Z'], altKeys: ['Ctrl', 'Y'], customizable: true },
+      {
+        id: 'historyRedo',
+        keys: ['Ctrl', 'Shift', 'Z'],
+        altKeys: ['Ctrl', 'Y'],
+        customizable: true,
+      },
       { id: 'historyUndoMap', keys: ['Ctrl', 'Alt', 'Z'], customizable: true },
     ],
   },
@@ -209,7 +215,10 @@ export function isShortcutCustomized(
 }
 
 export function serializeShortcutTokens(tokens: readonly string[]): string {
-  return tokens.map((t) => t.trim()).filter(Boolean).join('+');
+  return tokens
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .join('+');
 }
 
 export function sanitizeCustomShortcutBindings(raw: unknown): CustomShortcutBindings {
@@ -392,9 +401,7 @@ export function matchesShortcutItem(
 }
 
 export function isMacPlatform(platform?: string): boolean {
-  const value =
-    platform ??
-    (typeof navigator !== 'undefined' ? navigator.platform : '');
+  const value = platform ?? (typeof navigator !== 'undefined' ? navigator.platform : '');
   return /Mac|iPhone|iPad|iPod/i.test(value);
 }
 

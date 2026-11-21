@@ -1,3 +1,4 @@
+import type { SerializedMapLayer } from '@/core/maps/MapBuffer';
 import type {
   CanvasSettings,
   ColorAdjustments,
@@ -29,6 +30,7 @@ export type HistoryActionKind =
   | 'floodFill'
   | 'smoothMap'
   | 'importMap'
+  | 'layerChange'
   | 'adjustment'
   | 'resetAdjustments'
   | 'settingsChange'
@@ -56,6 +58,8 @@ export interface PixelTileSnapshot {
   h: number;
   before: PixelTypedArray;
   after: PixelTypedArray;
+  maskBefore?: Uint8Array;
+  maskAfter?: Uint8Array;
 }
 
 export interface TilesMapHistoryEntry {
@@ -63,6 +67,7 @@ export interface TilesMapHistoryEntry {
   seq: number;
   mapId: MapId;
   layer: 'working' | 'base';
+  targetLayerId?: string;
   meta: HistoryMeta;
   tiles: PixelTileSnapshot[];
   dirtyRect: Rect;
@@ -73,6 +78,7 @@ export interface FullMapHistoryEntry {
   kind: 'full';
   seq: number;
   mapId: MapId;
+  targetLayerId?: string;
   meta: HistoryMeta;
   workingBefore: PixelTypedArray;
   workingAfter: PixelTypedArray;
@@ -80,6 +86,10 @@ export interface FullMapHistoryEntry {
   baseAfter?: PixelTypedArray;
   sourceBefore?: MapSourceMeta | null;
   sourceAfter?: MapSourceMeta | null;
+  layersBefore?: readonly SerializedMapLayer[];
+  layersAfter?: readonly SerializedMapLayer[];
+  activeLayerIdBefore?: string;
+  activeLayerIdAfter?: string;
   byteSize: number;
 }
 
@@ -166,7 +176,12 @@ export type NewHistoryEntry<T extends HistoryEntry> = T extends unknown ? Omit<T
 export function estimateTileSnapshotsBytes(tiles: readonly PixelTileSnapshot[]): number {
   let total = 0;
   for (const tile of tiles) {
-    total += tile.before.byteLength + tile.after.byteLength + 64;
+    total +=
+      tile.before.byteLength +
+      tile.after.byteLength +
+      (tile.maskBefore?.byteLength ?? 0) +
+      (tile.maskAfter?.byteLength ?? 0) +
+      64;
   }
   return total;
 }

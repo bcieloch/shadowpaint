@@ -105,6 +105,7 @@ export const en = {
     importMap: 'Import ({map})',
     adjustment: 'Adjustments ({map})',
     resetAdjustments: 'Reset adjustments ({map})',
+    layerChange: 'Layer edit ({map})',
     settingsChange: 'Project settings',
     selectShape: 'Shape selection',
     selectWand: 'Magic wand selection',
@@ -175,6 +176,37 @@ export const en = {
     lockedWarningColor: 'Color Map is locked — unlock it to edit.',
     lockedWarningHeight: 'Height Map is locked — unlock it to edit.',
     lockedWarningOpacity: 'Opacity Map is locked — unlock it to edit.',
+    layersTitle: 'Layers — {map}',
+    layerCountBadge: '{count}L',
+    defaultLayerName: 'Layer {index}',
+    duplicateLayerName: '{name} Copy',
+    addLayer: 'Add layer',
+    addLayerTooltip: 'Add new layer above active layer (Alt+Shift+N)',
+    duplicateLayer: 'Duplicate layer',
+    duplicateLayerTooltip: 'Duplicate active layer (Alt+Shift+D)',
+    mergeDown: 'Merge down',
+    mergeDownTooltip: 'Merge active layer into the layer below (Alt+Shift+E)',
+    flattenLayers: 'Flatten',
+    flattenLayersTooltip: 'Flatten all visible layers into a single layer',
+    clearLayer: 'Clear layer',
+    clearLayerTooltip: 'Clear active layer content',
+    deleteLayer: 'Delete layer',
+    showLayer: 'Show layer',
+    hideLayer: 'Hide layer',
+    lockLayer: 'Lock layer',
+    unlockLayer: 'Unlock layer',
+    moveLayerUp: 'Move layer up',
+    moveLayerDown: 'Move layer down',
+    renameLayer: 'Rename layer',
+    layerOpacity: 'Opacity',
+    blendMode: 'Blend',
+    blendNormal: 'Normal',
+    blendAdd: 'Add (+)',
+    blendSubtract: 'Subtract (−)',
+    blendMultiply: 'Multiply (×)',
+    blendMax: 'Max (Lighten)',
+    blendMin: 'Min (Darken)',
+    baseLayerBadge: 'Base',
   },
   tools: {
     sectionTitle: 'Tools',
@@ -626,7 +658,8 @@ export const en = {
     openFailedError: 'Could not open "{file}": {message}',
     saveFailedError: 'Could not save project: {message}',
     confirmUnsavedTitle: 'Unsaved changes',
-    confirmUnsavedDescription: 'Current project has unsaved changes. Opening "{file}" will discard them.',
+    confirmUnsavedDescription:
+      'Current project has unsaved changes. Opening "{file}" will discard them.',
     confirmUnsavedAction: 'Discard & Open',
   },
   recentProjects: {
@@ -656,7 +689,8 @@ export const en = {
     resetAll: 'Reset all to defaults',
     customizedBadge: 'Custom',
     fixedBadge: 'Fixed',
-    conflictError: '"{combo}" is already assigned to "{action}". Choose another key or reset it first.',
+    conflictError:
+      '"{combo}" is already assigned to "{action}". Choose another key or reset it first.',
     updatedToast: 'Bound "{action}" to {combo}',
     resetAllToast: 'All keyboard shortcuts restored to default bindings.',
     categories: {
@@ -693,6 +727,9 @@ export const en = {
       activeMap: 'Activate Color map',
       activeMapHeight: 'Activate Height map',
       activeMapOpacity: 'Activate Opacity map',
+      layerAdd: 'Add new layer on active map',
+      layerDuplicate: 'Duplicate active layer',
+      layerMergeDown: 'Merge active layer down',
       selectAll: 'Select all',
       clearSelection: 'Clear selection',
       invertSelection: 'Invert selection',
@@ -745,12 +782,12 @@ export const en = {
         tryAction: 'Open Import Wizard',
       },
       mapsAndPainting: {
-        title: '2. Three Coupled Maps & Physical Brush Sculpting',
+        title: '2. Three Coupled Maps, Multi-Layer Stack & Brush Sculpting',
         summary:
-          'Paint simultaneously or independently across Color (sRGB), Height (physical thickness in mm), and Opacity (linear transmission %).',
+          'Paint across Color (sRGB), Height (physical thickness in mm), and Opacity (linear transmission %), with an independent multi-layer stack on every map.',
         details:
-          'Switch the active map with keys 1 (Color), 2 (Height), or 3 (Opacity), or lock maps to protect them. The Brush (B) works in physical mm on the Height map (with Set, Raise, and Lower impasto modes) and in linear % on the Opacity map. Use Smooth (S) for Laplace surface relaxation, Blur (R) for Gaussian transitions, Gradient (G), Flood Fill (F), or Eraser (E) to restore toward the imported base layer.',
-        tip: 'Switch the 2D viewport to Height Heatmap (Turbo) or Topographic contours to inspect millimeter thickness variations while sculpting.',
+          'Switch the active map with keys 1 (Color), 2 (Height), or 3 (Opacity). Each map supports multiple non-destructive layers: add layers (Alt+Shift+N), duplicate (Alt+Shift+D), merge down (Alt+Shift+E), flatten, reorder, lock, toggle visibility, adjust layer opacity (0–100%), and pick blend modes (Normal, Add, Subtract, Multiply, Max, Min). The Brush (B) works in physical mm on the Height map (Set, Raise, Lower) and in % on the Opacity map. Use Smooth (S), Blur (R), Gradient (G), Flood Fill (F), or Eraser (E).',
+        tip: 'Create a separate layer on the Height map with Add (+) or Max blend mode to sculpt fine impasto details without touching the underlying relief.',
         tryAction: 'Activate Brush on Height Map',
       },
       selectionAndAdjustments: {
@@ -776,7 +813,7 @@ export const en = {
         summary:
           'Measure physical distances in cm and slice a 2D/3D cross-section profile showing thickness (mm) and backlit transmission (%).',
         details:
-          'Enable the calibrated cm Grid (Ctrl+\') and edge Rulers (Ctrl+R) to align physical features. Use the Ruler tool (U) for point-to-point distance, Δx/Δy, and angle readouts. Select the Cross-Section tool (X) and drag across the canvas to plot an interactive millimeter profile and Beer-Lambert transmission curve in the Section tab, with synchronized 2D/3D hover markers and CSV export.',
+          "Enable the calibrated cm Grid (Ctrl+') and edge Rulers (Ctrl+R) to align physical features. Use the Ruler tool (U) for point-to-point distance, Δx/Δy, and angle readouts. Select the Cross-Section tool (X) and drag across the canvas to plot an interactive millimeter profile and Beer-Lambert transmission curve in the Section tab, with synchronized 2D/3D hover markers and CSV export.",
         tip: 'Hold Shift while dragging the Ruler (U), Cross-Section (X), or Gradient (G) tool to snap the angle in 15° increments.',
         tryAction: 'Activate Cross-Section & Section Tab',
       },
@@ -792,12 +829,12 @@ export const en = {
     },
     features: {
       mapsAndImport: {
-        title: 'Three Maps & Reference Import Wizard',
-        subtitle: 'Non-destructive base + working layers calibrated to physical units',
+        title: 'Three Maps, Multi-Layer Stack & Reference Import',
+        subtitle: 'Non-destructive multi-layer compositing calibrated to physical units',
         bullet1:
           'Color Map (sRGB), Height Map (physical relief thickness in mm, 0–50 mm), and Opacity Map (linear backlit transmission 0%–100%).',
         bullet2:
-          'Each map maintains a separate imported Base layer, painted Working layer, per-map Lock toggle, and independent per-map Undo (Ctrl+Alt+Z) alongside Global Undo/Redo (Ctrl+Z / Ctrl+Y).',
+          'Each map features an independent Multi-Layer stack (Add Alt+Shift+N, Duplicate Alt+Shift+D, Merge Down Alt+Shift+E, Flatten, Reorder, Rename, Visibility, Lock, 0–100% Opacity, and Normal / Add / Subtract / Multiply / Max / Min blend modes) plus per-map Undo (Ctrl+Alt+Z) and Global Undo/Redo (Ctrl+Z / Ctrl+Y).',
         bullet3:
           'Import Wizard (Ctrl+I) supports PNG, JPG/JPEG, and 8/16-bit TIFF with Fit, Fill, Stretch, 90° rotation, H/V flip, interactive zoom/pan framing, and side-by-side or difference overlay comparison.',
         bullet4:
@@ -809,7 +846,7 @@ export const en = {
         bullet1:
           'Brush (B) with px or physical cm sizing, hardness, flow, spacing, stylus pressure, and Height impasto modes: Set (target mm), Raise (+mm), and Lower (−mm).',
         bullet2:
-          'Eraser (E) restores toward the imported base layer; Smooth Brush (S) applies 4-neighbor Laplace surface relaxation; Blur Brush (R) applies local Gaussian smoothing (worker-accelerated for large radii).',
+          'Eraser (E) restores toward the imported base layer (or erases overlay layers to transparency); Smooth Brush (S) applies 4-neighbor Laplace surface relaxation; Blur Brush (R) applies local Gaussian smoothing (worker-accelerated for large radii).',
         bullet3:
           'Linear & Radial Gradient tool (G) and Flood Fill / Paint Bucket (F) with tolerance and contiguous toggles, plus Eyedropper (I) sampling effective Color, mm thickness, or % transmission.',
         bullet4:
@@ -833,7 +870,7 @@ export const en = {
         bullet1:
           'Bidirectional physical calibration between centimeters (cm), pixel resolution (px), scale (px/cm), and DPI, including non-destructive cm rescaling and atomic multi-layer pixel resampling.',
         bullet2:
-          'Synchronized 2D overlay grid and anti-aliased 3D shader grid (Ctrl+\') with configurable cm spacing, subdivisions, labels, and 2D centimeter edge rulers (Ctrl+R).',
+          "Synchronized 2D overlay grid and anti-aliased 3D shader grid (Ctrl+') with configurable cm spacing, subdivisions, labels, and 2D centimeter edge rulers (Ctrl+R).",
         bullet3:
           'Measurement Ruler tool (U) with draggable endpoints, 15° Shift-snapping, and live distance (cm & px), Δx, Δy, and angle readouts.',
         bullet4:
@@ -950,7 +987,8 @@ export const en = {
     gridSubtitle: 'Grid every {spacing} cm ({lastCol} × {lastRow})',
     gridColorCaption: '1 cm edge ticks · sRGB reference',
     gridHeightCaption: 'Contour step: {step} mm',
-    tileMeta: 'Tile {tileId} (Col {col}/{cols}, Row {row}/{rows}) · X: {x0}–{x1} cm · Y: {y0}–{y1} cm',
+    tileMeta:
+      'Tile {tileId} (Col {col}/{cols}, Row {row}/{rows}) · X: {x0}–{x1} cm · Y: {y0}–{y1} cm',
     tileOverlapNote: 'Scale 1:1 (1 cm = 10 mm) · Dashed blue seams mark 1 cm overlap margins',
     tileControlRulerLabel: '10 cm scale check — Print at 100% / Actual size',
     yes: 'Yes',

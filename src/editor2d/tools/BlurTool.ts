@@ -41,7 +41,10 @@ export class BlurTool implements Tool {
   onDown(e: ToolPointerEvent, ctx: ToolContext): void {
     const project = ctx.getProject();
     const { activeMap, brush, blurTool } = ctx.getEditor();
-    if (project.maps[activeMap].locked) {
+    if (
+      project.maps[activeMap].locked ||
+      (ctx.registry.isAllocated && ctx.registry.getMap(activeMap).activeLayer.locked)
+    ) {
       this.lockedWarned = true;
       ctx.onLockedMapAttempt(activeMap);
       return;

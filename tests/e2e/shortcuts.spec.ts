@@ -249,3 +249,57 @@ test('interactive tutorial & feature guide (F4) and customizable keyboard shortc
   await expect(page.getByTestId('shortcut-bind-toolBrush')).toContainText('B');
   await page.getByTestId('shortcuts-close').click();
 });
+
+test('per-map multi-layer stack: add, duplicate, blend mode, visibility, merge down, flatten, and undo/redo', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(page.getByTestId('viewport-webgl-canvas')).toBeVisible();
+
+  // Select Color map ('1')
+  await page.keyboard.press('1');
+  await expect(page.getByTestId('map-layer-color')).toHaveAttribute('aria-pressed', 'true');
+
+  const layersPanel = page.getByTestId('active-map-layers-panel');
+  await expect(layersPanel).toBeVisible();
+  await expect(page.getByTestId('layer-row-layer-1')).toBeVisible();
+
+  // Add a new layer via UI button
+  await page.getByTestId('layer-add').click();
+  await expect(page.getByTestId('layer-row-layer-2')).toBeVisible();
+  await expect(page.getByTestId('map-layer-count-color')).toContainText('2L');
+
+  // Change blend mode on active layer (layer-2)
+  await page.getByTestId('layer-blend-mode').selectOption('add');
+  await expect(page.getByTestId('layer-row-layer-2')).toContainText('add');
+
+  // Toggle visibility on layer-2
+  await page.getByTestId('layer-visibility-layer-2').click();
+  await page.getByTestId('layer-visibility-layer-2').click();
+
+  // Duplicate layer via keyboard shortcut Alt+Shift+D
+  await page.keyboard.press('Alt+Shift+KeyD');
+  await expect(page.getByTestId('layer-row-layer-3')).toBeVisible();
+  await expect(page.getByTestId('map-layer-count-color')).toContainText('3L');
+
+  // Merge active layer down via keyboard shortcut Alt+Shift+E
+  await page.keyboard.press('Alt+Shift+KeyE');
+  await expect(page.getByTestId('layer-row-layer-3')).not.toBeVisible();
+  await expect(page.getByTestId('map-layer-count-color')).toContainText('2L');
+
+  // Undo merge down (Ctrl+Z) restores 3 layers
+  await page.keyboard.press('Control+KeyZ');
+  await expect(page.getByTestId('layer-row-layer-3')).toBeVisible();
+  await expect(page.getByTestId('map-layer-count-color')).toContainText('3L');
+
+  // Flatten all layers back to 1 layer
+  await page.getByTestId('layer-flatten').click();
+  await expect(page.getByTestId('layer-row-layer-1')).toBeVisible();
+  await expect(page.getByTestId('layer-row-layer-2')).not.toBeVisible();
+
+  // Switch to Height map ('2') and add layer with Alt+Shift+N
+  await page.keyboard.press('2');
+  await expect(page.getByTestId('map-layer-height')).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Alt+Shift+KeyN');
+  await expect(page.getByTestId('map-layer-count-height')).toContainText('2L');
+});

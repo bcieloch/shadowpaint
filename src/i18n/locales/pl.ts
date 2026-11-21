@@ -107,6 +107,7 @@ export const pl: TranslationDictionary = {
     importMap: 'Import ({map})',
     adjustment: 'Korekty ({map})',
     resetAdjustments: 'Reset korekt ({map})',
+    layerChange: 'Edycja warstw ({map})',
     settingsChange: 'Ustawienia projektu',
     selectShape: 'Zaznaczenie kształtem',
     selectWand: 'Zaznaczenie różdżką',
@@ -177,6 +178,37 @@ export const pl: TranslationDictionary = {
     lockedWarningColor: 'Mapa kolorów jest zablokowana — odblokuj ją, aby edytować.',
     lockedWarningHeight: 'Mapa wysokości jest zablokowana — odblokuj ją, aby edytować.',
     lockedWarningOpacity: 'Mapa przepuszczalności jest zablokowana — odblokuj ją, aby edytować.',
+    layersTitle: 'Warstwy — {map}',
+    layerCountBadge: '{count}W',
+    defaultLayerName: 'Warstwa {index}',
+    duplicateLayerName: '{name} (kopia)',
+    addLayer: 'Dodaj warstwę',
+    addLayerTooltip: 'Dodaj nową warstwę nad aktywną (Alt+Shift+N)',
+    duplicateLayer: 'Duplikuj warstwę',
+    duplicateLayerTooltip: 'Duplikuj aktywną warstwę (Alt+Shift+D)',
+    mergeDown: 'Scal w dół',
+    mergeDownTooltip: 'Scal aktywną warstwę z warstwą poniżej (Alt+Shift+E)',
+    flattenLayers: 'Spłaszcz',
+    flattenLayersTooltip: 'Spłaszcz wszystkie widoczne warstwy do jednej warstwy',
+    clearLayer: 'Wyczyść warstwę',
+    clearLayerTooltip: 'Wyczyść zawartość aktywnej warstwy',
+    deleteLayer: 'Usuń warstwę',
+    showLayer: 'Pokaż warstwę',
+    hideLayer: 'Ukryj warstwę',
+    lockLayer: 'Zablokuj warstwę',
+    unlockLayer: 'Odblokuj warstwę',
+    moveLayerUp: 'Przesuń warstwę wyżej',
+    moveLayerDown: 'Przesuń warstwę niżej',
+    renameLayer: 'Zmień nazwę warstwy',
+    layerOpacity: 'Krycie',
+    blendMode: 'Mieszanie',
+    blendNormal: 'Normalny',
+    blendAdd: 'Dodaj (+)',
+    blendSubtract: 'Odejmij (−)',
+    blendMultiply: 'Pomnóż (×)',
+    blendMax: 'Maksimum (Jaśniej)',
+    blendMin: 'Minimum (Ciemniej)',
+    baseLayerBadge: 'Baza',
   },
   tools: {
     sectionTitle: 'Narzędzia',
@@ -604,7 +636,8 @@ export const pl: TranslationDictionary = {
     tooltip: 'Status autozapisu — kliknij, aby otworzyć ostatnie projekty',
     recentButton: 'Ostatnie',
     recentButtonTooltip: 'Otwórz ostatnie projekty zapisane w przeglądarce',
-    quotaExceeded: 'Przekroczono limit pamięci przeglądarki. Usuń stare projekty, aby zwolnić miejsce.',
+    quotaExceeded:
+      'Przekroczono limit pamięci przeglądarki. Usuń stare projekty, aby zwolnić miejsce.',
     manageProjects: 'Ostatnie projekty',
     taskPackingRelief: 'Pakowanie archiwum projektu .relief…',
   },
@@ -631,7 +664,8 @@ export const pl: TranslationDictionary = {
     openFailedError: 'Nie udało się otworzyć „{file}”: {message}',
     saveFailedError: 'Nie udało się zapisać projektu: {message}',
     confirmUnsavedTitle: 'Niezapisane zmiany',
-    confirmUnsavedDescription: 'Bieżący projekt ma niezapisane zmiany. Otwarcie „{file}” je odrzuci.',
+    confirmUnsavedDescription:
+      'Bieżący projekt ma niezapisane zmiany. Otwarcie „{file}” je odrzuci.',
     confirmUnsavedAction: 'Odrzuć i otwórz',
   },
   recentProjects: {
@@ -661,7 +695,8 @@ export const pl: TranslationDictionary = {
     resetAll: 'Resetuj wszystkie do domyślnych',
     customizedBadge: 'Własny',
     fixedBadge: 'Stały',
-    conflictError: 'Skrót „{combo}” jest już przypisany do „{action}”. Wybierz inny klawisz lub najpierw go zresetuj.',
+    conflictError:
+      'Skrót „{combo}” jest już przypisany do „{action}”. Wybierz inny klawisz lub najpierw go zresetuj.',
     updatedToast: 'Przypisano „{action}” do {combo}',
     resetAllToast: 'Przywrócono domyślne skróty klawiszowe.',
     categories: {
@@ -698,6 +733,9 @@ export const pl: TranslationDictionary = {
       activeMap: 'Aktywuj mapę koloru',
       activeMapHeight: 'Aktywuj mapę wysokości',
       activeMapOpacity: 'Aktywuj mapę przepuszczalności',
+      layerAdd: 'Dodaj nową warstwę na aktywnej mapie',
+      layerDuplicate: 'Duplikuj aktywną warstwę',
+      layerMergeDown: 'Scal aktywną warstwę w dół',
       selectAll: 'Zaznacz wszystko',
       clearSelection: 'Odznacz',
       invertSelection: 'Odwróć zaznaczenie',
@@ -750,12 +788,12 @@ export const pl: TranslationDictionary = {
         tryAction: 'Otwórz Kreator importu',
       },
       mapsAndPainting: {
-        title: '2. Trzy powiązane mapy i fizyczne rzeźbienie pędzlem',
+        title: '2. Trzy powiązane mapy, stos warstw i fizyczne rzeźbienie pędzlem',
         summary:
-          'Maluj niezależnie na mapie Koloru (sRGB), Wysokości (fizyczna grubość w mm) oraz Przepuszczalności (liniowa transmisja światła %).',
+          'Maluj na mapie Koloru (sRGB), Wysokości (fizyczna grubość w mm) oraz Przepuszczalności (liniowa transmisja światła %), korzystając z niezależnego stosu warstw dla każdej mapy.',
         details:
-          'Przełączaj aktywną mapę klawiszami 1 (Kolor), 2 (Wysokość) lub 3 (Przepuszczalność) albo blokuj wybrane mapy kłódką. Pędzel (B) operuje bezpośrednio w milimetrach na mapie Wysokości (w trybach Ustaw, Podnieś i Obniż impast) oraz w procentach na mapie Przepuszczalności. Użyj Wygładzania (S) do relaksacji Laplace’a, Rozmycia (R), Gradientu (G), Wypełnienia (F) lub Gumki (E) przywracającej bazę.',
-        tip: 'Przełącz widok 2D mapy wysokości na Mapę cieplną (Turbo) lub Izolinie topograficzne, aby precyzyjnie kontrolować milimetrowe różnice grubości.',
+          'Przełączaj aktywną mapę klawiszami 1 (Kolor), 2 (Wysokość) lub 3 (Przepuszczalność). Każda mapa obsługuje wiele warstw: dodawaj warstwy (Alt+Shift+N), duplikuj (Alt+Shift+D), scalaj w dół (Alt+Shift+E), spłaszczaj, zmieniaj kolejność, blokuj, ukrywaj, reguluj krycie (0–100%) oraz wybieraj tryb mieszania (Normalny, Dodaj, Odejmij, Pomnóż, Maksimum, Minimum). Pędzel (B) operuje w milimetrach na mapie Wysokości (Ustaw, Podnieś, Obniż) oraz w procentach na mapie Przepuszczalności. Użyj Wygładzania (S), Rozmycia (R), Gradientu (G), Wypełnienia (F) lub Gumki (E).',
+        tip: 'Dodaj osobną warstwę na mapie Wysokości w trybie mieszania Dodaj (+) lub Maksimum, aby rzeźbić detale impastu bez naruszania bazowego reliefu.',
         tryAction: 'Włącz Pędzel na mapie Wysokości',
       },
       selectionAndAdjustments: {
@@ -781,7 +819,7 @@ export const pl: TranslationDictionary = {
         summary:
           'Mierz fizyczne odległości w cm i wycinaj profil przekroju 2D/3D pokazujący grubość farby (mm) oraz transmisję światła (%).',
         details:
-          'Włącz skalibrowaną siatkę cm (Ctrl+\') oraz linijki krawędziowe (Ctrl+R), aby precyzyjnie rozmieszczać elementy. Narzędzie Linijka (U) podaje długość odcinka w cm i px, Δx/Δy oraz kąt. Narzędzie Przekrój (X) pozwala przeciągnąć linię cięcia przez płótno i wyświetlić w zakładce Przekrój wykres grubości (mm) i przepuszczalności (%) ze zsynchronizowanym markerem 2D/3D oraz eksportem CSV.',
+          "Włącz skalibrowaną siatkę cm (Ctrl+') oraz linijki krawędziowe (Ctrl+R), aby precyzyjnie rozmieszczać elementy. Narzędzie Linijka (U) podaje długość odcinka w cm i px, Δx/Δy oraz kąt. Narzędzie Przekrój (X) pozwala przeciągnąć linię cięcia przez płótno i wyświetlić w zakładce Przekrój wykres grubości (mm) i przepuszczalności (%) ze zsynchronizowanym markerem 2D/3D oraz eksportem CSV.",
         tip: 'Przytrzymaj Shift podczas przeciągania Linijki (U), Przekroju (X) lub Gradientu (G), aby przyciągać kąt co 15°.',
         tryAction: 'Włącz narzędzie Przekrój i panel Przekrój',
       },
@@ -797,12 +835,12 @@ export const pl: TranslationDictionary = {
     },
     features: {
       mapsAndImport: {
-        title: 'Trzy mapy i kreator importu referencji',
-        subtitle: 'Bezstratne warstwy bazowe i robocze skalibrowane w jednostkach fizycznych',
+        title: 'Trzy mapy, stos warstw i kreator importu referencji',
+        subtitle: 'Bezstratne składanie wielu warstw skalibrowane w jednostkach fizycznych',
         bullet1:
           'Mapa kolorów (sRGB), Mapa wysokości (fizyczna grubość reliefu w mm, 0–50 mm) oraz Mapa przepuszczalności (liniowa transmisja tylnego światła 0%–100%).',
         bullet2:
-          'Każda mapa posiada osobną warstwę bazową (z importu), warstwę roboczą (malowaną), blokadę edycji oraz niezależne Cofanie dla aktywnej mapy (Ctrl+Alt+Z) obok globalnego Cofnij/Ponów (Ctrl+Z / Ctrl+Y).',
+          'Każda mapa posiada niezależny stos warstw (Dodaj Alt+Shift+N, Duplikuj Alt+Shift+D, Scal w dół Alt+Shift+E, Spłaszcz, zmiana kolejności, zmiana nazwy, widoczność, blokada, krycie 0–100% oraz tryby mieszania Normalny / Dodaj / Odejmij / Pomnóż / Maksimum / Minimum) oraz osobne Cofanie dla aktywnej mapy (Ctrl+Alt+Z) obok globalnego Cofnij/Ponów (Ctrl+Z / Ctrl+Y).',
         bullet3:
           'Kreator importu (Ctrl+I) obsługuje pliki PNG, JPG/JPEG oraz 8/16-bit TIFF z trybami Dopasuj, Wypełnij, Rozciągnij, obrotem o 90°, odbiciem H/V, interaktywnym kadrowaniem i porównaniem różnicowym.',
         bullet4:
@@ -814,7 +852,7 @@ export const pl: TranslationDictionary = {
         bullet1:
           'Pędzel (B) z rozmiarem w px lub fizycznych cm, twardością, przepływem, odstępem, naciskiem piórka oraz trybami impastu na mapie wysokości: Ustaw (mm), Podnieś (+mm) i Obniż (−mm).',
         bullet2:
-          'Gumka (E) przywracająca warstwę bazową; Pędzel wygładzający (S) z relaksacją Laplace’a; Pędzel rozmycia (R) z lokalnym filtrem Gaussa (liczonym asynchronicznie w workerze dla dużych promieni).',
+          'Gumka (E) przywracająca warstwę bazową (lub wymazująca warstwy dodatkowe do przezroczystości); Pędzel wygładzający (S) z relaksacją Laplace’a; Pędzel rozmycia (R) z lokalnym filtrem Gaussa (liczonym asynchronicznie w workerze dla dużych promieni).',
         bullet3:
           'Gradient liniowy i radialny (G) oraz Wypełnienie / Kubełek (F) z tolerancją i ciągłością obszaru, a także Zakraplacz (I) próbkujący kolor, grubość w mm lub przepuszczalność w %.',
         bullet4:
@@ -838,7 +876,7 @@ export const pl: TranslationDictionary = {
         bullet1:
           'Dwukierunkowe przeliczanie wymiarów w centymetrach (cm), rozdzielczości (px), skali (px/cm) oraz DPI — ze zmianą rozmiaru cm bez resamplingu oraz atomowym przeskalowaniem wszystkich warstw.',
         bullet2:
-          'Zsynchronizowana siatka pomiarowa 2D i shaderowa siatka 3D (Ctrl+\') z regulacją kroku cm, podpodziałów i etykiet oraz krawędziowe linijki centymetrowe 2D (Ctrl+R).',
+          "Zsynchronizowana siatka pomiarowa 2D i shaderowa siatka 3D (Ctrl+') z regulacją kroku cm, podpodziałów i etykiet oraz krawędziowe linijki centymetrowe 2D (Ctrl+R).",
         bullet3:
           'Linijka pomiarowa (U) z przesuwanymi końcami, przyciąganiem kąta co 15° (Shift) oraz odczytem długości w cm i px, Δx, Δy i kąta nachylenia.',
         bullet4:
@@ -955,7 +993,8 @@ export const pl: TranslationDictionary = {
     gridSubtitle: 'Siatka co {spacing} cm ({lastCol} × {lastRow})',
     gridColorCaption: 'Podziałka 1 cm · wzorzec sRGB',
     gridHeightCaption: 'Krok izolinii: {step} mm',
-    tileMeta: 'Kafelek {tileId} (Kol. {col}/{cols}, Wiersz {row}/{rows}) · X: {x0}–{x1} cm · Y: {y0}–{y1} cm',
+    tileMeta:
+      'Kafelek {tileId} (Kol. {col}/{cols}, Wiersz {row}/{rows}) · X: {x0}–{x1} cm · Y: {y0}–{y1} cm',
     tileOverlapNote: 'Skala 1:1 (1 cm = 10 mm) · Niebieskie linie przerywane: zakładka 1 cm',
     tileControlRulerLabel: 'Kontrola 10 cm — Drukuj w skali 100% / Rozmiar rzeczywisty',
     yes: 'Tak',

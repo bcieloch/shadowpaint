@@ -34,12 +34,21 @@ function hexToRgb255(hex: string): readonly [number, number, number] {
   return [Math.round(rgb01.r * 255), Math.round(rgb01.g * 255), Math.round(rgb01.b * 255)];
 }
 
+function isMapOrLayerLocked(mapId: MapId): boolean {
+  const project = useProjectStore.getState().project;
+  if (project.maps[mapId].locked) return true;
+  if (mapRegistry.isAllocated && mapRegistry.getMap(mapId).activeLayer.locked) return true;
+  return false;
+}
+
 function commitWorkerBufferWithTileHistory(params: {
   mapId: MapId;
   action: HistoryActionKind;
   dirtyRect: Rect;
   rgba8?: Uint8ClampedArray;
   scalar?: Float32Array;
+  sourceRgba8?: Uint8ClampedArray;
+  sourceScalar?: Float32Array;
 }): void {
   const project = useProjectStore.getState().project;
   const tx = new TileHistoryTransaction(mapRegistry, params.mapId, params.action, 'working');
@@ -47,20 +56,55 @@ function commitWorkerBufferWithTileHistory(params: {
 
   const width = mapRegistry.width;
   const rect = params.dirtyRect;
+  const buf = mapRegistry.getMap(params.mapId);
+  const isOverlay = buf.isOverlayLayerActive;
+  const layerMask = buf.activeMask;
 
   if (params.mapId === 'color' && params.rgba8) {
     const working = mapRegistry.color.working;
+    const refBuf = params.sourceRgba8 ?? working;
     for (let y = rect.y; y < rect.y + rect.h; y++) {
-      const start = (y * width + rect.x) * 4;
-      const end = start + rect.w * 4;
-      working.set(params.rgba8.subarray(start, end), start);
+      const rowOffset = y * width;
+      for (let x = rect.x; x < rect.x + rect.w; x++) {
+        const pxIdx = rowOffset + x;
+        const p = pxIdx * 4;
+        const nr = params.rgba8[p] ?? 0;
+        const ng = params.rgba8[p + 1] ?? 0;
+        const nb = params.rgba8[p + 2] ?? 0;
+        const changed =
+          !isOverlay ||
+          params.action === 'gradientFill' ||
+          nr !== (refBuf[p] ?? 0) ||
+          ng !== (refBuf[p + 1] ?? 0) ||
+          nb !== (refBuf[p + 2] ?? 0);
+        if (changed) {
+          working[p] = nr;
+          working[p + 1] = ng;
+          working[p + 2] = nb;
+          working[p + 3] = 255;
+          if (isOverlay) {
+            layerMask[pxIdx] = 255;
+          }
+        }
+      }
     }
   } else if (params.scalar) {
-    const working = mapRegistry.getMap(params.mapId).working as Float32Array;
+    const working = buf.working as Float32Array;
+    const refBuf = params.sourceScalar ?? working;
     for (let y = rect.y; y < rect.y + rect.h; y++) {
-      const start = y * width + rect.x;
-      const end = start + rect.w;
-      working.set(params.scalar.subarray(start, end), start);
+      const rowOffset = y * width;
+      for (let x = rect.x; x < rect.x + rect.w; x++) {
+        const pxIdx = rowOffset + x;
+        const nv = params.scalar[pxIdx] ?? 0;
+        const changed =
+          !isOverlay || params.action === 'gradientFill' || nv !== (refBuf[pxIdx] ?? 0);
+        if (changed) {
+          working[pxIdx] = nv;
+          if (isOverlay) {
+            layerMask[pxIdx] = 255;
+          }
+        }
+      }
     }
   }
 
@@ -74,6 +118,7 @@ function commitWorkerBufferWithTileHistory(params: {
 
 export async function applyRegionBlurStroke(params: ApplyRegionBlurStrokeParams): Promise<void> {
   if (!mapRegistry.isAllocated || params.kernelRadiusPx <= 0.25) return;
+  if (isMapOrLayerLocked(params.mapId)) return;
 
   const width = mapRegistry.width;
   const height = mapRegistry.height;
@@ -127,7 +172,7 @@ export async function applyRegionBlurStroke(params: ApplyRegionBlurStrokeParams)
     return;
   }
 
-  if (project.maps[params.mapId].locked) return;
+  if (isMapOrLayerLocked(params.mapId)) return;
 
   const tx = new TileHistoryTransaction(mapRegistry, params.mapId, 'blurStroke', 'working');
   tx.ensureTilesForRect(rect);
@@ -184,8 +229,8 @@ export async function applyGradientToActiveMap(params: {
   p1: Vec2;
 }): Promise<void> {
   if (!mapRegistry.isAllocated) return;
+  if (isMapOrLayerLocked(params.mapId)) return;
   const project = useProjectStore.getState().project;
-  if (project.maps[params.mapId].locked) return;
 
   const editor = useEditorStore.getState();
   const { width, height } = mapRegistry;
@@ -323,7 +368,7 @@ export async function applyGradientToActiveMap(params: {
     mapRegistry.width !== width ||
     mapRegistry.height !== height ||
     latestProject.id !== projectIdAtStart ||
-    latestProject.maps[params.mapId].locked ||
+    isMapOrLayerLocked(params.mapId) ||
     !dirtyRect ||
     isEmptyRect(dirtyRect)
   ) {
@@ -346,8 +391,8 @@ export async function applyFloodFillToActiveMap(params: {
   fillSelectionOnly?: boolean;
 }): Promise<void> {
   if (!mapRegistry.isAllocated) return;
+  if (isMapOrLayerLocked(params.mapId)) return;
   const project = useProjectStore.getState().project;
-  if (project.maps[params.mapId].locked) return;
 
   const editor = useEditorStore.getState();
   const { width, height } = mapRegistry;
@@ -367,13 +412,20 @@ export async function applyFloodFillToActiveMap(params: {
 
   let outRgba: Uint8ClampedArray | undefined;
   let outScalar: Float32Array | undefined;
+  let sourceRgba8: Uint8ClampedArray | undefined;
+  let sourceScalar: Float32Array | undefined;
   let dirtyRect: Rect | null;
+
+  const buf = mapRegistry.getMap(params.mapId);
+  const isOverlay = buf.isOverlayLayerActive;
 
   if (typeof Worker !== 'undefined') {
     const worker = getImageWorker();
     const maskCopy = mapRegistry.hasSelection ? new Uint8Array(mapRegistry.selection) : undefined;
     if (params.mapId === 'color') {
-      const workCopy = new Uint8ClampedArray(mapRegistry.color.working);
+      const srcBuf = isOverlay ? mapRegistry.color.getCompositeBuffer() : mapRegistry.color.working;
+      sourceRgba8 = isOverlay ? new Uint8ClampedArray(srcBuf) : undefined;
+      const workCopy = new Uint8ClampedArray(srcBuf);
       const transferables: Transferable[] = [workCopy.buffer];
       if (maskCopy) transferables.push(maskCopy.buffer);
       const res = await runTask(
@@ -403,7 +455,9 @@ export async function applyFloodFillToActiveMap(params: {
       outRgba = res.rgba8;
       dirtyRect = res.dirtyRect;
     } else {
-      const workCopy = new Float32Array(mapRegistry.getMap(params.mapId).working as Float32Array);
+      const scalarBuf = (isOverlay ? buf.getCompositeBuffer() : buf.working) as Float32Array;
+      sourceScalar = isOverlay ? new Float32Array(scalarBuf) : undefined;
+      const workCopy = new Float32Array(scalarBuf);
       const transferables: Transferable[] = [workCopy.buffer];
       if (maskCopy) transferables.push(maskCopy.buffer);
       const res = await runTask(
@@ -436,16 +490,18 @@ export async function applyFloodFillToActiveMap(params: {
   } else {
     const mask = mapRegistry.hasSelection ? mapRegistry.selection : undefined;
     if (params.mapId === 'color') {
+      const srcBuf = isOverlay ? mapRegistry.color.getCompositeBuffer() : mapRegistry.color.working;
+      sourceRgba8 = isOverlay ? new Uint8ClampedArray(srcBuf) : undefined;
       const res = params.fillSelectionOnly
         ? applySelectionFillRgba8({
-            working: mapRegistry.color.working,
+            working: srcBuf,
             width,
             height,
             targetRgb,
             mask,
           })
         : applyFloodFillRgba8({
-            working: mapRegistry.color.working,
+            working: srcBuf,
             width,
             height,
             seedX: params.seedX,
@@ -459,7 +515,8 @@ export async function applyFloodFillToActiveMap(params: {
       outRgba = res.out;
       dirtyRect = res.dirtyRect;
     } else {
-      const working = mapRegistry.getMap(params.mapId).working as Float32Array;
+      const working = (isOverlay ? buf.getCompositeBuffer() : buf.working) as Float32Array;
+      sourceScalar = isOverlay ? new Float32Array(working) : undefined;
       const res = params.fillSelectionOnly
         ? applySelectionFillFloat32({
             working,
@@ -491,7 +548,7 @@ export async function applyFloodFillToActiveMap(params: {
     mapRegistry.width !== width ||
     mapRegistry.height !== height ||
     latestProject.id !== projectIdAtStart ||
-    latestProject.maps[params.mapId].locked ||
+    isMapOrLayerLocked(params.mapId) ||
     !dirtyRect ||
     isEmptyRect(dirtyRect)
   ) {
@@ -504,6 +561,8 @@ export async function applyFloodFillToActiveMap(params: {
     dirtyRect,
     rgba8: outRgba,
     scalar: outScalar,
+    sourceRgba8,
+    sourceScalar,
   });
 }
 
