@@ -236,7 +236,7 @@ test.describe('MVP end-to-end verification', () => {
     const pdfLatin1 = new TextDecoder('latin1').decode(archive['documentation.pdf'] as Uint8Array);
     expect(pdfLatin1.startsWith('%PDF-')).toBe(true);
     expect(pdfLatin1.includes('DejaVuSans')).toBe(true);
-    expect((pdfLatin1.match(/\/Type\s*\/Page\b/g) ?? []).length).toBe(5);
+    expect((pdfLatin1.match(/\/Type\s*\/Page\b/g) ?? []).length).toBe(7);
 
     // 7. Full EN <-> PL live translation verification across all MVP tabs
     await page.getByTestId('lang-pl').click();

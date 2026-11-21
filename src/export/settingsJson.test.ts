@@ -15,6 +15,8 @@ describe('export settingsJson', () => {
         maxThicknessMm: 5,
       },
     });
+    project.export.gridSheetSpacingCm = 2.5;
+    project.export.includeTiles1to1 = true;
 
     const heightEffective = new Float32Array([0, 0.5, 1, 0.5]);
     const opacityEffective = new Float32Array([0.2, 0.4, 0.8, 1]);
@@ -40,9 +42,39 @@ describe('export settingsJson', () => {
     expect(json.stats.height).toEqual({ minMm: 0, maxMm: 5, meanMm: 2.5 });
     expect(json.stats.opacity).toEqual({ minPct: 20, maxPct: 100, meanPct: 60 });
     expect(json.exportedAt).toBe('2026-11-20T12:00:00.000Z');
+    expect(json.project.export.gridSheetSpacingCm).toBe(2.5);
+    expect(json.project.export.includeTiles1to1).toBe(true);
+    expect(json.project.lighting).toEqual(project.lighting);
+    expect(json.project.material).toEqual(project.material);
 
     const bytes = serializeSettingsJson(json);
     const parsed = JSON.parse(new TextDecoder().decode(bytes)) as typeof json;
     expect(parsed.project.name).toBe('Sunset Relief');
+  });
+
+  it('reflects colorPngAlpha colorType=6 and preserves map dimensions', () => {
+    const project = createDefaultProject({
+      name: 'RGBA Map Check',
+      canvas: {
+        widthCm: 20,
+        heightCm: 20,
+        widthPx: 640,
+        heightPx: 640,
+        minThicknessMm: 1,
+        maxThicknessMm: 9,
+      },
+    });
+    project.export.colorPngAlpha = true;
+
+    const json = buildExportSettingsJson({
+      project,
+      heightEffective: new Float32Array([0, 1]),
+      opacityEffective: new Float32Array([0.5, 0.5]),
+      exportedAt: '2026-11-20T12:00:00.000Z',
+    });
+
+    expect(json.maps['color_map.png']).toMatchObject({ width: 640, height: 640, colorType: 6, bitDepth: 8 });
+    expect(json.maps['height_map.png']).toMatchObject({ width: 640, height: 640, colorType: 0, bitDepth: 8 });
+    expect(json.maps['opacity_map.png']).toMatchObject({ width: 640, height: 640, colorType: 0, bitDepth: 8 });
   });
 });

@@ -90,10 +90,10 @@ export async function exportPackage(): Promise<void> {
         ctx.throwIfAborted();
         ctx.setProgress(0.05);
 
-        const previews = renderRequestedPreviews(
-          ['front', 'back', 'combined'],
-          project.export.previewLongestSide,
-        );
+        const renderSide = project.export.includePreviews
+          ? project.export.previewLongestSide
+          : Math.min(640, project.export.previewLongestSide);
+        const previews = renderRequestedPreviews(['front', 'back', 'combined'], renderSide);
         ctx.throwIfAborted();
         ctx.setProgress(0.15);
 
@@ -179,7 +179,7 @@ export async function exportSingleFile(kind: SingleExportKind): Promise<void> {
         if (kind === 'documentationPdf') {
           previews = renderRequestedPreviews(
             ['front', 'back', 'combined'],
-            project.export.previewLongestSide,
+            Math.min(640, project.export.previewLongestSide),
           );
         } else if (kind === 'previewFrontPng') {
           previews = renderRequestedPreviews(['front'], project.export.previewLongestSide);

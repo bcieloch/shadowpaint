@@ -1,5 +1,6 @@
+import { useRef } from 'react';
 import { Archive, Download, FileCode2, FileText, Image as ImageIcon } from 'lucide-react';
-import type { PdfOrientation, PdfPageSize } from '@/core/types';
+import type { ExportSettings, PdfOrientation, PdfPageSize } from '@/core/types';
 import type { SingleExportKind } from '@/export/package';
 import { exportPackage, exportSingleFile } from '@/services/exportService';
 import { recordSettingsPatchHistory } from '@/services/historyService';
@@ -17,6 +18,7 @@ import {
 import { Separator } from '@/ui/components/ui/separator';
 import { Switch } from '@/ui/components/ui/switch';
 import { useI18n } from '@/ui/hooks/useI18n';
+import { UnitNumberField } from '@/ui/widgets/UnitNumberField';
 
 export function ExportPanel() {
   const { t } = useI18n();
@@ -24,18 +26,24 @@ export function ExportPanel() {
   const exportSettings = useProjectStore((s) => s.project.export);
   const updateProject = useProjectStore((s) => s.updateProject);
   const isExporting = useUiStore((s) => s.tasks.length > 0);
+  const pendingExportBeforeRef = useRef<ExportSettings | null>(null);
 
-  const commitExportUpdate = (mutate: (draft: typeof exportSettings) => void) => {
-    const before = { ...useProjectStore.getState().project.export };
+  const commitExportUpdate = (mutate: (draft: ExportSettings) => void) => {
+    const before = pendingExportBeforeRef.current ?? {
+      ...useProjectStore.getState().project.export,
+    };
+    pendingExportBeforeRef.current = null;
     updateProject((projectDraft) => {
       mutate(projectDraft.export);
     }, true);
     const after = { ...useProjectStore.getState().project.export };
-    recordSettingsPatchHistory('settingsChange', {
-      path: 'export',
-      before,
-      after,
-    });
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      recordSettingsPatchHistory('settingsChange', {
+        path: 'export',
+        before,
+        after,
+      });
+    }
   };
 
   const orientationLabel =
@@ -178,31 +186,77 @@ export function ExportPanel() {
           </div>
         </div>
 
-        <div className="space-y-1">
-          <Label className="text-muted-foreground text-xs font-normal">
-            {t('export.previewResolution')}
-          </Label>
-          <Select
-            value={String(exportSettings.previewLongestSide)}
-            onValueChange={(v) =>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-muted-foreground text-xs font-normal">
+              {t('export.previewResolution')}
+            </Label>
+            <Select
+              value={String(exportSettings.previewLongestSide)}
+              onValueChange={(v) =>
+                commitExportUpdate((d) => {
+                  d.previewLongestSide = Number(v);
+                })
+              }
+            >
+              <SelectTrigger
+                size="sm"
+                className="h-7 font-mono text-xs"
+                data-testid="export-preview-size"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1024">1024 px</SelectItem>
+                <SelectItem value="2048">2048 px</SelectItem>
+                <SelectItem value="4096">4096 px</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <UnitNumberField
+            id="export-grid-spacing-cm"
+            label={t('export.gridSheetSpacingCm')}
+            value={exportSettings.gridSheetSpacingCm}
+            min={1}
+            max={50}
+            step={0.5}
+            decimals={1}
+            suffix="cm"
+            testId="export-grid-spacing-cm"
+            onValueChange={(val) => {
+              if (!pendingExportBeforeRef.current) {
+                pendingExportBeforeRef.current = { ...useProjectStore.getState().project.export };
+              }
+              updateProject((projectDraft) => {
+                projectDraft.export.gridSheetSpacingCm = Math.max(1, Math.min(50, val));
+              });
+            }}
+            onValueCommit={(val) =>
               commitExportUpdate((d) => {
-                d.previewLongestSide = Number(v);
+                d.gridSheetSpacingCm = Math.max(1, Math.min(50, val));
               })
             }
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <Label
+            htmlFor="export-include-tiles-1to1"
+            className="text-muted-foreground cursor-pointer text-xs font-normal"
           >
-            <SelectTrigger
-              size="sm"
-              className="h-7 font-mono text-xs"
-              data-testid="export-preview-size"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1024">1024 px</SelectItem>
-              <SelectItem value="2048">2048 px</SelectItem>
-              <SelectItem value="4096">4096 px</SelectItem>
-            </SelectContent>
-          </Select>
+            {t('export.includeTiles1to1')}
+          </Label>
+          <Switch
+            id="export-include-tiles-1to1"
+            checked={exportSettings.includeTiles1to1}
+            data-testid="export-include-tiles-1to1"
+            onCheckedChange={(checked) =>
+              commitExportUpdate((d) => {
+                d.includeTiles1to1 = checked;
+              })
+            }
+          />
         </div>
 
         <div className="flex items-center justify-between gap-2">
